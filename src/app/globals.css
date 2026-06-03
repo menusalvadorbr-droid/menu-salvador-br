@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+.menu-container {
+  background-color: var(--menu-bg);
+  color: var(--menu-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.tema-raiz-brasileira {
+  --menu-bg: #FFF5E6;
+  --menu-text: #4E342E;
+  --menu-accent: #D35400;
+  --menu-border: #8B4513;
+}
+
+.tema-bistro-elegante {
+  --menu-bg: #1A1A1A;
+  --menu-text: #EAEAEA;
+  --menu-accent: #D4AF37;
+  --menu-border: #333333;
+}
+
+.tema-rock-grill {
+  --menu-bg: #111111;
+  --menu-text: #EEEEEE;
+  --menu-accent: #C0392B;
+  --menu-border: #444444;
+}
+
+.tema-rustico-artesanal {
+  --menu-bg: #F5DEB3;
+  --menu-text: #5D4037;
+  --menu-accent: #8B4513;
+  --menu-border: #A0522D;
+}
+
+.tema-tropical-vibrante {
+  --menu-bg: #FFF9C4;
+  --menu-text: #E65100;
+  --menu-accent: #00C853;
+  --menu-border: #FF4081;
+}
