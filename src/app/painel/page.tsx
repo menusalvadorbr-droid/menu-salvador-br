@@ -15,14 +15,27 @@ const TEMAS_PADRAO = ['raiz-brasileira']
 // Componente DashboardMetrics (cards)
 // ----------------------------------------------------------------
 function DashboardMetrics({ estabelecimento, categorias, limitePlano }: any) {
-  const publicados = categorias.reduce((total, cat) => total + (cat.itens_cardapio || []).filter((i: any) => i.disponivel).length, 0)
+  const publicados = categorias.reduce((total: number, cat: any) => {
+    const itens = cat.itens_cardapio || [];
+    return total + itens.filter((i: any) => i.disponivel).length;
+  }, 0);
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-      <div className="bg-white rounded-xl p-6 shadow-sm"><p className="text-gray-500 text-sm">Scans QR Code</p><p className="text-3xl font-bold text-blue-600">{estabelecimento?.scans_qrcode || 0}</p></div>
-      <div className="bg-white rounded-xl p-6 shadow-sm"><p className="text-gray-500 text-sm">Itens Publicados</p><p className="text-3xl font-bold text-orange-600">{publicados} <span className="text-lg text-gray-400">/ {limitePlano}</span></p>{publicados >= limitePlano && <p className="text-xs text-red-500 mt-1">Limite atingido. Faça upgrade.</p>}</div>
-      <div className="bg-white rounded-xl p-6 shadow-sm"><p className="text-gray-500 text-sm">Categorias</p><p className="text-3xl font-bold text-purple-600">{categorias.length}</p></div>
+      <div className="bg-white rounded-xl p-6 shadow-sm">
+        <p className="text-gray-500 text-sm">Scans QR Code</p>
+        <p className="text-3xl font-bold text-blue-600">{estabelecimento?.scans_qrcode || 0}</p>
+      </div>
+      <div className="bg-white rounded-xl p-6 shadow-sm">
+        <p className="text-gray-500 text-sm">Itens Publicados</p>
+        <p className="text-3xl font-bold text-orange-600">{publicados} <span className="text-lg text-gray-400">/ {limitePlano}</span></p>
+        {publicados >= limitePlano && <p className="text-xs text-red-500 mt-1">Limite atingido. Faça upgrade.</p>}
+      </div>
+      <div className="bg-white rounded-xl p-6 shadow-sm">
+        <p className="text-gray-500 text-sm">Categorias</p>
+        <p className="text-3xl font-bold text-purple-600">{categorias.length}</p>
+      </div>
     </div>
-  )
+  );
 }
 
 // ----------------------------------------------------------------
@@ -144,7 +157,10 @@ function ItemRow({ item, modeloVisual, onEditarItem, onExcluirItem, onToggleProm
 // ListaCategorias (com promoções automáticas)
 // ----------------------------------------------------------------
 function ListaCategorias({ categorias, onAdicionarItem, onEditarItem, onPublicarItem, onExcluirItem, onTogglePromocao, limitePlano, modeloVisual }: any) {
-  const publicados = categorias.reduce((t: number, c: any) => t + (c.itens_cardapio || []).filter((i: any) => i.disponivel).length, 0)
+  const publicados = categorias.reduce((t: number, c: any) => {
+    const itens = c.itens_cardapio || [];
+    return t + itens.filter((i: any) => i.disponivel).length;
+  }, 0);
   const itensPromocao = categorias.flatMap((cat: any) => (cat.itens_cardapio || []).filter((item: any) => item.promocao_ativa && item.preco_promocional))
   const temPromocao = itensPromocao.length > 0
 
@@ -172,7 +188,7 @@ function ListaCategorias({ categorias, onAdicionarItem, onEditarItem, onPublicar
 }
 
 // ----------------------------------------------------------------
-// Componente GestaoPerfil (unificado, sem duplicações, sem plano atual, logo melhorado)
+// Componente GestaoPerfil (unificado, sem duplicações)
 // ----------------------------------------------------------------
 function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limitePlano, limiteGaleria, usuario }: any) {
   const [perfil, setPerfil] = useState({
@@ -182,7 +198,7 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
     endereco: '',
     cep: '',
     telefone: '',
-    whatsapp: '',        // ← adicionado
+    whatsapp: '',
     email: '',
     instagram: ''
   })
@@ -228,7 +244,6 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
 
   const salvarPerfil = async () => {
     setSalvando(true);
-    // Atualiza os dados básicos + whatsapp
     const { error } = await supabase
       .from('estabelecimentos')
       .update({
@@ -243,19 +258,16 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
         instagram: perfil.instagram
       })
       .eq('id', estabelecimento.id);
-    
     if (error) {
       console.error(error);
       alert('Erro ao salvar perfil: ' + error.message);
     } else {
-      // Atualiza também as configurações do WhatsApp (mensagem e ativo)
       await supabase
         .from('estabelecimentos')
         .update({
           whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo }
         })
         .eq('id', estabelecimento.id);
-      
       setEstabelecimento({ ...estabelecimento, ...perfil, whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo } });
       alert('Perfil atualizado com sucesso!');
     }
@@ -280,7 +292,7 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
 
   return (
     <div className="space-y-8">
-      {/* Perfil completo (inclui WhatsApp) */}
+      {/* Perfil completo */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">📝 Perfil do Estabelecimento</h3>{!editando && <button onClick={() => setEditando(true)} className="text-blue-600 text-sm">✏️ Editar</button>}</div>
         {editando ? (
@@ -290,7 +302,7 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
             <input type="text" value={perfil.bairro} onChange={e => setPerfil({...perfil, bairro: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Bairro" />
             <input type="text" value={perfil.cep} onChange={e => setPerfil({...perfil, cep: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="CEP" />
             <input type="text" value={perfil.telefone} onChange={e => setPerfil({...perfil, telefone: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Telefone" />
-            <input type="text" value={perfil.whatsapp} onChange={e => setPerfil({...perfil, whatsapp: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="WhatsApp (com DDD)" />
+            <input type="text" value={perfil.whatsapp} onChange={e => setPerfil({...perfil, whatsapp: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="WhatsApp" />
             <input type="text" value={perfil.instagram} onChange={e => setPerfil({...perfil, instagram: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Instagram" />
             <input type="email" value={perfil.email} onChange={e => setPerfil({...perfil, email: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Email" />
             <textarea value={perfil.descricao} onChange={e => setPerfil({...perfil, descricao: e.target.value})} className="border rounded-lg px-3 py-2 col-span-2" rows={3} placeholder="Descrição" />
@@ -311,7 +323,7 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
         )}
       </div>
 
-      {/* Imagens: Capa + Logo + Galeria */}
+      {/* Imagens */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <h3 className="font-bold text-lg mb-4">🖼️ Imagens</h3>
         <div className="space-y-6">
@@ -354,7 +366,7 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
         </div>
       </div>
 
-      {/* Configurações do WhatsApp (mensagem e ativo) */}
+      {/* WhatsApp */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <h3 className="font-bold text-lg mb-4">💬 Configurações do WhatsApp</h3>
         <div className="space-y-4">
@@ -416,6 +428,7 @@ export default function PainelDono() {
   const [novaCategoria, setNovaCategoria] = useState('')
   const [mostrarNovaCategoria, setMostrarNovaCategoria] = useState(false)
 
+  // Funções de persistência
   const salvarLayoutCardapio = async (layout: string) => {
     if (!estabelecimento) return
     const { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single()
@@ -532,13 +545,18 @@ export default function PainelDono() {
 
   const publicarItem = async (itemId: string, disponivel: boolean) => {
     if (!disponivel) {
-      const publicados = categorias.reduce((t, c) => t + (c.itens_cardapio || []).filter((i: any) => i.disponivel).length, 0)
+      const publicados = categorias.reduce((t: number, c: any) => {
+        const itens = c.itens_cardapio || [];
+        return t + itens.filter((i: any) => i.disponivel).length;
+      }, 0);
       if (publicados >= limitePlano) { alert(`Limite de ${limitePlano} itens. Faça upgrade.`); return }
     }
     await supabase.from('itens_cardapio').update({ disponivel: !disponivel }).eq('id', itemId)
     carregarCardapio(estabelecimento.id)
   }
+
   const excluirItem = async (id: string) => { if (confirm('Excluir?')) { await supabase.from('itens_cardapio').delete().eq('id', id); carregarCardapio(estabelecimento.id) } }
+
   const abrirEdicao = (item: any) => {
     setFormItem({
       nome: item.nome, descricao: item.descricao || '', preco: item.preco?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '',
@@ -548,10 +566,12 @@ export default function PainelDono() {
     })
     setCategoriaSelecionada(item.categoria_id); setItemEditandoId(item.id); setModoEdicao(true); setMostrarModal(true)
   }
+
   const togglePromocao = async (itemId: string, ativa: boolean) => {
     await supabase.from('itens_cardapio').update({ promocao_ativa: !ativa }).eq('id', itemId);
     carregarCardapio(estabelecimento.id);
   };
+
   const salvarItem = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!categoriaSelecionada || !formItem.nome || !formItem.preco) { alert('Preencha nome e preço!'); return }
@@ -571,6 +591,7 @@ export default function PainelDono() {
     if (error) alert('Erro: ' + error.message)
     else { setMostrarModal(false); limparForm(); carregarCardapio(estabelecimento.id) }
   }
+
   const criarCategoria = async () => {
     if (!novaCategoria || !estabelecimento) return
     let { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single()
@@ -581,7 +602,9 @@ export default function PainelDono() {
     await supabase.from('categorias').insert({ menu_id: menu.id, nome: novaCategoria, ordem: categorias.length })
     setNovaCategoria(''); setMostrarNovaCategoria(false); carregarCardapio(estabelecimento.id)
   }
+
   const limparForm = () => { setFormItem({ nome: '', descricao: '', preco: '', preco_promocional: '', promocao_ativa: false, promocao_titulo: '', desconto_percentual: '', disponivel: false, codigo: '', tags: '', foto_url: '', delivery_disponivel: false }); setCategoriaSelecionada(''); setModoEdicao(false); setItemEditandoId(null) }
+
   const sair = () => { localStorage.removeItem('usuario'); router.push('/login') }
 
   useEffect(() => {
