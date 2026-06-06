@@ -118,7 +118,7 @@ function ItemRow({ item, modeloVisual, onEditarItem, onExcluirItem, onToggleProm
               {promocao && <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded">🎉 PROMO</span>}
               {!item.disponivel && <span className="text-xs bg-gray-300 text-gray-600 px-1.5 py-0.5 rounded">Oculto</span>}
             </div>
-            {item.descricao && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.descricao}</p>}
+            {item.descricao && <p className="text-xs text-gray-500 mt-1 line-clamp-2" whitespace-pre-wrap>{item.descricao}</p>}
             <div className="flex items-center gap-2 mt-2">
               {promocao ? (<><span className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</span><span className="font-bold text-green-600">R$ {fmt(item.preco_promocional)}</span>{item.desconto_percentual && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">-{item.desconto_percentual}%</span>}</>) : (<span className="font-bold text-gray-900">R$ {fmt(item.preco)}</span>)}
               {item.tags && item.tags.length > 0 && <div className="flex flex-wrap gap-1">{item.tags.map((tag: string) => <span key={tag} className="text-xs bg-gray-100 border px-1.5 py-0.5 rounded-full">{tag}</span>)}</div>}
@@ -136,7 +136,7 @@ function ItemRow({ item, modeloVisual, onEditarItem, onExcluirItem, onToggleProm
             {promocao && <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded">🎉 PROMO</span>}
             {!item.disponivel && <span className="text-xs bg-gray-300 text-gray-600 px-1.5 py-0.5 rounded">Oculto</span>}
           </div>
-          {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+          {item.descricao && <p className="text-xs text-gray-500 mt-1" whitespace-pre-wrap>{item.descricao}</p>}
           <div className="flex items-center gap-2 mt-1">
             {promocao ? (<><span className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</span><span className="font-bold text-green-600">R$ {fmt(item.preco_promocional)}</span></>) : (<span className="font-bold text-gray-900">R$ {fmt(item.preco)}</span>)}
           </div>
@@ -188,7 +188,7 @@ function ListaCategorias({ categorias, onAdicionarItem, onEditarItem, onPublicar
 }
 
 // ----------------------------------------------------------------
-// Componente GestaoPerfil (unificado, sem duplicações)
+// Componente GestaoPerfil (com consulta automática de CNPJ)
 // ----------------------------------------------------------------
 function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limitePlano, limiteGaleria, usuario }: any) {
   const [perfil, setPerfil] = useState({
@@ -200,14 +200,44 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
     telefone: '',
     whatsapp: '',
     email: '',
-    instagram: ''
+    instagram: '',
+    cnpj: '',
   })
   const [editando, setEditando] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [whatsappMensagem, setWhatsappMensagem] = useState('')
   const [whatsappAtivo, setWhatsappAtivo] = useState(false)
   const [horarios, setHorarios] = useState<any[]>([])
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false)
+
   const DIAS_SEMANA = [{valor:0,nome:'Domingo'},{valor:1,nome:'Segunda'},{valor:2,nome:'Terça'},{valor:3,nome:'Quarta'},{valor:4,nome:'Quinta'},{valor:5,nome:'Sexta'},{valor:6,nome:'Sábado'}]
+
+  // Função para buscar dados do CNPJ (BrasilAPI)
+  const buscarCnpj = async (cnpj: string) => {
+    if (cnpj.length !== 14) return;
+    setBuscandoCnpj(true);
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+      if (!res.ok) throw new Error('CNPJ não encontrado');
+      const data = await res.json();
+      if (data) {
+        setPerfil(prev => ({
+          ...prev,
+          nome: data.razao_social || data.nome_fantasia || prev.nome,
+          endereco: `${data.logradouro || ''}, ${data.numero || ''} - ${data.bairro || ''}`.trim(),
+          bairro: data.bairro || '',
+          cep: data.cep || '',
+          telefone: data.ddd_telefone_1 || '',
+        }));
+        alert('Dados preenchidos automaticamente. Verifique e corrija se necessário.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao consultar CNPJ. Verifique o número digitado ou tente novamente.');
+    } finally {
+      setBuscandoCnpj(false);
+    }
+  };
 
   useEffect(() => {
     if (estabelecimento) {
@@ -220,7 +250,8 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
         telefone: estabelecimento.telefone || '',
         whatsapp: estabelecimento.whatsapp || '',
         email: estabelecimento.email || '',
-        instagram: estabelecimento.instagram || ''
+        instagram: estabelecimento.instagram || '',
+        cnpj: estabelecimento.cnpj || '',
       })
       setWhatsappMensagem(estabelecimento.whatsapp_config?.mensagem_padrao || 'Olá! Vim pelo cardápio digital.')
       setWhatsappAtivo(estabelecimento.whatsapp_config?.ativo ?? !!estabelecimento.whatsapp)
@@ -255,7 +286,8 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
         telefone: perfil.telefone,
         whatsapp: perfil.whatsapp,
         email: perfil.email,
-        instagram: perfil.instagram
+        instagram: perfil.instagram,
+        cnpj: perfil.cnpj,
       })
       .eq('id', estabelecimento.id);
     if (error) {
@@ -297,7 +329,21 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
         <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">📝 Perfil do Estabelecimento</h3>{!editando && <button onClick={() => setEditando(true)} className="text-blue-600 text-sm">✏️ Editar</button>}</div>
         {editando ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" value={perfil.nome} onChange={e => setPerfil({...perfil, nome: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Nome" />
+            {/* CNPJ com auto preenchimento */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ (apenas números)</label>
+              <input
+                type="text"
+                value={perfil.cnpj}
+                onChange={(e) => setPerfil({...perfil, cnpj: e.target.value.replace(/\D/g, '')})}
+                onBlur={() => buscarCnpj(perfil.cnpj)}
+                className="border rounded-lg px-3 py-2 w-full"
+                placeholder="00000000000191"
+                maxLength={14}
+              />
+              {buscandoCnpj && <span className="text-xs text-gray-400">Buscando...</span>}
+            </div>
+            <input type="text" value={perfil.nome} onChange={e => setPerfil({...perfil, nome: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Nome do estabelecimento" />
             <input type="text" value={perfil.endereco} onChange={e => setPerfil({...perfil, endereco: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Endereço" />
             <input type="text" value={perfil.bairro} onChange={e => setPerfil({...perfil, bairro: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Bairro" />
             <input type="text" value={perfil.cep} onChange={e => setPerfil({...perfil, cep: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="CEP" />
@@ -310,6 +356,7 @@ function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limiteP
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {perfil.cnpj && <div><span className="text-gray-500">CNPJ:</span> <p className="font-medium">{perfil.cnpj}</p></div>}
             <div><span className="text-gray-500">Nome:</span> <p className="font-medium">{perfil.nome}</p></div>
             <div><span className="text-gray-500">Endereço:</span> <p className="font-medium">{perfil.endereco}</p></div>
             <div><span className="text-gray-500">Bairro:</span> <p className="font-medium">{perfil.bairro}</p></div>

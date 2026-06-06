@@ -111,7 +111,7 @@ function ItemCard({
                 )}
               </div>
             </div>
-            {item.descricao && <p className="text-sm text-gray-600 mt-1 line-clamp-2">{item.descricao}</p>}
+            {item.descricao && <p className="text-sm text-gray-600 mt-1 line-clamp-2" whitespace-pre-wraps>{item.descricao}</p>}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {item.tags.map((tag: string) => (

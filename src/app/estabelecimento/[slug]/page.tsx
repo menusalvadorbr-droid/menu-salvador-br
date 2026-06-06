@@ -48,7 +48,7 @@ function ItemCardPerfil({
               <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
               {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">Promoção</span>}
             </div>
-            {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+            {item.descricao && <p className="text-xs text-gray-500 mt-1 text-justify">{item.descricao}</p>}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {item.tags.map((tag: string) => (
@@ -103,7 +103,7 @@ function ItemCardPerfil({
                 )}
               </div>
             </div>
-            {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+            {item.descricao && <p className="text-xs text-gray-500 mt-1 text-justify">{item.descricao}</p>}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {item.tags.map((tag: string) => (
@@ -134,7 +134,7 @@ function ItemCardPerfil({
             <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
             {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">Promoção</span>}
           </div>
-          {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+          {item.descricao && <p className="text-xs text-gray-500 mt-1" text-justify>{item.descricao}</p>}
           {item.tags && item.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {item.tags.map((tag: string) => (
