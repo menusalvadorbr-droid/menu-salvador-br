@@ -41,6 +41,7 @@ export default function PerfilEstabelecimento() {
   })
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null)
   const [mostrarCardapio, setMostrarCardapio] = useState(false)
+  const [temItensDelivery, setTemItensDelivery] = useState(false)
 
   useEffect(() => {
     async function carregarEstabelecimento() {
@@ -121,6 +122,12 @@ export default function PerfilEstabelecimento() {
         .order('ordem')
 
       if (cats) {
+        // Verificar se existem itens delivery
+        const itensDelivery = cats
+          .flatMap((cat: any) => cat.itens_cardapio || [])
+          .filter((item: any) => item.delivery_disponivel)
+        setTemItensDelivery(itensDelivery.length > 0)
+
         const processadas = cats
           .map((cat: any) => ({
             ...cat,
@@ -424,26 +431,16 @@ export default function PerfilEstabelecimento() {
         </div>
       </div>
 
-      {/* Botão flutuante GRANDE - DELIVERY ou PEDIR */}
-      {estabelecimento.whatsapp && (
+      {/* Botão flutuante - só aparece se tiver WhatsApp E itens delivery */}
+      {estabelecimento.whatsapp && temItensDelivery && (
         <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6">
-          {estabelecimento.recursos_ativos?.includes('delivery') ? (
-            <Link
-              href={`/menu/${estabelecimento.qrcode_short_url}`}
-              className="bg-red-600 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-2 text-lg font-bold hover:bg-red-700 transition animate-bounce"
-              title="Fazer Pedido Delivery"
-            >
-              🛵 DELIVERY
-            </Link>
-          ) : (
-            <Link
-              href={`/menu/${estabelecimento.qrcode_short_url}`}
-              className="bg-red-600 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-2 text-lg font-bold hover:bg-red-700 transition"
-              title="Ver Cardápio"
-            >
-              📱 PEDIR
-            </Link>
-          )}
+          <Link
+            href={`/menu/${estabelecimento.qrcode_short_url}`}
+            className="bg-red-600 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-2 text-lg font-bold hover:bg-red-700 transition animate-bounce"
+            title="Fazer Pedido Delivery"
+          >
+            🛵 DELIVERY
+          </Link>
         </div>
       )}
 

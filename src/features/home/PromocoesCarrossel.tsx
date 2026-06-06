@@ -100,6 +100,12 @@ export default function PromocoesCarrossel() {
     const qrcode = estabelecimento?.qrcode_short_url
     const card = (
       <div className="bg-white/10 backdrop-blur rounded-xl p-4 w-[250px] flex-shrink-0 mx-2">
+        {/* Foto do item */}
+        {item.foto_url && (
+          <div className="w-full h-32 mb-2 rounded-lg overflow-hidden">
+            <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+          </div>
+        )}
         <div className="text-sm opacity-75 mb-1">
           {estabelecimento?.nome || 'Restaurante'}
         </div>
@@ -143,16 +149,11 @@ export default function PromocoesCarrossel() {
           <div
             ref={containerRef}
             className="flex gap-4 overflow-x-auto pb-4 mx-10"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              scrollSnapType: 'x mandatory',
-            }}
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x mandatory' }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
           >
             {cards}
-            {/* Duplicar cards para efeito infinito */}
             {cards}
           </div>
         </div>
