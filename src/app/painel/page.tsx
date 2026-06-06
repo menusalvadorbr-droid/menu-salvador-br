@@ -593,22 +593,25 @@ export default function PainelDono() {
   }
 
   const criarCategoria = async () => {
-  if (!novaCategoria || !estabelecimento) return;
-  let { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single();
-  if (!menu) {
-    const { data: novoMenu, error: erroMenu } = await supabase.from('menus').insert({ estabelecimento_id: estabelecimento.id, nome: 'Cardápio Principal', tema: 'raiz-brasileira', ativo: true }).select('id').single();
-    if (erroMenu || !novoMenu) {
-      alert('Erro ao criar menu: ' + erroMenu?.message);
-      return;
+    if (!novaCategoria || !estabelecimento) return
+    let { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single()
+    if (!menu) {
+      const { data: novoMenu, error: erroMenu } = await supabase
+        .from('menus')
+        .insert({ estabelecimento_id: estabelecimento.id, nome: 'Cardápio Principal', tema: 'raiz-brasileira', ativo: true })
+        .select('id')
+        .single()
+      if (erroMenu || !novoMenu) {
+        alert('Erro ao criar menu: ' + erroMenu?.message)
+        return
+      }
+      menu = novoMenu
     }
-    menu = novoMenu;
+    await supabase.from('categorias').insert({ menu_id: menu.id, nome: novaCategoria, ordem: categorias.length })
+    setNovaCategoria('')
+    setMostrarNovaCategoria(false)
+    carregarCardapio(estabelecimento.id)
   }
-  // Agora menu com certeza não é null
-  await supabase.from('categorias').insert({ menu_id: menu.id, nome: novaCategoria, ordem: categorias.length });
-  setNovaCategoria('');
-  setMostrarNovaCategoria(false);
-  carregarCardapio(estabelecimento.id);
-};
 
   const limparForm = () => { setFormItem({ nome: '', descricao: '', preco: '', preco_promocional: '', promocao_ativa: false, promocao_titulo: '', desconto_percentual: '', disponivel: false, codigo: '', tags: '', foto_url: '', delivery_disponivel: false }); setCategoriaSelecionada(''); setModoEdicao(false); setItemEditandoId(null) }
 
@@ -686,7 +689,16 @@ export default function PainelDono() {
                   <button onClick={() => setMostrarNovaCategoria(true)} className="border-2 border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm">➕ Nova Categoria</button>
                 </div>
               </div>
-              <ListaCategorias categorias={categorias} onAdicionarItem={(catId) => { setCategoriaSelecionada(catId); setModoEdicao(false); setMostrarModal(true) }} onEditarItem={abrirEdicao} onPublicarItem={publicarItem} onExcluirItem={excluirItem} onTogglePromocao={togglePromocao} limitePlano={limitePlano} modeloVisual={modeloVisual} />
+              <ListaCategorias
+                categorias={categorias}
+                onAdicionarItem={(catId: string) => { setCategoriaSelecionada(catId); setModoEdicao(false); setMostrarModal(true) }}
+                onEditarItem={abrirEdicao}
+                onPublicarItem={publicarItem}
+                onExcluirItem={excluirItem}
+                onTogglePromocao={togglePromocao}
+                limitePlano={limitePlano}
+                modeloVisual={modeloVisual}
+              />
             </div>
           )}
           {abaAtiva === 'qrcode' && (
