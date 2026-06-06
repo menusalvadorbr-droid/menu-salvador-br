@@ -1,3 +1,4 @@
+// src/app/estabelecimento/[slug]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -23,6 +24,140 @@ function getCloudinaryUrl(url: string | null, width: number, height: number): st
   return url.replace('/upload/', `/upload/w_${width},h_${height},c_fill/`)
 }
 
+// Componente interno para exibir um item com os 3 layouts
+function ItemCardPerfil({
+  item,
+  layout,
+  onAbrirLightbox,
+}: {
+  item: any
+  layout: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
+  onAbrirLightbox: (src: string) => void
+}) {
+  const promocao = item.promocao_ativa && item.preco_promocional
+  const precoAtual = promocao ? item.preco_promocional : item.preco
+  const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'
+  const nomeExibicao = item.codigo ? `${item.codigo} - ${item.nome}` : item.nome
+
+  if (layout === 'sem-foto') {
+    return (
+      <div className={`p-3 rounded-lg transition ${promocao ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'}`}>
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
+              {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">Promoção</span>}
+            </div>
+            {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {item.tags.map((tag: string) => (
+                  <span key={tag} className="text-xs bg-white border px-1.5 py-0.5 rounded-full text-gray-500">{tag}</span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="text-right flex-shrink-0">
+            {promocao ? (
+              <>
+                <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
+                <div className="text-lg font-bold text-green-600">R$ {fmt(item.preco_promocional)}</div>
+              </>
+            ) : (
+              <div className="text-base font-bold text-gray-900">R$ {fmt(item.preco)}</div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (layout === 'foto-esquerda') {
+    return (
+      <div className={`p-3 rounded-lg transition ${promocao ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'}`}>
+        <div className="flex gap-3">
+          {/* Foto */}
+          {item.foto_url && (
+            <div
+              className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden cursor-pointer"
+              onClick={() => onAbrirLightbox(item.foto_url)}
+            >
+              <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover hover:scale-105 transition" />
+            </div>
+          )}
+          {/* Dados */}
+          <div className="flex-1">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
+                {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded mt-1 inline-block">Promoção</span>}
+              </div>
+              <div className="text-right">
+                {promocao ? (
+                  <>
+                    <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
+                    <div className="text-lg font-bold text-green-600">R$ {fmt(item.preco_promocional)}</div>
+                  </>
+                ) : (
+                  <div className="text-base font-bold text-gray-900">R$ {fmt(item.preco)}</div>
+                )}
+              </div>
+            </div>
+            {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {item.tags.map((tag: string) => (
+                  <span key={tag} className="text-xs bg-white border px-1.5 py-0.5 rounded-full text-gray-500">{tag}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // layout === 'foto-topo'
+  return (
+    <div className={`p-3 rounded-lg transition ${promocao ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'}`}>
+      {item.foto_url && (
+        <div
+          className="w-full h-32 mb-2 rounded-lg overflow-hidden cursor-pointer"
+          onClick={() => onAbrirLightbox(item.foto_url)}
+        >
+          <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover hover:scale-105 transition" />
+        </div>
+      )}
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
+            {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">Promoção</span>}
+          </div>
+          {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
+          {item.tags && item.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {item.tags.map((tag: string) => (
+                <span key={tag} className="text-xs bg-white border px-1.5 py-0.5 rounded-full text-gray-500">{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="text-right flex-shrink-0">
+          {promocao ? (
+            <>
+              <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
+              <div className="text-lg font-bold text-green-600">R$ {fmt(item.preco_promocional)}</div>
+            </>
+          ) : (
+            <div className="text-base font-bold text-gray-900">R$ {fmt(item.preco)}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PerfilEstabelecimento() {
   const params = useParams()
   const slug = params.slug as string
@@ -42,6 +177,7 @@ export default function PerfilEstabelecimento() {
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null)
   const [mostrarCardapio, setMostrarCardapio] = useState(false)
   const [temItensDelivery, setTemItensDelivery] = useState(false)
+  const [layoutCardapio, setLayoutCardapio] = useState<'sem-foto' | 'foto-esquerda' | 'foto-topo'>('foto-esquerda')
 
   useEffect(() => {
     async function carregarEstabelecimento() {
@@ -107,14 +243,17 @@ export default function PerfilEstabelecimento() {
   }, [horarios])
 
   const carregarCardapio = async (estabId: string) => {
+    // Buscar menu e layout_cardapio
     const { data: menu } = await supabase
       .from('menus')
-      .select('id')
+      .select('id, layout_cardapio')
       .eq('estabelecimento_id', estabId)
       .eq('ativo', true)
       .single()
 
     if (menu) {
+      if (menu.layout_cardapio) setLayoutCardapio(menu.layout_cardapio)
+
       const { data: cats } = await supabase
         .from('categorias')
         .select('*, itens_cardapio(*)')
@@ -137,14 +276,20 @@ export default function PerfilEstabelecimento() {
           }))
           .filter((cat: any) => cat.itens_cardapio.length > 0)
 
-        const promocoes = processadas.filter(
-          (cat: any) => cat.eh_promocao || cat.itens_cardapio.some((i: any) => i.promocao_ativa)
-        )
-        const normais = processadas.filter(
-          (cat: any) => !cat.eh_promocao && !cat.itens_cardapio.some((i: any) => i.promocao_ativa)
-        )
-
-        setCategorias([...promocoes, ...normais])
+        // Separar categorias com promoção e sem promoção (manter duplicado como no menu)
+        const promocoesItens = processadas.flatMap(cat => cat.itens_cardapio.filter((i: any) => i.promocao_ativa))
+        const categoriasFinais = []
+        if (promocoesItens.length > 0) {
+          categoriasFinais.push({
+            id: '__promocoes__',
+            nome: '🎉 Promoções',
+            eh_promocao: true,
+            itens_cardapio: promocoesItens,
+          })
+        }
+        // Adicionar todas as categorias originais (com todos os itens, inclusive promocionais)
+        categoriasFinais.push(...processadas)
+        setCategorias(categoriasFinais)
       }
     }
   }
@@ -280,6 +425,19 @@ export default function PerfilEstabelecimento() {
                 )}
               </div>
             </div>
+{/* Galeria de Fotos */}
+{estabelecimento.galeria_fotos && estabelecimento.galeria_fotos.length > 0 && (
+  <div className="mb-6">
+    <h2 className="text-lg font-bold text-gray-800 mb-3">📸 Galeria</h2>
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      {estabelecimento.galeria_fotos.map((url: string, idx: number) => (
+        <div key={idx} className="cursor-pointer rounded-lg overflow-hidden aspect-square bg-gray-100" onClick={() => setLightboxSrc(url)}>
+          <img src={url} alt={`Foto ${idx+1}`} className="w-full h-full object-cover hover:scale-105 transition" />
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
             {/* Horários */}
             <div className="bg-white rounded-xl p-5 shadow-sm">
@@ -337,7 +495,7 @@ export default function PerfilEstabelecimento() {
           </button>
         </div>
 
-        {/* Cardápio (expansível) */}
+        {/* Cardápio (expansível) - agora usando layout dinâmico */}
         {mostrarCardapio && (
           <div id="cardapio-section" className="bg-white rounded-xl p-5 shadow-sm mb-6">
             <h2 className="text-lg font-bold text-gray-800 mb-4">📋 Cardápio</h2>
@@ -361,54 +519,14 @@ export default function PerfilEstabelecimento() {
                       </button>
                       {isOpen && (
                         <div className="p-4 space-y-3">
-                          {(cat.itens_cardapio || []).map((item: any) => {
-                            const promocao = item.promocao_ativa && item.preco_promocional
-                            return (
-                              <div key={item.id}
-                                className={`p-3 rounded-lg transition ${promocao ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'}`}>
-                                <div className="flex justify-between items-start gap-3">
-                                  <div className="flex-1">
-                                    {item.foto_url && (
-                                      <div className="w-full h-32 mb-2 rounded-lg overflow-hidden cursor-pointer"
-                                        onClick={() => setLightboxSrc(item.foto_url)}>
-                                        <img src={item.foto_url} alt={item.nome}
-                                          className="w-full h-full object-cover hover:scale-105 transition" />
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      {item.codigo && (
-                                        <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">#{item.codigo}</span>
-                                      )}
-                                      <h4 className="font-semibold text-gray-900 text-sm">{item.nome}</h4>
-                                      {item.promocao_ativa && (
-                                        <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded animate-pulse">
-                                          {item.promocao_titulo || 'Promoção!'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
-                                    {item.tags && item.tags.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1.5">
-                                        {item.tags.map((tag: string) => (
-                                          <span key={tag} className="text-xs bg-white border px-1.5 py-0.5 rounded-full text-gray-500">{tag}</span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="text-right flex-shrink-0">
-                                    {promocao ? (
-                                      <>
-                                        <div className="text-xs text-gray-400 line-through">R$ {item.preco?.toFixed(2)}</div>
-                                        <div className="text-lg font-bold text-green-600">R$ {item.preco_promocional?.toFixed(2)}</div>
-                                      </>
-                                    ) : (
-                                      <div className="text-base font-bold text-gray-900">R$ {item.preco?.toFixed(2)}</div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
+                          {(cat.itens_cardapio || []).map((item: any) => (
+                            <ItemCardPerfil
+                              key={item.id}
+                              item={item}
+                              layout={layoutCardapio}
+                              onAbrirLightbox={setLightboxSrc}
+                            />
+                          ))}
                         </div>
                       )}
                     </div>
