@@ -593,15 +593,22 @@ export default function PainelDono() {
   }
 
   const criarCategoria = async () => {
-    if (!novaCategoria || !estabelecimento) return
-    let { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single()
-    if (!menu) {
-      const { data: novoMenu } = await supabase.from('menus').insert({ estabelecimento_id: estabelecimento.id, nome: 'Cardápio Principal', tema: 'raiz-brasileira', ativo: true }).select('id').single()
-      menu = novoMenu
+  if (!novaCategoria || !estabelecimento) return;
+  let { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single();
+  if (!menu) {
+    const { data: novoMenu, error: erroMenu } = await supabase.from('menus').insert({ estabelecimento_id: estabelecimento.id, nome: 'Cardápio Principal', tema: 'raiz-brasileira', ativo: true }).select('id').single();
+    if (erroMenu || !novoMenu) {
+      alert('Erro ao criar menu: ' + erroMenu?.message);
+      return;
     }
-    await supabase.from('categorias').insert({ menu_id: menu.id, nome: novaCategoria, ordem: categorias.length })
-    setNovaCategoria(''); setMostrarNovaCategoria(false); carregarCardapio(estabelecimento.id)
+    menu = novoMenu;
   }
+  // Agora menu com certeza não é null
+  await supabase.from('categorias').insert({ menu_id: menu.id, nome: novaCategoria, ordem: categorias.length });
+  setNovaCategoria('');
+  setMostrarNovaCategoria(false);
+  carregarCardapio(estabelecimento.id);
+};
 
   const limparForm = () => { setFormItem({ nome: '', descricao: '', preco: '', preco_promocional: '', promocao_ativa: false, promocao_titulo: '', desconto_percentual: '', disponivel: false, codigo: '', tags: '', foto_url: '', delivery_disponivel: false }); setCategoriaSelecionada(''); setModoEdicao(false); setItemEditandoId(null) }
 
