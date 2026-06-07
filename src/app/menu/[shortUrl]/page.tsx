@@ -28,23 +28,16 @@ function ItemCard({
 }) {
   const promocao = item.promocao_ativa && item.preco_promocional
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'
-  
-  // Código com fonte maior
-  const codigoElem = item.codigo ? (
-    <span className="font-bold text-lg text-gray-800">{item.codigo}</span>
-  ) : null
+  const nomeExibicao = item.codigo ? `${item.codigo} - ${item.nome}` : item.nome
 
-  // Nome completo com hífen
-  const nomeCompleto = item.codigo ? ` - ${item.nome}` : item.nome
-
+  // Layout sem foto
   if (layout === 'sem-foto') {
     return (
       <div className={`p-4 rounded-xl transition ${promocao ? 'bg-red-50 border-2 border-red-200' : 'bg-white border border-gray-100 shadow-sm'}`}>
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              {codigoElem}
-              <span className="font-semibold text-gray-900">{nomeCompleto}</span>
+              <h3 className="font-semibold text-gray-900">{nomeExibicao}</h3>
               {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded animate-pulse">Promoção</span>}
             </div>
             {item.descricao && <p className="text-sm text-gray-600 mt-1">{item.descricao}</p>}
@@ -79,10 +72,12 @@ function ItemCard({
     )
   }
 
+  // Layout foto à esquerda
   if (layout === 'foto-esquerda') {
     return (
       <div className={`p-4 rounded-xl transition ${promocao ? 'bg-red-50 border-2 border-red-200' : 'bg-white border border-gray-100 shadow-sm hover:shadow-md'}`}>
         <div className="flex gap-3">
+          {/* Foto */}
           <div
             className="w-20 h-20 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden cursor-pointer"
             onClick={() => item.foto_url && onAbrirLightbox(item.foto_url)}
@@ -93,12 +88,12 @@ function ItemCard({
               <div className="w-full h-full flex items-center justify-center text-3xl">🍽️</div>
             )}
           </div>
+          {/* Dados */}
           <div className="flex-1">
             <div className="flex justify-between items-start">
-              <div className="flex flex-wrap items-center gap-1">
-                {codigoElem}
-                <h3 className="font-semibold text-gray-900">{nomeCompleto}</h3>
-                {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded mt-1">Promoção</span>}
+              <div>
+                <h3 className="font-semibold text-gray-900">{nomeExibicao}</h3>
+                {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded mt-1 inline-block">Promoção</span>}
               </div>
               <div className="text-right">
                 {promocao ? (
@@ -111,7 +106,7 @@ function ItemCard({
                 )}
               </div>
             </div>
-            {item.descricao && <p className="text-sm text-gray-600 mt-1 line-clamp-2" whitespace-pre-wraps>{item.descricao}</p>}
+            {item.descricao && <p className="text-sm text-gray-600 mt-1 line-clamp-2">{item.descricao}</p>}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {item.tags.map((tag: string) => (
@@ -133,7 +128,7 @@ function ItemCard({
     )
   }
 
-  // layout === 'foto-topo'
+  // Layout foto no topo
   return (
     <div className={`p-4 rounded-xl transition ${promocao ? 'bg-red-50 border-2 border-red-200' : 'bg-white border border-gray-100 shadow-sm hover:shadow-md'}`}>
       {item.foto_url && (
@@ -145,10 +140,9 @@ function ItemCard({
         </div>
       )}
       <div className="flex justify-between items-start gap-2">
-        <div className="flex flex-wrap items-center gap-1">
-          {codigoElem}
-          <h3 className="font-semibold text-gray-900">{nomeCompleto}</h3>
-          {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded mt-1">Promoção</span>}
+        <div>
+          <h3 className="font-semibold text-gray-900">{nomeExibicao}</h3>
+          {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded mt-1 inline-block">Promoção</span>}
         </div>
         <div className="text-right">
           {promocao ? (
@@ -205,10 +199,14 @@ export default function MenuDigital() {
   const [sacolaAberta, setSacolaAberta] = useState(false)
   const [finalizarAberto, setFinalizarAberto] = useState(false)
 
+  // Lista de categorias para navegação (chips)
+  const chipsRef = useRef<HTMLDivElement>(null)
+
   const carregarMenu = useCallback(async () => {
     if (!shortUrl) return
     setLoading(true)
     try {
+      // Buscar estabelecimento
       const { data: estab, error: erroEstab } = await supabase
         .from('estabelecimentos')
         .select('*')
@@ -224,8 +222,10 @@ export default function MenuDigital() {
 
       setEstabelecimento(estab)
 
+      // Incrementar scan (sem esperar resposta)
       supabase.from('estabelecimentos').update({ scans_qrcode: (estab.scans_qrcode || 0) + 1 }).eq('id', estab.id).then()
 
+      // Carregar horários
       const { data: horariosData } = await supabase
         .from('horarios_funcionamento')
         .select('*')
@@ -233,6 +233,7 @@ export default function MenuDigital() {
         .order('dia_semana')
       if (horariosData) setHorarios(horariosData)
 
+      // Carregar menu
       const { data: menu } = await supabase
         .from('menus')
         .select('id, tema, layout_cardapio')
@@ -244,6 +245,7 @@ export default function MenuDigital() {
         setTema(menu.tema || 'raiz-brasileira')
         setLayoutCardapio(menu.layout_cardapio || 'foto-esquerda')
 
+        // Carregar categorias e itens
         const { data: cats } = await supabase
           .from('categorias')
           .select('*, itens_cardapio(*)')
@@ -256,6 +258,7 @@ export default function MenuDigital() {
             itens_cardapio: (cat.itens_cardapio || []).sort((a: any, b: any) => a.ordem - b.ordem),
           }))
 
+          // Itens com delivery disponível
           const itensDelivery = todasCats.flatMap(cat =>
             cat.itens_cardapio.filter((item: any) => item.delivery_disponivel)
           )
@@ -268,6 +271,7 @@ export default function MenuDigital() {
               setCategorias([])
             }
           } else {
+            // Filtra apenas itens disponíveis
             const catsFiltradas = todasCats
               .map((cat: any) => ({
                 ...cat,
@@ -275,6 +279,7 @@ export default function MenuDigital() {
               }))
               .filter((cat: any) => cat.itens_cardapio.length > 0)
 
+            // Cria categoria "Promoções" no topo
             const itensPromocao = catsFiltradas.flatMap(cat =>
               cat.itens_cardapio.filter((item: any) => item.promocao_ativa && item.preco_promocional)
             )
@@ -285,10 +290,12 @@ export default function MenuDigital() {
                 id: '__promocoes__',
                 nome: '🎉 Promoções',
                 eh_promocao: true,
+                fixar_topo: true,
                 itens_cardapio: itensPromocao,
               })
             }
 
+            // Demais categorias (itens normais + promo duplicados)
             catsFiltradas.forEach((cat: any) => {
               if (cat.itens_cardapio.length > 0) {
                 categoriasFinais.push(cat)
@@ -310,6 +317,7 @@ export default function MenuDigital() {
     carregarMenu()
   }, [carregarMenu])
 
+  // Status aberto/fechado com atualização periódica
   useEffect(() => {
     setStatusAberto(isEstabelecimentoAberto(horarios))
     if (horarios.length > 0) {
@@ -318,7 +326,7 @@ export default function MenuDigital() {
     }
   }, [horarios])
 
-  // Scroll spy com offset ajustado para o novo header não fixo
+  // Scroll spy
   useEffect(() => {
     if (categorias.length === 0) return
     const observer = new IntersectionObserver(
@@ -327,7 +335,7 @@ export default function MenuDigital() {
           if (entry.isIntersecting) setCategoriaAtiva(entry.target.id)
         })
       },
-      { rootMargin: '-80px 0px -70% 0px' } // Ajustado para compensar os chips fixos
+      { rootMargin: '-80px 0px -70% 0px' } // Ajustado para altura dos chips
     )
     categorias.forEach((cat) => {
       const el = document.getElementById(cat.id)
@@ -336,16 +344,18 @@ export default function MenuDigital() {
     return () => observer.disconnect()
   }, [categorias])
 
+  // Rolar para categoria (offset para não ficar atrás dos chips)
   const handleScrollParaCategoria = (id: string) => {
     setCategoriaAtiva(id)
     const el = document.getElementById(id)
     if (el) {
-      const yOffset = -70 // altura aproximada dos chips fixos (ajuste conforme seu layout)
+      const yOffset = -70
       const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset
       window.scrollTo({ top: y, behavior: 'smooth' })
     }
   }
 
+  // Adicionar item à sacola (para delivery)
   const handleAdicionarSacola = (item: any) => {
     sacola.adicionarItem({
       id: item.id,
@@ -363,9 +373,7 @@ export default function MenuDigital() {
 
   return (
     <div className={`min-h-screen menu-container tema-${tema}`}>
-      {/* 
-        Cabeçalho – NÃO é mais sticky. Rola junto com a página.
-      */}
+      {/* Cabeçalho – não fixo (rola junto) */}
       <header className="bg-white/90 backdrop-blur shadow-sm border-b-2" style={{ borderColor: 'var(--menu-accent)' }}>
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div>
@@ -392,13 +400,14 @@ export default function MenuDigital() {
         </div>
       </header>
 
-      {/* 
-        Chips de categorias – AGORA SÃO STICKY TOP-0.
-        Ficam fixos no topo da tela ao rolar.
-      */}
+      {/* Chips de categorias – fixo no topo */}
       {categoriasNav.length > 1 && (
         <div className="sticky top-0 z-40 bg-white/95 backdrop-blur shadow-sm border-b">
-          <div className="flex gap-2 px-4 py-3 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div
+            ref={chipsRef}
+            className="flex gap-2 px-4 py-3 overflow-x-auto"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             {categoriasNav.map((cat) => (
               <button
                 key={cat.id}

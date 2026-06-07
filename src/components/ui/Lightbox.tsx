@@ -11,10 +11,12 @@ interface LightboxProps {
 
 export default function Lightbox({ src, alt, onClose }: LightboxProps) {
   useEffect(() => {
+    // Fecha ao pressionar a tecla ESC
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handleEsc)
+    // Impede o scroll da página enquanto o lightbox está aberto
     document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', handleEsc)

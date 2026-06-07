@@ -24,7 +24,7 @@ function getCloudinaryUrl(url: string | null, width: number, height: number): st
   return url.replace('/upload/', `/upload/w_${width},h_${height},c_fill/`)
 }
 
-// Componente interno para exibir um item com os 3 layouts
+// Componente interno para exibir um item com layout dinâmico (igual ao menu digital)
 function ItemCardPerfil({
   item,
   layout,
@@ -35,7 +35,6 @@ function ItemCardPerfil({
   onAbrirLightbox: (src: string) => void
 }) {
   const promocao = item.promocao_ativa && item.preco_promocional
-  const precoAtual = promocao ? item.preco_promocional : item.preco
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'
   const nomeExibicao = item.codigo ? `${item.codigo} - ${item.nome}` : item.nome
 
@@ -48,7 +47,7 @@ function ItemCardPerfil({
               <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
               {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">Promoção</span>}
             </div>
-            {item.descricao && <p className="text-xs text-gray-500 mt-1 text-justify">{item.descricao}</p>}
+            {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {item.tags.map((tag: string) => (
@@ -76,7 +75,6 @@ function ItemCardPerfil({
     return (
       <div className={`p-3 rounded-lg transition ${promocao ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'}`}>
         <div className="flex gap-3">
-          {/* Foto */}
           {item.foto_url && (
             <div
               className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden cursor-pointer"
@@ -85,7 +83,6 @@ function ItemCardPerfil({
               <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover hover:scale-105 transition" />
             </div>
           )}
-          {/* Dados */}
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
@@ -103,7 +100,7 @@ function ItemCardPerfil({
                 )}
               </div>
             </div>
-            {item.descricao && <p className="text-xs text-gray-500 mt-1 text-justify">{item.descricao}</p>}
+            {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {item.tags.map((tag: string) => (
@@ -134,7 +131,7 @@ function ItemCardPerfil({
             <h4 className="font-semibold text-gray-900 text-sm">{nomeExibicao}</h4>
             {promocao && <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">Promoção</span>}
           </div>
-          {item.descricao && <p className="text-xs text-gray-500 mt-1" text-justify>{item.descricao}</p>}
+          {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
           {item.tags && item.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {item.tags.map((tag: string) => (
@@ -276,7 +273,7 @@ export default function PerfilEstabelecimento() {
           }))
           .filter((cat: any) => cat.itens_cardapio.length > 0)
 
-        // Separar categorias com promoção e sem promoção (manter duplicado como no menu)
+        // Separar categorias com promoção e sem promoção (itens promocionais duplicados na categoria Promoções)
         const promocoesItens = processadas.flatMap(cat => cat.itens_cardapio.filter((i: any) => i.promocao_ativa))
         const categoriasFinais = []
         if (promocoesItens.length > 0) {
@@ -325,6 +322,9 @@ export default function PerfilEstabelecimento() {
     `${estabelecimento.endereco}, ${estabelecimento.bairro}, Salvador, BA`
   )}&t=&z=16&ie=UTF8&iwloc=&output=embed`
 
+  // Nome público: prioriza nome_fantasia, depois nome (antigo)
+  const nomePublico = estabelecimento.nome_fantasia || estabelecimento.nome
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Banner de Status (Aberto/Fechado) */}
@@ -351,7 +351,7 @@ export default function PerfilEstabelecimento() {
                  estabelecimento.tipo_estabelecimento === 'restaurante' ? '🍽️' : '🏪'}
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">{estabelecimento.nome}</h1>
+                <h1 className="text-xl font-bold text-white">{nomePublico}</h1>
                 <p className="text-white/80 text-sm">{estabelecimento.bairro} • {estabelecimento.tipo_cozinha}</p>
               </div>
             </div>
@@ -370,10 +370,24 @@ export default function PerfilEstabelecimento() {
                  estabelecimento.tipo_estabelecimento === 'restaurante' ? '🍽️' : '🏪'}
               </div>
               <div>
-                <h1 className="text-xl font-bold">{estabelecimento.nome}</h1>
+                <h1 className="text-xl font-bold">{nomePublico}</h1>
                 <p className="text-white/80 text-sm">{estabelecimento.bairro} • {estabelecimento.tipo_cozinha}</p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Galeria de Fotos */}
+      {estabelecimento.galeria_fotos && estabelecimento.galeria_fotos.length > 0 && (
+        <div className="container mx-auto px-4 py-6 max-w-3xl">
+          <h2 className="text-lg font-bold text-gray-800 mb-3">📸 Galeria</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {estabelecimento.galeria_fotos.map((url: string, idx: number) => (
+              <div key={idx} className="cursor-pointer rounded-lg overflow-hidden aspect-square bg-gray-100" onClick={() => setLightboxSrc(url)}>
+                <img src={url} alt={`Foto ${idx+1}`} className="w-full h-full object-cover hover:scale-105 transition" />
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -386,7 +400,7 @@ export default function PerfilEstabelecimento() {
             {estabelecimento.descricao && (
               <div className="bg-white rounded-xl p-5 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-800 mb-3">📝 Sobre</h2>
-                <p className="text-gray-600 leading-relaxed">{estabelecimento.descricao}</p>
+                <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{estabelecimento.descricao}</p>
               </div>
             )}
 
@@ -425,19 +439,6 @@ export default function PerfilEstabelecimento() {
                 )}
               </div>
             </div>
-{/* Galeria de Fotos */}
-{estabelecimento.galeria_fotos && estabelecimento.galeria_fotos.length > 0 && (
-  <div className="mb-6">
-    <h2 className="text-lg font-bold text-gray-800 mb-3">📸 Galeria</h2>
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-      {estabelecimento.galeria_fotos.map((url: string, idx: number) => (
-        <div key={idx} className="cursor-pointer rounded-lg overflow-hidden aspect-square bg-gray-100" onClick={() => setLightboxSrc(url)}>
-          <img src={url} alt={`Foto ${idx+1}`} className="w-full h-full object-cover hover:scale-105 transition" />
-        </div>
-      ))}
-    </div>
-  </div>
-)}
 
             {/* Horários */}
             <div className="bg-white rounded-xl p-5 shadow-sm">

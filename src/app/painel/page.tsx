@@ -12,6 +12,28 @@ import GaleriaUpload from '@/components/upload/GaleriaUpload'
 const TEMAS_PADRAO = ['raiz-brasileira']
 
 // ----------------------------------------------------------------
+// Funções utilitárias de formatação
+// ----------------------------------------------------------------
+function formatarCNPJ(valor: string): string {
+  const numeros = valor.replace(/\D/g, '')
+  if (numeros.length <= 14) {
+    return numeros.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
+  }
+  return valor
+}
+
+function formatarTelefone(valor: string): string {
+  const numeros = valor.replace(/\D/g, '')
+  if (numeros.length === 11) {
+    return numeros.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3')
+  }
+  if (numeros.length === 10) {
+    return numeros.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3')
+  }
+  return valor
+}
+
+// ----------------------------------------------------------------
 // Componente DashboardMetrics (cards)
 // ----------------------------------------------------------------
 function DashboardMetrics({ estabelecimento, categorias, limitePlano }: any) {
@@ -118,7 +140,7 @@ function ItemRow({ item, modeloVisual, onEditarItem, onExcluirItem, onToggleProm
               {promocao && <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded">🎉 PROMO</span>}
               {!item.disponivel && <span className="text-xs bg-gray-300 text-gray-600 px-1.5 py-0.5 rounded">Oculto</span>}
             </div>
-            {item.descricao && <p className="text-xs text-gray-500 mt-1 line-clamp-2" whitespace-pre-wrap>{item.descricao}</p>}
+            {item.descricao && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.descricao}</p>}
             <div className="flex items-center gap-2 mt-2">
               {promocao ? (<><span className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</span><span className="font-bold text-green-600">R$ {fmt(item.preco_promocional)}</span>{item.desconto_percentual && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">-{item.desconto_percentual}%</span>}</>) : (<span className="font-bold text-gray-900">R$ {fmt(item.preco)}</span>)}
               {item.tags && item.tags.length > 0 && <div className="flex flex-wrap gap-1">{item.tags.map((tag: string) => <span key={tag} className="text-xs bg-gray-100 border px-1.5 py-0.5 rounded-full">{tag}</span>)}</div>}
@@ -136,7 +158,7 @@ function ItemRow({ item, modeloVisual, onEditarItem, onExcluirItem, onToggleProm
             {promocao && <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded">🎉 PROMO</span>}
             {!item.disponivel && <span className="text-xs bg-gray-300 text-gray-600 px-1.5 py-0.5 rounded">Oculto</span>}
           </div>
-          {item.descricao && <p className="text-xs text-gray-500 mt-1" whitespace-pre-wrap>{item.descricao}</p>}
+          {item.descricao && <p className="text-xs text-gray-500 mt-1">{item.descricao}</p>}
           <div className="flex items-center gap-2 mt-1">
             {promocao ? (<><span className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</span><span className="font-bold text-green-600">R$ {fmt(item.preco_promocional)}</span></>) : (<span className="font-bold text-gray-900">R$ {fmt(item.preco)}</span>)}
           </div>
@@ -174,269 +196,26 @@ function ListaCategorias({ categorias, onAdicionarItem, onEditarItem, onPublicar
       )}
       {categorias.map((cat: any) => {
         const itens = cat.itens_cardapio || []
-        if (itens.length === 0) return null
+        // Agora mostra mesmo se itens.length === 0
         return (
           <div key={cat.id} className="bg-white rounded-xl border border-gray-200">
-            <div className="p-4 border-b bg-gray-50 flex justify-between"><h3 className="font-bold">{cat.nome} ({itens.length} itens)</h3><button onClick={() => onAdicionarItem(cat.id)} className="text-orange-600 text-sm">+ Adicionar Item</button></div>
-            <div className="divide-y">{itens.map((item: any) => <ItemRow key={item.id} item={item} modeloVisual={modeloVisual} onEditarItem={onEditarItem} onExcluirItem={onExcluirItem} onTogglePromocao={onTogglePromocao} onPublicarItem={onPublicarItem} limitePlano={limitePlano} publicados={publicados} />)}</div>
+            <div className="p-4 border-b bg-gray-50 flex justify-between">
+              <h3 className="font-bold">{cat.nome} ({itens.length} itens)</h3>
+              <button onClick={() => onAdicionarItem(cat.id)} className="text-orange-600 text-sm">+ Adicionar Item</button>
+            </div>
+            {itens.length === 0 ? (
+              <div className="p-4 text-center text-gray-400 text-sm">Nenhum item nesta categoria. Clique em "+ Adicionar Item" para começar.</div>
+            ) : (
+              <div className="divide-y">
+                {itens.map((item: any) => (
+                  <ItemRow key={item.id} item={item} modeloVisual={modeloVisual} onEditarItem={onEditarItem} onExcluirItem={onExcluirItem} onTogglePromocao={onTogglePromocao} onPublicarItem={onPublicarItem} limitePlano={limitePlano} publicados={publicados} />
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
       {categorias.length === 0 && <div className="text-center py-12 text-gray-500">Nenhuma categoria cadastrada</div>}
-    </div>
-  )
-}
-
-// ----------------------------------------------------------------
-// Componente GestaoPerfil (com consulta automática de CNPJ)
-// ----------------------------------------------------------------
-function GestaoPerfil({ estabelecimento, setEstabelecimento, planosList, limitePlano, limiteGaleria, usuario }: any) {
-  const [perfil, setPerfil] = useState({
-    nome: '',
-    descricao: '',
-    bairro: '',
-    endereco: '',
-    cep: '',
-    telefone: '',
-    whatsapp: '',
-    email: '',
-    instagram: '',
-    cnpj: '',
-  })
-  const [editando, setEditando] = useState(false)
-  const [salvando, setSalvando] = useState(false)
-  const [whatsappMensagem, setWhatsappMensagem] = useState('')
-  const [whatsappAtivo, setWhatsappAtivo] = useState(false)
-  const [horarios, setHorarios] = useState<any[]>([])
-  const [buscandoCnpj, setBuscandoCnpj] = useState(false)
-
-  const DIAS_SEMANA = [{valor:0,nome:'Domingo'},{valor:1,nome:'Segunda'},{valor:2,nome:'Terça'},{valor:3,nome:'Quarta'},{valor:4,nome:'Quinta'},{valor:5,nome:'Sexta'},{valor:6,nome:'Sábado'}]
-
-  // Função para buscar dados do CNPJ (BrasilAPI)
-  const buscarCnpj = async (cnpj: string) => {
-    if (cnpj.length !== 14) return;
-    setBuscandoCnpj(true);
-    try {
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
-      if (!res.ok) throw new Error('CNPJ não encontrado');
-      const data = await res.json();
-      if (data) {
-        setPerfil(prev => ({
-          ...prev,
-          nome: data.razao_social || data.nome_fantasia || prev.nome,
-          endereco: `${data.logradouro || ''}, ${data.numero || ''} - ${data.bairro || ''}`.trim(),
-          bairro: data.bairro || '',
-          cep: data.cep || '',
-          telefone: data.ddd_telefone_1 || '',
-        }));
-        alert('Dados preenchidos automaticamente. Verifique e corrija se necessário.');
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Erro ao consultar CNPJ. Verifique o número digitado ou tente novamente.');
-    } finally {
-      setBuscandoCnpj(false);
-    }
-  };
-
-  useEffect(() => {
-    if (estabelecimento) {
-      setPerfil({
-        nome: estabelecimento.nome || '',
-        descricao: estabelecimento.descricao || '',
-        bairro: estabelecimento.bairro || '',
-        endereco: estabelecimento.endereco || '',
-        cep: estabelecimento.cep || '',
-        telefone: estabelecimento.telefone || '',
-        whatsapp: estabelecimento.whatsapp || '',
-        email: estabelecimento.email || '',
-        instagram: estabelecimento.instagram || '',
-        cnpj: estabelecimento.cnpj || '',
-      })
-      setWhatsappMensagem(estabelecimento.whatsapp_config?.mensagem_padrao || 'Olá! Vim pelo cardápio digital.')
-      setWhatsappAtivo(estabelecimento.whatsapp_config?.ativo ?? !!estabelecimento.whatsapp)
-      carregarHorarios()
-    }
-  }, [estabelecimento])
-
-  const carregarHorarios = async () => {
-    if (!estabelecimento?.id) return;
-    const { data } = await supabase.from('horarios_funcionamento').select('*').eq('estabelecimento_id', estabelecimento.id).order('dia_semana');
-    const diasCompletos = DIAS_SEMANA.map(dia => {
-      const encontrado = data?.find(h => h.dia_semana === dia.valor);
-      return encontrado || { dia_semana: dia.valor, horario_abertura: '08:00', horario_fechamento: '18:00', fechado: false, estabelecimento_id: estabelecimento.id }
-    });
-    setHorarios(diasCompletos);
-  };
-
-  const salvarHorario = async (dia: any) => {
-    await supabase.from('horarios_funcionamento').upsert({ estabelecimento_id: estabelecimento.id, dia_semana: dia.dia_semana, horario_abertura: dia.horario_abertura, horario_fechamento: dia.horario_fechamento, fechado: dia.fechado }, { onConflict: 'estabelecimento_id,dia_semana' })
-  };
-
-  const salvarPerfil = async () => {
-    setSalvando(true);
-    const { error } = await supabase
-      .from('estabelecimentos')
-      .update({
-        nome: perfil.nome,
-        descricao: perfil.descricao,
-        bairro: perfil.bairro,
-        endereco: perfil.endereco,
-        cep: perfil.cep,
-        telefone: perfil.telefone,
-        whatsapp: perfil.whatsapp,
-        email: perfil.email,
-        instagram: perfil.instagram,
-        cnpj: perfil.cnpj,
-      })
-      .eq('id', estabelecimento.id);
-    if (error) {
-      console.error(error);
-      alert('Erro ao salvar perfil: ' + error.message);
-    } else {
-      await supabase
-        .from('estabelecimentos')
-        .update({
-          whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo }
-        })
-        .eq('id', estabelecimento.id);
-      setEstabelecimento({ ...estabelecimento, ...perfil, whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo } });
-      alert('Perfil atualizado com sucesso!');
-    }
-    setEditando(false);
-    setSalvando(false);
-  };
-
-  const salvarFotoCapa = async (url: string) => {
-    await supabase.from('estabelecimentos').update({ foto_capa: url }).eq('id', estabelecimento.id);
-    setEstabelecimento({ ...estabelecimento, foto_capa: url });
-  };
-
-  const salvarLogo = async (url: string) => {
-    await supabase.from('estabelecimentos').update({ logo_url: url }).eq('id', estabelecimento.id);
-    setEstabelecimento({ ...estabelecimento, logo_url: url });
-  };
-
-  const atualizarGaleria = async (urls: string[]) => {
-    await supabase.from('estabelecimentos').update({ galeria_fotos: urls }).eq('id', estabelecimento.id);
-    setEstabelecimento({ ...estabelecimento, galeria_fotos: urls });
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Perfil completo */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">📝 Perfil do Estabelecimento</h3>{!editando && <button onClick={() => setEditando(true)} className="text-blue-600 text-sm">✏️ Editar</button>}</div>
-        {editando ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* CNPJ com auto preenchimento */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ (apenas números)</label>
-              <input
-                type="text"
-                value={perfil.cnpj}
-                onChange={(e) => setPerfil({...perfil, cnpj: e.target.value.replace(/\D/g, '')})}
-                onBlur={() => buscarCnpj(perfil.cnpj)}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="00000000000191"
-                maxLength={14}
-              />
-              {buscandoCnpj && <span className="text-xs text-gray-400">Buscando...</span>}
-            </div>
-            <input type="text" value={perfil.nome} onChange={e => setPerfil({...perfil, nome: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Nome do estabelecimento" />
-            <input type="text" value={perfil.endereco} onChange={e => setPerfil({...perfil, endereco: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Endereço" />
-            <input type="text" value={perfil.bairro} onChange={e => setPerfil({...perfil, bairro: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Bairro" />
-            <input type="text" value={perfil.cep} onChange={e => setPerfil({...perfil, cep: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="CEP" />
-            <input type="text" value={perfil.telefone} onChange={e => setPerfil({...perfil, telefone: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Telefone" />
-            <input type="text" value={perfil.whatsapp} onChange={e => setPerfil({...perfil, whatsapp: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="WhatsApp" />
-            <input type="text" value={perfil.instagram} onChange={e => setPerfil({...perfil, instagram: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Instagram" />
-            <input type="email" value={perfil.email} onChange={e => setPerfil({...perfil, email: e.target.value})} className="border rounded-lg px-3 py-2" placeholder="Email" />
-            <textarea value={perfil.descricao} onChange={e => setPerfil({...perfil, descricao: e.target.value})} className="border rounded-lg px-3 py-2 col-span-2" rows={3} placeholder="Descrição" />
-            <div className="col-span-2 flex gap-3"><button onClick={salvarPerfil} disabled={salvando} className="bg-orange-600 text-white px-4 py-2 rounded-lg">{salvando ? 'Salvando...' : '💾 Salvar'}</button><button onClick={() => setEditando(false)} className="border px-4 py-2 rounded-lg">Cancelar</button></div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {perfil.cnpj && <div><span className="text-gray-500">CNPJ:</span> <p className="font-medium">{perfil.cnpj}</p></div>}
-            <div><span className="text-gray-500">Nome:</span> <p className="font-medium">{perfil.nome}</p></div>
-            <div><span className="text-gray-500">Endereço:</span> <p className="font-medium">{perfil.endereco}</p></div>
-            <div><span className="text-gray-500">Bairro:</span> <p className="font-medium">{perfil.bairro}</p></div>
-            <div><span className="text-gray-500">CEP:</span> <p className="font-medium">{perfil.cep}</p></div>
-            <div><span className="text-gray-500">Telefone:</span> <p className="font-medium">{perfil.telefone}</p></div>
-            <div><span className="text-gray-500">WhatsApp:</span> <p className="font-medium">{perfil.whatsapp}</p></div>
-            <div><span className="text-gray-500">Instagram:</span> <p className="font-medium">{perfil.instagram}</p></div>
-            <div><span className="text-gray-500">Email:</span> <p className="font-medium">{perfil.email}</p></div>
-            <div className="col-span-2"><span className="text-gray-500">Descrição:</span> <p className="font-medium">{perfil.descricao}</p></div>
-          </div>
-        )}
-      </div>
-
-      {/* Imagens */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h3 className="font-bold text-lg mb-4">🖼️ Imagens</h3>
-        <div className="space-y-6">
-          <div><h4 className="font-medium mb-2">Foto de Capa</h4><ImageUpload onUpload={salvarFotoCapa} defaultImage={estabelecimento?.foto_capa || ''} /></div>
-          <div>
-            <h4 className="font-medium mb-2">Logo do Estabelecimento</h4>
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-              {estabelecimento?.logo_url && (
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border-2 border-gray-200">
-                  <img src={estabelecimento.logo_url} alt="Logo" className="w-full h-full object-cover" />
-                </div>
-              )}
-              <div className="flex-1">
-                <ImageUpload onUpload={salvarLogo} defaultImage={estabelecimento?.logo_url || ''} />
-                <p className="text-xs text-gray-400 mt-1">Recomendado: imagem quadrada, no mínimo 200x200px.</p>
-              </div>
-            </div>
-          </div>
-          <div><h4 className="font-medium mb-2">Galeria de Fotos (até {limiteGaleria} imagens)</h4><GaleriaUpload imagensIniciais={estabelecimento?.galeria_fotos || []} limite={limiteGaleria} onUpdate={atualizarGaleria} /></div>
-        </div>
-      </div>
-
-      {/* Horários */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h3 className="font-bold text-lg mb-4">🕒 Horários de Funcionamento</h3>
-        <div className="space-y-3">
-          {horarios.map((dia, idx) => (
-            <div key={dia.dia_semana} className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="w-24 font-medium">{DIAS_SEMANA[idx].nome}</span>
-              <label className="flex items-center gap-1"><input type="checkbox" checked={dia.fechado} onChange={(e) => { const novos = [...horarios]; novos[idx].fechado = e.target.checked; setHorarios(novos); salvarHorario(novos[idx]) }} /><span className="text-xs">Fechado</span></label>
-              {!dia.fechado && (
-                <div className="flex items-center gap-2">
-                  <input type="time" value={dia.horario_abertura?.substring(0,5)} onChange={(e) => { const novos = [...horarios]; novos[idx].horario_abertura = e.target.value; setHorarios(novos); salvarHorario(novos[idx]) }} className="border rounded px-2 py-1 w-28" />
-                  <span>às</span>
-                  <input type="time" value={dia.horario_fechamento?.substring(0,5)} onChange={(e) => { const novos = [...horarios]; novos[idx].horario_fechamento = e.target.value; setHorarios(novos); salvarHorario(novos[idx]) }} className="border rounded px-2 py-1 w-28" />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* WhatsApp */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h3 className="font-bold text-lg mb-4">💬 Configurações do WhatsApp</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Mensagem padrão</label>
-            <input type="text" value={whatsappMensagem} onChange={e => setWhatsappMensagem(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={whatsappAtivo} onChange={e => setWhatsappAtivo(e.target.checked)} /><span>Ativar botão no menu</span></label>
-            <button onClick={async () => {
-              await supabase.from('estabelecimentos').update({ whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo } }).eq('id', estabelecimento.id);
-              alert('Configurações do WhatsApp salvas!');
-            }} className="bg-green-600 text-white px-4 py-2 rounded-lg">💾 Salvar Configurações</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Conta */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h3 className="font-bold text-lg mb-4">👤 Conta</h3>
-        <p className="text-sm"><span className="text-gray-500">Email:</span> {usuario?.email}</p>
-        <button className="text-blue-600 text-sm mt-2">Alterar senha</button>
-      </div>
     </div>
   )
 }
@@ -475,7 +254,35 @@ export default function PainelDono() {
   const [novaCategoria, setNovaCategoria] = useState('')
   const [mostrarNovaCategoria, setMostrarNovaCategoria] = useState(false)
 
-  // Funções de persistência
+  // Perfil state
+  const [perfil, setPerfil] = useState({
+    cnpj: '',
+    razao_social: '',
+    nome_fantasia: '',
+    endereco: '',
+    bairro: '',
+    cep: '',
+    telefone: '',
+    whatsapp: '',
+    instagram: '',
+    email: '',
+    descricao: ''
+  })
+  const [editandoPerfil, setEditandoPerfil] = useState(false)
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false)
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false)
+
+  // Estado para horários
+  const [horarios, setHorarios] = useState<any[]>([])
+  const DIAS_SEMANA = [{valor:0,nome:'Domingo'},{valor:1,nome:'Segunda'},{valor:2,nome:'Terça'},{valor:3,nome:'Quarta'},{valor:4,nome:'Quinta'},{valor:5,nome:'Sexta'},{valor:6,nome:'Sábado'}]
+
+  // Estado para WhatsApp config
+  const [whatsappMensagem, setWhatsappMensagem] = useState('')
+  const [whatsappAtivo, setWhatsappAtivo] = useState(false)
+
+  // ----------------------------------------------------------------
+  // Funções de persistência (layout, tema, cardapio, etc.)
+  // ----------------------------------------------------------------
   const salvarLayoutCardapio = async (layout: string) => {
     if (!estabelecimento) return
     const { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single()
@@ -498,11 +305,28 @@ export default function PainelDono() {
     const { data } = await supabase.from('estabelecimentos').select('*').eq('id', id).single()
     if (data) {
       setEstabelecimento(data)
+      // Preencher perfil
+      setPerfil({
+        cnpj: data.cnpj || '',
+        razao_social: data.razao_social || '',
+        nome_fantasia: data.nome_fantasia || data.nome || '',
+        endereco: data.endereco || '',
+        bairro: data.bairro || '',
+        cep: data.cep || '',
+        telefone: data.telefone || '',
+        whatsapp: data.whatsapp || '',
+        instagram: data.instagram || '',
+        email: data.email || '',
+        descricao: data.descricao || ''
+      })
+      setWhatsappMensagem(data.whatsapp_config?.mensagem_padrao || 'Olá! Vim pelo cardápio digital.')
+      setWhatsappAtivo(data.whatsapp_config?.ativo ?? !!data.whatsapp)
       await carregarLayoutSalvo(data.id)
       await carregarCardapio(data.id)
       await carregarTemasEPlano(data.id, data.plano_id)
       await carregarModelosQR(data.id, data.plano_id)
       await carregarRecursos(data.id, data.plano_id)
+      await carregarHorarios(data.id)
     }
   }
 
@@ -590,6 +414,7 @@ export default function PainelDono() {
     setModeloQRSelecionado(slug)
   }
 
+  // Funções de cardápio (itens, categorias)
   const publicarItem = async (itemId: string, disponivel: boolean) => {
     if (!disponivel) {
       const publicados = categorias.reduce((t: number, c: any) => {
@@ -662,8 +487,121 @@ export default function PainelDono() {
 
   const limparForm = () => { setFormItem({ nome: '', descricao: '', preco: '', preco_promocional: '', promocao_ativa: false, promocao_titulo: '', desconto_percentual: '', disponivel: false, codigo: '', tags: '', foto_url: '', delivery_disponivel: false }); setCategoriaSelecionada(''); setModoEdicao(false); setItemEditandoId(null) }
 
-  const sair = () => { localStorage.removeItem('usuario'); router.push('/login') }
+  // ----------------------------------------------------------------
+  // Funções para Perfil (CNPJ, etc.)
+  // ----------------------------------------------------------------
+  const buscarCnpj = async (cnpj: string) => {
+    if (cnpj.length !== 14) return;
+    setBuscandoCnpj(true);
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+      if (!res.ok) throw new Error('CNPJ não encontrado');
+      const data = await res.json();
+      if (data) {
+        setPerfil(prev => ({
+          ...prev,
+          razao_social: data.razao_social || '',
+          nome_fantasia: data.nome_fantasia || data.razao_social || '',
+          endereco: `${data.logradouro || ''}, ${data.numero || ''} - ${data.bairro || ''}`.trim(),
+          bairro: data.bairro || '',
+          cep: data.cep || '',
+          telefone: data.ddd_telefone_1 || '',
+        }));
+        alert('Dados preenchidos automaticamente. Verifique e corrija se necessário.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao consultar CNPJ. Verifique o número digitado ou tente novamente.');
+    } finally {
+      setBuscandoCnpj(false);
+    }
+  };
 
+  const salvarPerfil = async () => {
+    if (!estabelecimento) return;
+    setSalvandoPerfil(true);
+    const { error } = await supabase
+      .from('estabelecimentos')
+      .update({
+        cnpj: perfil.cnpj,
+        razao_social: perfil.razao_social,
+        nome_fantasia: perfil.nome_fantasia,
+        endereco: perfil.endereco,
+        bairro: perfil.bairro,
+        cep: perfil.cep,
+        telefone: perfil.telefone,
+        whatsapp: perfil.whatsapp,
+        instagram: perfil.instagram,
+        email: perfil.email,
+        descricao: perfil.descricao,
+        nome: perfil.nome_fantasia, // mantém compatibilidade
+      })
+      .eq('id', estabelecimento.id);
+    if (error) {
+      alert('Erro ao salvar perfil: ' + error.message);
+    } else {
+      setEstabelecimento({ ...estabelecimento, ...perfil, nome: perfil.nome_fantasia });
+      alert('Perfil atualizado com sucesso!');
+      setEditandoPerfil(false);
+    }
+    setSalvandoPerfil(false);
+  };
+
+  // ----------------------------------------------------------------
+  // Funções para Horários
+  // ----------------------------------------------------------------
+  const carregarHorarios = async (estabId: string) => {
+    if (!estabId) return;
+    const { data } = await supabase.from('horarios_funcionamento').select('*').eq('estabelecimento_id', estabId).order('dia_semana');
+    const diasCompletos = DIAS_SEMANA.map(dia => {
+      const encontrado = data?.find(h => h.dia_semana === dia.valor);
+      return encontrado || { dia_semana: dia.valor, horario_abertura: '08:00', horario_fechamento: '18:00', fechado: false, estabelecimento_id: estabId }
+    });
+    setHorarios(diasCompletos);
+  };
+
+  const salvarHorario = async (dia: any) => {
+    if (!estabelecimento?.id) return;
+    await supabase.from('horarios_funcionamento').upsert({ 
+      estabelecimento_id: estabelecimento.id, 
+      dia_semana: dia.dia_semana, 
+      horario_abertura: dia.horario_abertura, 
+      horario_fechamento: dia.horario_fechamento, 
+      fechado: dia.fechado 
+    }, { onConflict: 'estabelecimento_id,dia_semana' })
+  };
+
+  // ----------------------------------------------------------------
+  // Funções para Imagens (Capa, Logo, Galeria)
+  // ----------------------------------------------------------------
+  const salvarFotoCapa = async (url: string) => {
+    await supabase.from('estabelecimentos').update({ foto_capa: url }).eq('id', estabelecimento.id);
+    setEstabelecimento({ ...estabelecimento, foto_capa: url });
+  };
+
+  const salvarLogo = async (url: string) => {
+    await supabase.from('estabelecimentos').update({ logo_url: url }).eq('id', estabelecimento.id);
+    setEstabelecimento({ ...estabelecimento, logo_url: url });
+  };
+
+  const atualizarGaleria = async (urls: string[]) => {
+    await supabase.from('estabelecimentos').update({ galeria_fotos: urls }).eq('id', estabelecimento.id);
+    setEstabelecimento({ ...estabelecimento, galeria_fotos: urls });
+  };
+
+  // ----------------------------------------------------------------
+  // Funções para WhatsApp Config (simplificada)
+  // ----------------------------------------------------------------
+  const salvarWhatsAppConfig = async () => {
+    await supabase.from('estabelecimentos').update({ 
+      whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo } 
+    }).eq('id', estabelecimento.id);
+    alert('Configurações do WhatsApp salvas!');
+  };
+
+  // ----------------------------------------------------------------
+  // Efeitos e inicialização
+  // ----------------------------------------------------------------
   useEffect(() => {
     const userData = localStorage.getItem('usuario')
     if (!userData) { router.push('/login'); return }
@@ -682,9 +620,9 @@ export default function PainelDono() {
 
   const navItems = [
     { key: 'dashboard', icon: '📊', label: 'Dashboard' },
-    { key: 'cardapio', icon: '📋', label: 'Meu Cardápio' },
-    { key: 'qrcode', icon: '📱', label: 'QR Code' },
-    { key: 'perfil', icon: '⚙️', label: 'Gestão do Perfil' },
+    { key: 'cardapio', icon: '📋', label: 'Cardápio' },
+    { key: 'perfil', icon: '🏢', label: 'Perfil' },
+    { key: 'config', icon: '⚙️', label: 'Configurações' },
   ];
 
   return (
@@ -693,11 +631,11 @@ export default function PainelDono() {
         <div className="flex items-center gap-3">
           <button onClick={() => setMenuAberto(!menuAberto)} className="md:hidden text-2xl">☰</button>
           <span className="text-2xl">🏪</span>
-          <div><h1 className="text-lg md:text-xl font-bold">{estabelecimento?.nome || 'Meu Estabelecimento'}</h1><p className="text-xs md:text-sm text-gray-600">Olá, {usuario.nome}!</p></div>
+          <div><h1 className="text-lg md:text-xl font-bold">{estabelecimento?.nome_fantasia || estabelecimento?.nome || 'Meu Estabelecimento'}</h1><p className="text-xs md:text-sm text-gray-600">Olá, {usuario.nome}!</p></div>
         </div>
         <div className="flex items-center gap-3">
           {estabelecimento?.qrcode_short_url && <Link href={`/menu/${estabelecimento.qrcode_short_url}`} target="_blank" className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">👁️ Ver</Link>}
-          <button onClick={sair} className="text-red-600 text-sm">Sair</button>
+          <button onClick={() => { localStorage.removeItem('usuario'); router.push('/login') }} className="text-red-600 text-sm">Sair</button>
         </div>
       </header>
 
@@ -713,27 +651,65 @@ export default function PainelDono() {
         {menuAberto && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMenuAberto(false)} />}
 
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
+          {/* DASHBOARD */}
           {abaAtiva === 'dashboard' && (
             <>
               <h2 className="text-2xl font-bold mb-6">📊 Dashboard</h2>
               <DashboardMetrics estabelecimento={estabelecimento} categorias={categorias} limitePlano={limitePlano} />
               <RecursosList recursosDisponiveis={recursosDisponiveis} recursosAtivos={recursosAtivos} recursosPermitidos={recursosPermitidos} toggleRecurso={toggleRecurso} />
+              <div className="bg-white rounded-xl p-6 shadow-sm mt-8">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-lg">💳 Plano Atual</h3>
+                    <p className="text-2xl font-bold text-orange-600 mt-1">
+                      {planosList.find(p => p.id === estabelecimento?.plano_id)?.nome || 'Grátis'}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {limitePlano} itens • {limiteGaleria} imagens na galeria
+                    </p>
+                  </div>
+                  <Link href="/planos" className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700">
+                    ⬆️ Fazer Upgrade
+                  </Link>
+                </div>
+              </div>
             </>
           )}
+
+          {/* CARDÁPIO */}
           {abaAtiva === 'cardapio' && (
             <div>
-              <div className="flex flex-wrap justify-between gap-2 mb-6">
-                <h2 className="text-2xl font-bold">📋 Meu Cardápio</h2>
-                <div className="flex gap-2">
-                  <select value={modeloVisual} onChange={async (e) => { const novo = e.target.value as any; setModeloVisual(novo); await salvarLayoutCardapio(novo); }} className="border rounded-lg px-3 py-2 text-sm bg-white">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900">📋 Meu Cardápio</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={modeloVisual}
+                    onChange={async (e) => {
+                      const novo = e.target.value as any;
+                      setModeloVisual(novo);
+                      await salvarLayoutCardapio(novo);
+                    }}
+                    className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
                     <option value="sem-foto">📄 Sem foto</option>
-                    <option value="foto-esquerda">📷 Foto à esquerda</option>
-                    <option value="foto-topo">📷 Foto no topo</option>
+                    <option value="foto-esquerda">📷 Foto esquerda</option>
+                    <option value="foto-topo">📷 Foto topo</option>
                   </select>
-                  <select value={temaSelecionado} onChange={async (e) => { await alterarTema(e.target.value); }} className="border rounded-lg px-3 py-2 text-sm bg-white">
-                    {temasDisponiveis.filter(t => temasPermitidos.includes(t.slug)).map(tema => <option key={tema.slug} value={tema.slug}>🎨 {tema.nome}</option>)}
+                  <select
+                    value={temaSelecionado}
+                    onChange={async (e) => { await alterarTema(e.target.value); }}
+                    className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    {temasDisponiveis.filter(t => temasPermitidos.includes(t.slug)).map(tema => (
+                      <option key={tema.slug} value={tema.slug}>🎨 {tema.nome}</option>
+                    ))}
                   </select>
-                  <button onClick={() => setMostrarNovaCategoria(true)} className="border-2 border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm">➕ Nova Categoria</button>
+                  <button
+                    onClick={() => setMostrarNovaCategoria(true)}
+                    className="border-2 border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-gray-100 whitespace-nowrap"
+                  >
+                    ➕ Nova Categoria
+                  </button>
                 </div>
               </div>
               <ListaCategorias
@@ -748,38 +724,187 @@ export default function PainelDono() {
               />
             </div>
           )}
-          {abaAtiva === 'qrcode' && (
+
+          {/* PERFIL */}
+          {abaAtiva === 'perfil' && (
             <div>
-              <h2 className="text-2xl font-bold mb-6">📱 QR Code</h2>
+              <h2 className="text-2xl font-bold mb-6">🏢 Perfil do Estabelecimento</h2>
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <h3 className="font-bold text-lg mb-4">Estilo do QR Code</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  {modelosQRDisponiveis.map(modelo => {
-                    const permitido = modelosQRPermitidos.includes(modelo.slug);
-                    const ativo = modeloQRSelecionado === modelo.slug;
-                    return <button key={modelo.slug} disabled={!permitido} onClick={() => alterarModeloQR(modelo.slug)} className={`p-4 rounded-xl border-2 ${ativo ? 'border-orange-500 bg-orange-50' : 'border-gray-200'} ${!permitido ? 'opacity-40 cursor-not-allowed' : ''}`}>
-                      <div className="flex gap-1 mb-2"><div className="w-6 h-6 rounded" style={{ backgroundColor: modelo.cor_frente }} /><div className="w-6 h-6 rounded" style={{ backgroundColor: modelo.cor_fundo, border: '1px solid #ddd' }} /></div>
-                      <p className="font-semibold">{modelo.nome}</p>
-                      {!permitido && <span className="text-xs text-red-500">🔒 Plano superior</span>}
-                    </button>
-                  })}
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-lg">Dados Cadastrais</h3>
+                  {!editandoPerfil && <button onClick={() => setEditandoPerfil(true)} className="text-blue-600 text-sm">✏️ Editar</button>}
                 </div>
-                {estabelecimento?.qrcode_short_url && (
-                  <div className="flex flex-col items-center">
-                    <div style={{ background: modelosQRDisponiveis.find(m => m.slug === modeloQRSelecionado)?.cor_fundo || '#FFFFFF', padding: '1rem', borderRadius: '1rem' }}>
-                      <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/menu/${estabelecimento.qrcode_short_url}`} size={200} bgColor={modelosQRDisponiveis.find(m => m.slug === modeloQRSelecionado)?.cor_fundo || '#FFFFFF'} fgColor={modelosQRDisponiveis.find(m => m.slug === modeloQRSelecionado)?.cor_frente || '#000000'} level="H" />
+                {editandoPerfil ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* CNPJ */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
+                      {perfil.razao_social && <p className="text-xs text-gray-500 italic mb-1">Razão Social: {perfil.razao_social}</p>}
+                      <input
+                        type="text"
+                        value={perfil.cnpj}
+                        onChange={(e) => {
+                          let raw = e.target.value.replace(/\D/g, '');
+                          if (raw.length > 14) raw = raw.slice(0, 14);
+                          setPerfil({...perfil, cnpj: raw});
+                        }}
+                        onBlur={() => buscarCnpj(perfil.cnpj)}
+                        className="border rounded-lg px-3 py-2 w-full"
+                        placeholder="00.000.000/0000-00"
+                      />
+                      {buscandoCnpj && <span className="text-xs text-gray-400">Buscando...</span>}
                     </div>
-                    <p className="mt-4 text-sm text-gray-600">menu.salvador.br/menu/{estabelecimento.qrcode_short_url}</p>
-                    <button onClick={() => { navigator.clipboard.writeText(`menu.salvador.br/menu/${estabelecimento.qrcode_short_url}`); alert('Link copiado!') }} className="mt-2 bg-orange-600 text-white px-4 py-2 rounded-lg">📋 Copiar Link</button>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nome Fantasia (público)</label>
+                      <input
+                        type="text"
+                        value={perfil.nome_fantasia}
+                        onChange={(e) => setPerfil({...perfil, nome_fantasia: e.target.value})}
+                        className="border rounded-lg px-3 py-2 w-full"
+                        placeholder="Nome que aparecerá no cardápio"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+                      <input type="text" value={perfil.endereco} onChange={e => setPerfil({...perfil, endereco: e.target.value})} className="border rounded-lg px-3 py-2 w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+                      <input type="text" value={perfil.bairro} onChange={e => setPerfil({...perfil, bairro: e.target.value})} className="border rounded-lg px-3 py-2 w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
+                      <input type="text" value={perfil.cep} onChange={e => setPerfil({...perfil, cep: e.target.value})} className="border rounded-lg px-3 py-2 w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                      <input
+                        type="text"
+                        value={perfil.telefone}
+                        onChange={(e) => {
+                          let raw = e.target.value.replace(/\D/g, '');
+                          if (raw.length > 11) raw = raw.slice(0, 11);
+                          setPerfil({...perfil, telefone: raw});
+                        }}
+                        className="border rounded-lg px-3 py-2 w-full"
+                        placeholder="(71) 99999-9999"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
+                      <input
+                        type="text"
+                        value={perfil.whatsapp}
+                        onChange={(e) => {
+                          let raw = e.target.value.replace(/\D/g, '');
+                          if (raw.length > 11) raw = raw.slice(0, 11);
+                          setPerfil({...perfil, whatsapp: raw});
+                        }}
+                        className="border rounded-lg px-3 py-2 w-full"
+                        placeholder="(71) 99999-9999"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
+                      <input type="text" value={perfil.instagram} onChange={e => setPerfil({...perfil, instagram: e.target.value.replace('@', '')})} className="border rounded-lg px-3 py-2 w-full" placeholder="@seudominio" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input type="email" value={perfil.email} onChange={e => setPerfil({...perfil, email: e.target.value})} className="border rounded-lg px-3 py-2 w-full" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                      <textarea value={perfil.descricao} onChange={e => setPerfil({...perfil, descricao: e.target.value})} className="border rounded-lg px-3 py-2 w-full" rows={4} />
+                    </div>
+                    <div className="md:col-span-2 flex gap-3">
+                      <button onClick={salvarPerfil} disabled={salvandoPerfil} className="bg-orange-600 text-white px-4 py-2 rounded-lg">{salvandoPerfil ? 'Salvando...' : '💾 Salvar Perfil'}</button>
+                      <button onClick={() => setEditandoPerfil(false)} className="border px-4 py-2 rounded-lg">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    {perfil.cnpj && <div><span className="text-gray-500">CNPJ:</span> <p className="font-medium">{formatarCNPJ(perfil.cnpj)}</p></div>}
+                    {perfil.razao_social && <div><span className="text-gray-500">Razão Social:</span> <p className="font-medium">{perfil.razao_social}</p></div>}
+                    <div><span className="text-gray-500">Nome Fantasia:</span> <p className="font-medium">{perfil.nome_fantasia}</p></div>
+                    <div><span className="text-gray-500">Endereço:</span> <p className="font-medium">{perfil.endereco}</p></div>
+                    <div><span className="text-gray-500">Bairro:</span> <p className="font-medium">{perfil.bairro}</p></div>
+                    <div><span className="text-gray-500">CEP:</span> <p className="font-medium">{perfil.cep}</p></div>
+                    <div><span className="text-gray-500">Telefone:</span> <p className="font-medium">{formatarTelefone(perfil.telefone)}</p></div>
+                    <div><span className="text-gray-500">WhatsApp:</span> <p className="font-medium">{formatarTelefone(perfil.whatsapp)}</p></div>
+                    <div><span className="text-gray-500">Instagram:</span> <p className="font-medium">{perfil.instagram}</p></div>
+                    <div><span className="text-gray-500">Email:</span> <p className="font-medium">{perfil.email}</p></div>
+                    <div className="col-span-2"><span className="text-gray-500">Descrição:</span> <p className="font-medium whitespace-pre-wrap">{perfil.descricao}</p></div>
                   </div>
                 )}
               </div>
             </div>
           )}
-          {abaAtiva === 'perfil' && (
+
+          {/* CONFIGURAÇÕES */}
+          {abaAtiva === 'config' && (
             <div>
-              <h2 className="text-2xl font-bold mb-6">⚙️ Gestão do Perfil</h2>
-              <GestaoPerfil estabelecimento={estabelecimento} setEstabelecimento={setEstabelecimento} planosList={planosList} limitePlano={limitePlano} limiteGaleria={limiteGaleria} usuario={usuario} />
+              <h2 className="text-2xl font-bold mb-6">⚙️ Configurações</h2>
+              <div className="space-y-8">
+                {/* Imagens */}
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <h3 className="font-bold text-lg mb-4">🖼️ Imagens</h3>
+                  <div className="space-y-6">
+                    <div><h4 className="font-medium mb-2">Foto de Capa</h4><ImageUpload onUpload={salvarFotoCapa} defaultImage={estabelecimento?.foto_capa || ''} /></div>
+                    <div>
+                      <h4 className="font-medium mb-2">Logo</h4>
+                      <div className="flex items-start gap-4">
+                        {estabelecimento?.logo_url && <img src={estabelecimento.logo_url} className="w-20 h-20 rounded-full object-cover" alt="Logo" />}
+                        <ImageUpload onUpload={salvarLogo} defaultImage={estabelecimento?.logo_url || ''} />
+                      </div>
+                    </div>
+                    <div><h4 className="font-medium mb-2">Galeria (até {limiteGaleria} fotos)</h4><GaleriaUpload imagensIniciais={estabelecimento?.galeria_fotos || []} limite={limiteGaleria} onUpdate={atualizarGaleria} /></div>
+                  </div>
+                </div>
+
+                {/* Horários */}
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <h3 className="font-bold text-lg mb-4">🕒 Horários de Funcionamento</h3>
+                  <div className="space-y-3">
+                    {horarios.map((dia, idx) => (
+                      <div key={dia.dia_semana} className="flex flex-wrap items-center gap-3 text-sm">
+                        <span className="w-24 font-medium">{DIAS_SEMANA[idx].nome}</span>
+                        <label className="flex items-center gap-1"><input type="checkbox" checked={dia.fechado} onChange={(e) => { const novos = [...horarios]; novos[idx].fechado = e.target.checked; setHorarios(novos); salvarHorario(novos[idx]) }} /><span className="text-xs">Fechado</span></label>
+                        {!dia.fechado && (
+                          <div className="flex items-center gap-2">
+                            <input type="time" value={dia.horario_abertura?.substring(0,5)} onChange={(e) => { const novos = [...horarios]; novos[idx].horario_abertura = e.target.value; setHorarios(novos); salvarHorario(novos[idx]) }} className="border rounded px-2 py-1 w-28" />
+                            <span>às</span>
+                            <input type="time" value={dia.horario_fechamento?.substring(0,5)} onChange={(e) => { const novos = [...horarios]; novos[idx].horario_fechamento = e.target.value; setHorarios(novos); salvarHorario(novos[idx]) }} className="border rounded px-2 py-1 w-28" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* WhatsApp */}
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <h3 className="font-bold text-lg mb-4">💬 WhatsApp</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Mensagem padrão</label>
+                      <input type="text" value={whatsappMensagem} onChange={e => setWhatsappMensagem(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={whatsappAtivo} onChange={e => setWhatsappAtivo(e.target.checked)} /><span>Ativar botão no menu</span></label>
+                      <button onClick={salvarWhatsAppConfig} className="bg-green-600 text-white px-4 py-2 rounded-lg">💾 Salvar Configurações</button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Conta */}
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <h3 className="font-bold text-lg mb-4">👤 Conta</h3>
+                  <p className="text-sm"><span className="text-gray-500">Email:</span> {usuario?.email}</p>
+                  <button className="text-blue-600 text-sm mt-2">Alterar senha</button>
+                </div>
+              </div>
             </div>
           )}
         </main>
