@@ -1,166 +1,202 @@
+// src/features/home/PromocoesCarrossel.tsx
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'  // ← sem espaço!
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { Swiper, SwiperSlide } from 'swiper/react'
+import { Autoplay, Pagination, Navigation } from 'swiper/modules'
 
-export default function PromocoesCarrossel() {
-  const [itens, setItens] = useState<any[]>([])
-  const containerRef = useRef<HTMLDivElement>(null)
-  const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
-  const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const isManualRef = useRef(false)
+// Estilos do Swiper
+import 'swiper/css'
+import 'swiper/css/pagination'
+import 'swiper/css/navigation'
 
-  useEffect(() => {
-    supabase
-      .from('itens_cardapio')
-      .select(`
-        *,
-        categorias!inner (
-          menu_id,
-          menus!inner (
-            estabelecimento_id,
-            estabelecimentos!inner (
-              nome,
-              slug,
-              qrcode_short_url
-            )
-          )
-        )
-      `)
-      .eq('promocao_ativa', true)
-      .eq('disponivel', true)
-      .limit(20)
-      .then(({ data }) => {
-        if (data) setItens(data)
-      })
-  }, [])
-
-  const startAutoPlay = () => {
-    stopAutoPlay()
-    autoPlayRef.current = setInterval(() => {
-      if (!containerRef.current || isManualRef.current) return
-      const el = containerRef.current
-      const maxScroll = el.scrollWidth - el.clientWidth
-      if (el.scrollLeft >= maxScroll - 10) {
-        el.scrollTo({ left: 0, behavior: 'smooth' })
-      } else {
-        el.scrollBy({ left: 1, behavior: 'smooth' })
+interface ItemPromocao {
+  id: string
+  nome: string
+  preco: number
+  preco_promocional: number
+  foto_url: string | null
+  categorias: {
+    menus: {
+      estabelecimentos: {
+        nome: string
+        qrcode_short_url: string
       }
-    }, 50)
-  }
-
-  const stopAutoPlay = () => {
-    if (autoPlayRef.current) {
-      clearInterval(autoPlayRef.current)
-      autoPlayRef.current = null
     }
   }
+}
 
-  const resumeAutoPlay = () => {
-    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current)
-    resumeTimeoutRef.current = setTimeout(() => {
-      isManualRef.current = false
-      startAutoPlay()
-    }, 5000)
-  }
-
-  const handleManualScroll = (direction: 'left' | 'right') => {
-    if (!containerRef.current) return
-    isManualRef.current = true
-    stopAutoPlay()
-    const amount = 300
-    containerRef.current.scrollBy({
-      left: direction === 'left' ? -amount : amount,
-      behavior: 'smooth'
-    })
-    resumeAutoPlay()
-  }
+export default function PromocoesCarrossel() {
+  const [itens, setItens] = useState<ItemPromocao[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (itens.length === 0) return
-    startAutoPlay()
-    return () => stopAutoPlay()
-  }, [itens])
+    const fetchPromocoes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('itens_cardapio')
+          .select(`
+            id,
+            nome,
+            preco,
+            preco_promocional,
+            foto_url,
+            categorias!inner (
+              menus!inner (
+                estabelecimentos!inner (
+                  nome,
+                  qrcode_short_url
+                )
+              )
+            )
+          `)
+          .eq('promocao_ativa', true)
+          .eq('disponivel', true)
+          .limit(20)
 
-  const handleMouseEnter = () => {
-    isManualRef.current = true
-    stopAutoPlay()
-    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current)
-  }
+        if (error) throw error
+        setItens(data || [])
+      } catch (error) {
+        console.error('Erro ao carregar promoções:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const handleMouseLeave = () => {
-    resumeAutoPlay()
+    fetchPromocoes()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-r from-orange-500 to-red-500 py-6">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-center">
+            <div className="animate-pulse text-white">Carregando promoções...</div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (itens.length === 0) return null
 
-  const cards = itens.map((item) => {
-    const estabelecimento = item.categorias?.menus?.estabelecimentos
-    const qrcode = estabelecimento?.qrcode_short_url
-    const card = (
-      <div className="bg-white/10 backdrop-blur rounded-xl p-4 w-[250px] flex-shrink-0 mx-2">
-        {/* Foto do item */}
-        {item.foto_url && (
-          <div className="w-full h-32 mb-2 rounded-lg overflow-hidden">
-            <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
-          </div>
-        )}
-        <div className="text-sm opacity-75 mb-1">
-          {estabelecimento?.nome || 'Restaurante'}
-        </div>
-        <h3 className="font-bold text-lg mb-1">{item.nome}</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-lg line-through opacity-75">
-            R$ {item.preco?.toFixed(2)}
-          </span>
-          <span className="text-2xl font-bold">
-            R$ {item.preco_promocional?.toFixed(2)}
-          </span>
-        </div>
-      </div>
-    )
-    return qrcode ? (
-      <Link key={item.id} href={`/menu/${qrcode}`} className="hover:scale-105 transition-transform">
-        {card}
-      </Link>
-    ) : (
-      <div key={item.id}>{card}</div>
-    )
-  })
-
   return (
-    <section className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-8 relative">
+    <section className="bg-gradient-to-r from-orange-500 to-red-500 py-6">
       <div className="container mx-auto px-4">
-        <h2 className="text-2xl font-bold mb-4 text-center">🎉 Promoções</h2>
-        <div className="relative">
-          <button
-            onClick={() => handleManualScroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 rounded-full w-10 h-10 flex items-center justify-center transition"
-          >
-            ◀
-          </button>
-          <button
-            onClick={() => handleManualScroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 rounded-full w-10 h-10 flex items-center justify-center transition"
-          >
-            ▶
-          </button>
-          <div
-            ref={containerRef}
-            className="flex gap-4 overflow-x-auto pb-4 mx-10"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x mandatory' }}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-          >
-            {cards}
-            {cards}
-          </div>
-        </div>
+        <Swiper
+          modules={[Autoplay, Pagination, Navigation]}
+          spaceBetween={16}
+          slidesPerView={1}
+          breakpoints={{
+            640: { slidesPerView: 2 },
+            768: { slidesPerView: 3 },
+            1024: { slidesPerView: 4 },
+          }}
+          autoplay={{
+            delay: 4000,
+            disableOnInteraction: false,
+            pauseOnMouseEnter: true,
+          }}
+          pagination={{ clickable: true, dynamicBullets: true }}
+          navigation
+          loop={itens.length > 1}
+          speed={800}
+          className="promocoes-swiper"
+        >
+          {itens.map((item) => {
+            const estabelecimento = item.categorias?.menus?.estabelecimentos
+            const qrcode = estabelecimento?.qrcode_short_url
+            const linkHref = qrcode ? `/menu/${qrcode}` : '#'
+            const desconto = item.preco && item.preco_promocional
+              ? Math.round((1 - item.preco_promocional / item.preco) * 100)
+              : 0
+
+            return (
+              <SwiperSlide key={item.id}>
+                <Link href={linkHref} className="block group">
+                  <div className="relative rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:scale-105">
+                    {/* Imagem de fundo */}
+                    {item.foto_url && (
+                      <div className="w-full h-48 bg-gray-800">
+                        <img
+                          src={item.foto_url}
+                          alt={item.nome}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Overlay escuro para melhor legibilidade */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                    
+                    {/* Nome do restaurante sobre a imagem (topo) */}
+                    <div className="absolute top-2 left-2 right-2">
+                      <div className="bg-black/50 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full inline-block">
+                        {estabelecimento?.nome || 'Restaurante'}
+                      </div>
+                    </div>
+                    
+                    {/* Conteúdo do preço e desconto na parte inferior */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                      <h3 className="font-bold text-lg truncate">{item.nome}</h3>
+                      <div className="flex items-baseline gap-2 flex-wrap mt-1">
+                        <span className="text-white/70 line-through text-sm">
+                          R$ {item.preco?.toFixed(2)}
+                        </span>
+                        <span className="text-2xl font-extrabold">
+                          R$ {item.preco_promocional?.toFixed(2)}
+                        </span>
+                      </div>
+                      {desconto > 0 && (
+                        <div className="mt-1">
+                          <span className="bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                            {desconto}% OFF
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              </SwiperSlide>
+            )
+          })}
+        </Swiper>
       </div>
-      <style jsx>{`
-        div::-webkit-scrollbar {
-          display: none;
+
+      <style jsx global>{`
+        .promocoes-swiper .swiper-pagination-bullet {
+          background: white;
+          opacity: 0.5;
+        }
+        .promocoes-swiper .swiper-pagination-bullet-active {
+          background: white;
+          opacity: 1;
+        }
+        .promocoes-swiper .swiper-button-prev,
+        .promocoes-swiper .swiper-button-next {
+          color: white;
+          background: rgba(0,0,0,0.3);
+          width: 32px;
+          height: 32px;
+          border-radius: 9999px;
+        }
+        .promocoes-swiper .swiper-button-prev:hover,
+        .promocoes-swiper .swiper-button-next:hover {
+          background: rgba(0,0,0,0.6);
+        }
+        .promocoes-swiper .swiper-button-prev::after,
+        .promocoes-swiper .swiper-button-next::after {
+          font-size: 14px;
+          font-weight: bold;
+        }
+        @media (max-width: 640px) {
+          .promocoes-swiper .swiper-button-prev,
+          .promocoes-swiper .swiper-button-next {
+            display: none;
+          }
         }
       `}</style>
     </section>

@@ -160,6 +160,7 @@ export default function PerfilEstabelecimento() {
   const slug = params.slug as string
 
   const [estabelecimento, setEstabelecimento] = useState<any>(null)
+  const [tiposCozinha, setTiposCozinha] = useState<any[]>([])
   const [categorias, setCategorias] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
@@ -193,12 +194,23 @@ export default function PerfilEstabelecimento() {
 
       setEstabelecimento(data)
 
+      // Buscar tipos de cozinha associados
+      const { data: tipos } = await supabase
+        .from('estabelecimento_tipos_cozinha')
+        .select('tipos_cozinha(id, nome, icone)')
+        .eq('estabelecimento_id', data.id)
+      if (tipos) {
+        setTiposCozinha(tipos.map((t: any) => t.tipos_cozinha).filter(Boolean))
+      }
+
+      // Incrementar visualização
       supabase
         .from('estabelecimentos')
         .update({ visualizacoes: (data.visualizacoes || 0) + 1 })
         .eq('id', data.id)
         .then(() => {})
 
+      // Modelo QR
       if (data.qrcode_modelo) {
         const { data: modelo } = await supabase
           .from('modelos_qrcode')
@@ -215,6 +227,7 @@ export default function PerfilEstabelecimento() {
         if (modeloPadrao) setModeloQR(modeloPadrao)
       }
 
+      // Horários
       const { data: horariosData } = await supabase
         .from('horarios_funcionamento')
         .select('*')
@@ -273,7 +286,7 @@ export default function PerfilEstabelecimento() {
           }))
           .filter((cat: any) => cat.itens_cardapio.length > 0)
 
-        // Separar categorias com promoção e sem promoção (itens promocionais duplicados na categoria Promoções)
+        // Separar categorias com promoção
         const promocoesItens = processadas.flatMap(cat => cat.itens_cardapio.filter((i: any) => i.promocao_ativa))
         const categoriasFinais = []
         if (promocoesItens.length > 0) {
@@ -284,7 +297,6 @@ export default function PerfilEstabelecimento() {
             itens_cardapio: promocoesItens,
           })
         }
-        // Adicionar todas as categorias originais (com todos os itens, inclusive promocionais)
         categoriasFinais.push(...processadas)
         setCategorias(categoriasFinais)
       }
@@ -318,11 +330,12 @@ export default function PerfilEstabelecimento() {
   const fundo = modeloQR?.cor_fundo || '#FFFFFF'
   const urlQR = `menu.salvador.br/menu/${estabelecimento.qrcode_short_url}`
   const urlCapa = getCloudinaryUrl(estabelecimento?.foto_capa, 1200, 400)
-  const googleMapsUrl = `https://maps.google.com/maps?q=${encodeURIComponent(
-    `${estabelecimento.endereco}, ${estabelecimento.bairro}, Salvador, BA`
-  )}&t=&z=16&ie=UTF8&iwloc=&output=embed`
+  const googleMapsUrl = estabelecimento.latitude && estabelecimento.longitude
+    ? `https://maps.google.com/maps?q=${estabelecimento.latitude},${estabelecimento.longitude}&z=16&output=embed`
+    : `https://maps.google.com/maps?q=${encodeURIComponent(
+        `${estabelecimento.endereco}, ${estabelecimento.bairro}, Salvador, BA`
+      )}&t=&z=16&ie=UTF8&iwloc=&output=embed`
 
-  // Nome público: prioriza nome_fantasia, depois nome (antigo)
   const nomePublico = estabelecimento.nome_fantasia || estabelecimento.nome
 
   return (
@@ -344,14 +357,31 @@ export default function PerfilEstabelecimento() {
             <Link href="/" className="text-white/80 hover:text-white text-sm inline-flex items-center gap-1 mb-4">
               ← Voltar
             </Link>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
-                {estabelecimento.tipo_estabelecimento === 'banca_acaraje' ? '🫘' :
-                 estabelecimento.tipo_estabelecimento === 'bar' ? '🍺' :
-                 estabelecimento.tipo_estabelecimento === 'restaurante' ? '🍽️' : '🏪'}
-              </div>
+            <div className="flex flex-wrap items-center gap-4">
+              {estabelecimento.logo_url ? (
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <img
+                    src={getCloudinaryUrl(estabelecimento.logo_url, 64, 64)}
+                    alt="Logo"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
+                  {estabelecimento.tipo_estabelecimento === 'banca_acaraje' ? '🫘' :
+                   estabelecimento.tipo_estabelecimento === 'bar' ? '🍺' :
+                   estabelecimento.tipo_estabelecimento === 'restaurante' ? '🍽️' : '🏪'}
+                </div>
+              )}
               <div>
                 <h1 className="text-xl font-bold text-white">{nomePublico}</h1>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {tiposCozinha.map((tipo) => (
+                    <span key={tipo.id} className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">
+                      {tipo.icone} {tipo.nome}
+                    </span>
+                  ))}
+                </div>
                 <p className="text-white/80 text-sm">{estabelecimento.bairro} • {estabelecimento.tipo_cozinha}</p>
               </div>
             </div>
@@ -363,14 +393,31 @@ export default function PerfilEstabelecimento() {
             <Link href="/" className="text-white/80 hover:text-white text-sm inline-flex items-center gap-1 mb-4">
               ← Voltar
             </Link>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
-                {estabelecimento.tipo_estabelecimento === 'banca_acaraje' ? '🫘' :
-                 estabelecimento.tipo_estabelecimento === 'bar' ? '🍺' :
-                 estabelecimento.tipo_estabelecimento === 'restaurante' ? '🍽️' : '🏪'}
-              </div>
+            <div className="flex flex-wrap items-center gap-4">
+              {estabelecimento.logo_url ? (
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <img
+                    src={getCloudinaryUrl(estabelecimento.logo_url, 64, 64)}
+                    alt="Logo"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
+                  {estabelecimento.tipo_estabelecimento === 'banca_acaraje' ? '🫘' :
+                   estabelecimento.tipo_estabelecimento === 'bar' ? '🍺' :
+                   estabelecimento.tipo_estabelecimento === 'restaurante' ? '🍽️' : '🏪'}
+                </div>
+              )}
               <div>
                 <h1 className="text-xl font-bold">{nomePublico}</h1>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {tiposCozinha.map((tipo) => (
+                    <span key={tipo.id} className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">
+                      {tipo.icone} {tipo.nome}
+                    </span>
+                  ))}
+                </div>
                 <p className="text-white/80 text-sm">{estabelecimento.bairro} • {estabelecimento.tipo_cozinha}</p>
               </div>
             </div>
@@ -450,13 +497,13 @@ export default function PerfilEstabelecimento() {
                   return (
                     <div key={dia.valor}
                       className={`flex justify-between items-center text-sm p-2 rounded-lg ${hoje ? 'bg-orange-100 font-bold' : ''}`}>
-                      <span className="text-gray-600 w-28">{hoje ? '👉 ' : ''}{dia.nome}</span>
+                      <span className="text-gray-600 whitespace-nowrap">{hoje ? '👉 ' : ''}{dia.nome}</span>
                       {horario?.fechado ? (
-                        <span className="text-red-500 font-medium">Fechado</span>
+                        <span className="text-red-500 font-medium whitespace-nowrap">Fechado</span>
                       ) : (
-                        <span className="font-medium text-gray-800">
-                          {horario?.horario_abertura?.substring(0, 5) || '08:00'} -{' '}
-                          {horario?.horario_fechamento?.substring(0, 5) || '18:00'}
+                        <span className="font-medium text-gray-800 whitespace-nowrap">
+                          {horario?.horario_abertura?.substring(0,5) || '08:00'} -{' '}
+                          {horario?.horario_fechamento?.substring(0,5) || '18:00'}
                         </span>
                       )}
                     </div>
@@ -496,7 +543,7 @@ export default function PerfilEstabelecimento() {
           </button>
         </div>
 
-        {/* Cardápio (expansível) - agora usando layout dinâmico */}
+        {/* Cardápio (expansível) */}
         {mostrarCardapio && (
           <div id="cardapio-section" className="bg-white rounded-xl p-5 shadow-sm mb-6">
             <h2 className="text-lg font-bold text-gray-800 mb-4">📋 Cardápio</h2>
