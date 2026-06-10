@@ -1,32 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { ItemCard } from './ItemCard'
 
 interface ListaCategoriasProps {
   categorias: any[]
-  onUpdateItem: (itemId: string, novosDados: any) => void
-  onDeleteItem: (itemId: string) => void
+  onAtualizarItem: (itemId: string, novosDados: any) => void
+  onExcluirItem: (itemId: string) => void
   onTogglePromocao: (itemId: string, ativaAtual: boolean) => void
-  onTogglePublicar: (itemId: string, disponivelAtual: boolean) => void
+  onPublicarItem: (itemId: string, disponivelAtual: boolean) => void
   limitePlano: number
   modeloVisual: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
   idiomasAtivos: string[]
   onAdicionarItem: (categoriaId: string) => void
+  onRenomearCategoria: (catId: string, novoNome: string) => void
+  onExcluirCategoria: (catId: string) => void
 }
 
 export function ListaCategorias({
   categorias,
-  onUpdateItem,
-  onDeleteItem,
+  onAtualizarItem,
+  onExcluirItem,
   onTogglePromocao,
-  onTogglePublicar,
+  onPublicarItem,
   limitePlano,
   modeloVisual,
   idiomasAtivos,
   onAdicionarItem,
+  onRenomearCategoria,
+  onExcluirCategoria,
 }: ListaCategoriasProps) {
-  // Itens promocionais (exibidos em seção especial)
   const itensPromocao = categorias.flatMap((cat: any) =>
     (cat.itens_cardapio || []).filter(
       (item: any) => item.promocao_ativa && item.preco_promocional
@@ -36,7 +38,6 @@ export function ListaCategorias({
 
   return (
     <div className="space-y-4">
-      {/* Seção de Promoções (se houver) */}
       {temPromocao && (
         <div className="bg-white rounded-xl border border-green-200 shadow-sm">
           <div className="p-4 border-b bg-green-50">
@@ -46,22 +47,19 @@ export function ListaCategorias({
           </div>
           <div className="divide-y">
             {itensPromocao.map((item: any) => (
-              <ItemCard
-                key={`promo-${item.id}`}
-                item={item}
-                layout={modeloVisual}
-                idiomasAtivos={idiomasAtivos}
-                onSave={(dados) => onUpdateItem(item.id, dados)}
-                onDelete={() => onDeleteItem(item.id)}
-                onTogglePromocao={() => onTogglePromocao(item.id, item.promocao_ativa)}
-                onTogglePublicar={() => onTogglePublicar(item.id, item.disponivel)}
-              />
+              <div key={`promo-${item.id}`} className="p-4">
+                <p className="font-medium">{item.nome}</p>
+                <p className="text-sm text-gray-500">{item.descricao}</p>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-sm text-red-500">R$ {item.preco_promocional?.toFixed(2)}</span>
+                  <span className="text-xs text-gray-400 line-through">R$ {item.preco?.toFixed(2)}</span>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Categorias normais */}
       {categorias.map((cat: any) => {
         const itens = cat.itens_cardapio || []
         return (
@@ -70,9 +68,32 @@ export function ListaCategorias({
               <h3 className="font-bold text-gray-800">
                 {cat.nome} ({itens.length} itens)
               </h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const novoNome = prompt('Novo nome da categoria:', cat.nome)
+                    if (novoNome) onRenomearCategoria(cat.id, novoNome)
+                  }}
+                  className="text-blue-600 text-sm"
+                >
+                  ✏️ Renomear
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Excluir a categoria "${cat.nome}" e todos os seus itens?`)) {
+                      onExcluirCategoria(cat.id)
+                    }
+                  }}
+                  className="text-red-600 text-sm"
+                >
+                  🗑️ Excluir
+                </button>
+              </div>
+            </div>
+            <div className="p-4 flex justify-between items-center">
               <button
                 onClick={() => onAdicionarItem(cat.id)}
-                className="text-orange-600 text-sm font-medium hover:underline"
+                className="text-orange-600 text-sm"
               >
                 + Adicionar Item
               </button>
@@ -84,16 +105,37 @@ export function ListaCategorias({
             ) : (
               <div className="divide-y">
                 {itens.map((item: any) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    layout={modeloVisual}
-                    idiomasAtivos={idiomasAtivos}
-                    onSave={(dados) => onUpdateItem(item.id, dados)}
-                    onDelete={() => onDeleteItem(item.id)}
-                    onTogglePromocao={() => onTogglePromocao(item.id, item.promocao_ativa)}
-                    onTogglePublicar={() => onTogglePublicar(item.id, item.disponivel)}
-                  />
+                  <div key={item.id} className="p-4 flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{item.nome}</p>
+                      <p className="text-sm text-gray-500">{item.descricao}</p>
+                      <p className="text-sm">R$ {item.preco?.toFixed(2)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => onTogglePromocao(item.id, item.promocao_ativa)}
+                        className={`text-xs px-2 py-1 rounded ${
+                          item.promocao_ativa ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {item.promocao_ativa ? 'Remover Promo' : 'Promo'}
+                      </button>
+                      <button
+                        onClick={() => onPublicarItem(item.id, item.disponivel)}
+                        className={`text-xs px-2 py-1 rounded ${
+                          item.disponivel ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {item.disponivel ? 'Publicado' : 'Publicar'}
+                      </button>
+                      <button
+                        onClick={() => onExcluirItem(item.id)}
+                        className="text-xs text-red-500"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
