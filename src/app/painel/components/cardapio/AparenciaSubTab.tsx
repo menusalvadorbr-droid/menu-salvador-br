@@ -81,8 +81,7 @@ export function AparenciaSubTab({
         <ImageUpload
           onUpload={onAlterarFundo}
           defaultImage={imagemFundo}
-          tipo="fundo"
-        />
+         />
         {imagemFundo && (
           <button
             onClick={() => onAlterarFundo('')}
