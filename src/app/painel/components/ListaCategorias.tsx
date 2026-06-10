@@ -15,6 +15,8 @@ interface ListaCategoriasProps {
   modeloVisual: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
   idiomasAtivos: string[]
   onAdicionarItem: (categoriaId: string) => void
+  onRenomearCategoria: (catId: string, novoNome: string) => void   // 🆕
+  onExcluirCategoria: (catId: string) => void                      // 🆕
 }
 
 export function ListaCategorias({
@@ -27,6 +29,8 @@ export function ListaCategorias({
   modeloVisual,
   idiomasAtivos,
   onAdicionarItem,
+  onRenomearCategoria,   // 🆕
+  onExcluirCategoria,    // 🆕
 }: ListaCategoriasProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null)
 
