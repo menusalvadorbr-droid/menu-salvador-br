@@ -374,9 +374,10 @@ export default function PainelDono() {
   }
 
   const alterarFundo = async (url: string) => {
-    setImagemFundo(url)
-    await supabase.from('estabelecimentos').update({ imagem_fundo: url }).eq('id', estabelecimento.id)
-    setEstabelecimento((prev: any) => ({ ...prev, imagem_fundo: url }))
+  setImagemFundo(url)
+  await supabase.from('estabelecimentos').update({ imagem_fundo: url }).eq('id', estabelecimento.id)
+  setEstabelecimento((prev: any) => ({ ...prev, imagem_fundo: url }))
+}
   }
 
   const toggleRecurso = async (slug: string) => {
