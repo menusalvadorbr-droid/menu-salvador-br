@@ -11,9 +11,6 @@ import { PerfilTab } from './components/PerfilTab'
 import { ConfiguracoesTab } from './components/ConfiguracoesTab'
 import { useCardapio } from './components/cardapio/hooks/useCardapio'
 
-// ----------------------------------------------------------------
-// Constantes
-// ----------------------------------------------------------------
 const TEMAS_PADRAO = ['raiz-brasileira']
 
 const OPCOES_IDIOMAS = [
@@ -22,9 +19,6 @@ const OPCOES_IDIOMAS = [
   { cod: 'es', nome: 'Espanhol', bandeira: '🇪🇸' },
 ]
 
-// ----------------------------------------------------------------
-// Funções auxiliares de formatação
-// ----------------------------------------------------------------
 function capitalizarTexto(texto: string): string {
   if (!texto) return ''
   return texto
@@ -38,36 +32,22 @@ function formatarEndereco(
   numero: string | null
 ): string {
   const partes: string[] = []
-
-  if (tipoLogradouro) {
-    partes.push(capitalizarTexto(tipoLogradouro))
-  }
-  if (logradouro) {
-    partes.push(capitalizarTexto(logradouro))
-  }
-  if (numero) {
-    partes.push(numero.trim())
-  }
-
+  if (tipoLogradouro) partes.push(capitalizarTexto(tipoLogradouro))
+  if (logradouro) partes.push(capitalizarTexto(logradouro))
+  if (numero) partes.push(numero.trim())
   return partes.join(', ').trim()
 }
 
-// ----------------------------------------------------------------
-// Componente principal
-// ----------------------------------------------------------------
 export default function PainelDono() {
   const router = useRouter()
 
-  // Sessão
   const [usuario, setUsuario] = useState<any>(null)
   const [estabelecimento, setEstabelecimento] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  // Navegação
   const [abaAtiva, setAbaAtiva] = useState('dashboard')
   const [menuAberto, setMenuAberto] = useState(false)
 
-  // Cardápio (hook com SWR)
   const {
     categorias,
     isLoading: loadingCardapio,
@@ -77,7 +57,6 @@ export default function PainelDono() {
     revalidate: revalidateCardapio,
   } = useCardapio(estabelecimento?.id)
 
-  // Aparência / Temas / Plano
   const [modeloVisual, setModeloVisual] = useState<'sem-foto' | 'foto-esquerda' | 'foto-topo'>('foto-esquerda')
   const [temaSelecionado, setTemaSelecionado] = useState('raiz-brasileira')
   const [temasDisponiveis, setTemasDisponiveis] = useState<any[]>([])
@@ -93,10 +72,8 @@ export default function PainelDono() {
   const [recursosDisponiveis, setRecursosDisponiveis] = useState<any[]>([])
   const [planosList, setPlanosList] = useState<any[]>([])
 
-  // Idiomas
   const [idiomasSelecionados, setIdiomasSelecionados] = useState<string[]>(['pt'])
 
-  // Perfil
   const [perfil, setPerfil] = useState({
     cnpj: '',
     razao_social: '',
@@ -116,25 +93,19 @@ export default function PainelDono() {
   const [salvandoPerfil, setSalvandoPerfil] = useState(false)
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
 
-  // Horários e WhatsApp
   const [horarios, setHorarios] = useState<any[]>([])
   const [whatsappMensagem, setWhatsappMensagem] = useState('')
   const [whatsappAtivo, setWhatsappAtivo] = useState(false)
 
-  // ----------------------------------------------------------------
-  // Carregamento inicial do estabelecimento
-  // ----------------------------------------------------------------
   const carregarEstabelecimento = useCallback(async (id: string) => {
     const { data, error } = await supabase
       .from('estabelecimentos')
       .select('*')
       .eq('id', id)
       .single()
-
     if (error || !data) return
 
     setEstabelecimento(data)
-
     setPerfil({
       cnpj: data.cnpj || '',
       razao_social: data.razao_social || '',
@@ -150,19 +121,16 @@ export default function PainelDono() {
       longitude: data.longitude || null,
       tipos_cozinha_ids: [],
     })
-
     setWhatsappMensagem(data.whatsapp_config?.mensagem_padrao || 'Olá! Vim pelo cardápio digital.')
     setWhatsappAtivo(data.whatsapp_config?.ativo ?? !!data.whatsapp)
     setIdiomasSelecionados(data.idiomas_ativos || ['pt'])
     setImagemFundo(data.imagem_fundo || '')
 
-    // Tipos de cozinha vinculados
     const { data: tiposVinculados } = await supabase
       .from('estabelecimento_tipos_cozinha')
       .select('tipo_cozinha_id')
       .eq('estabelecimento_id', id)
-    const tiposIds = tiposVinculados?.map(t => t.tipo_cozinha_id) || []
-    setPerfil(prev => ({ ...prev, tipos_cozinha_ids: tiposIds }))
+    setPerfil(prev => ({ ...prev, tipos_cozinha_ids: tiposVinculados?.map(t => t.tipo_cozinha_id) || [] }))
 
     await carregarLayoutSalvo(data.id)
     await carregarTemasEPlano(data.id, data.plano_id)
@@ -171,7 +139,6 @@ export default function PainelDono() {
     await carregarHorarios(data.id)
   }, [])
 
-  // Layout e Tema
   const carregarLayoutSalvo = async (estabId: string) => {
     const { data: menu } = await supabase
       .from('menus')
@@ -246,13 +213,9 @@ export default function PainelDono() {
   const carregarHorarios = async (estabId: string) => {
     const { data } = await supabase.from('horarios_funcionamento').select('*').eq('estabelecimento_id', estabId).order('dia_semana')
     const DIAS_SEMANA = [0, 1, 2, 3, 4, 5, 6]
-    const diasCompletos = DIAS_SEMANA.map(dia => data?.find(h => h.dia_semana === dia) || { dia_semana: dia, horario_abertura: '08:00', horario_fechamento: '18:00', fechado: false, estabelecimento_id: estabId })
-    setHorarios(diasCompletos)
+    setHorarios(DIAS_SEMANA.map(dia => data?.find(h => h.dia_semana === dia) || { dia_semana: dia, horario_abertura: '08:00', horario_fechamento: '18:00', fechado: false, estabelecimento_id: estabId }))
   }
 
-  // ----------------------------------------------------------------
-  // Consulta CNPJ (CORRIGIDA E MELHORADA)
-  // ----------------------------------------------------------------
   const buscarCnpj = async (cnpjNumeros: string) => {
     if (cnpjNumeros.length !== 14) return
     setBuscandoCnpj(true)
@@ -261,14 +224,7 @@ export default function PainelDono() {
       if (!res.ok) throw new Error('CNPJ não encontrado')
       const data = await res.json()
       if (data) {
-        // Endereço: tipo + logradouro + número
-        const enderecoCompleto = formatarEndereco(
-          data.descricao_tipo_de_logradouro || null,
-          data.logradouro || null,
-          data.numero || null
-        )
-
-        // Atualiza o perfil com os dados da consulta
+        const enderecoCompleto = formatarEndereco(data.descricao_tipo_de_logradouro || null, data.logradouro || null, data.numero || null)
         setPerfil(prev => ({
           ...prev,
           cnpj: cnpjNumeros,
@@ -278,16 +234,11 @@ export default function PainelDono() {
           bairro: capitalizarTexto(data.bairro || ''),
           cep: data.cep || '',
           telefone: data.ddd_telefone_1 || '',
-          whatsapp: '',   // limpa pois a API não retorna
-          instagram: '',  // limpa
-          email: '',      // limpa
-          // Coordenadas: se existirem, preenche; caso contrário, mantém as atuais
-          latitude: data.estabelecimento?.latitude
-            ? parseFloat(data.estabelecimento.latitude)
-            : prev.latitude,
-          longitude: data.estabelecimento?.longitude
-            ? parseFloat(data.estabelecimento.longitude)
-            : prev.longitude,
+          whatsapp: '',
+          instagram: '',
+          email: '',
+          latitude: data.estabelecimento?.latitude ? parseFloat(data.estabelecimento.latitude) : prev.latitude,
+          longitude: data.estabelecimento?.longitude ? parseFloat(data.estabelecimento.longitude) : prev.longitude,
         }))
         alert('Dados preenchidos automaticamente. Verifique e corrija se necessário.')
       }
@@ -299,22 +250,13 @@ export default function PainelDono() {
     }
   }
 
-  // ----------------------------------------------------------------
-  // Ações do Cardápio
-  // ----------------------------------------------------------------
   const handleNovaCategoria = async () => {
     const nome = prompt('Nome da nova categoria:')
     if (!nome || !estabelecimento) return
     let { data: menu } = await supabase.from('menus').select('id').eq('estabelecimento_id', estabelecimento.id).eq('ativo', true).single()
     if (!menu) {
-      const { data: novoMenu, error: erroMenu } = await supabase
-        .from('menus')
-        .insert({ estabelecimento_id: estabelecimento.id, nome: 'Cardápio Principal', tema: 'raiz-brasileira', ativo: true })
-        .select('id').single()
-      if (erroMenu || !novoMenu) {
-        alert('Erro ao criar menu: ' + erroMenu?.message)
-        return
-      }
+      const { data: novoMenu, error: erroMenu } = await supabase.from('menus').insert({ estabelecimento_id: estabelecimento.id, nome: 'Cardápio Principal', tema: 'raiz-brasileira', ativo: true }).select('id').single()
+      if (erroMenu || !novoMenu) { alert('Erro ao criar menu: ' + erroMenu?.message); return }
       menu = novoMenu
     }
     await supabase.from('categorias').insert({ menu_id: menu.id, nome, ordem: categorias.length })
@@ -336,14 +278,7 @@ export default function PainelDono() {
     if (!nome) return
     const preco = parseFloat(prompt('Preço (ex: 19.90):') || '0')
     if (isNaN(preco)) return
-    await addItem(categoriaId, {
-      nome,
-      preco,
-      disponivel: true,
-      tags: [],
-      promocao_ativa: false,
-      delivery_disponivel: false,
-    })
+    await addItem(categoriaId, { nome, preco, disponivel: true, tags: [], promocao_ativa: false, delivery_disponivel: false })
   }
 
   const handleTogglePromocao = async (itemId: string, ativaAtual: boolean) => {
@@ -359,7 +294,6 @@ export default function PainelDono() {
     await updateItem(itemId, { disponivel: !disponivelAtual })
   }
 
-  // Aparência
   const salvarLayoutCardapio = async (layout: string) => {
     setModeloVisual(layout as any)
     if (!estabelecimento) return
@@ -373,11 +307,10 @@ export default function PainelDono() {
     await supabase.from('menus').update({ tema: slug }).eq('estabelecimento_id', estabelecimento.id)
   }
 
-  const alterarFundo = async (url: string) => {
-  setImagemFundo(url)
-  await supabase.from('estabelecimentos').update({ imagem_fundo: url }).eq('id', estabelecimento.id)
-  setEstabelecimento((prev: any) => ({ ...prev, imagem_fundo: url }))
-}
+  const alterarFundo = async (url: string | null) => {
+    setImagemFundo(url || '')
+    await supabase.from('estabelecimentos').update({ imagem_fundo: url }).eq('id', estabelecimento.id)
+    setEstabelecimento((prev: any) => ({ ...prev, imagem_fundo: url }))
   }
 
   const toggleRecurso = async (slug: string) => {
@@ -398,63 +331,24 @@ export default function PainelDono() {
     await supabase.from('estabelecimentos').update({ idiomas_ativos: novosIdiomas }).eq('id', estabelecimento.id)
   }
 
-  // ----------------------------------------------------------------
-  // Perfil
-  // ----------------------------------------------------------------
   const salvarPerfil = async () => {
     if (!estabelecimento) return
     setSalvandoPerfil(true)
+    const { error: updateError } = await supabase.from('estabelecimentos').update({
+      cnpj: perfil.cnpj, razao_social: perfil.razao_social, nome_fantasia: perfil.nome_fantasia,
+      endereco: perfil.endereco, bairro: perfil.bairro, cep: perfil.cep,
+      telefone: perfil.telefone, whatsapp: perfil.whatsapp, instagram: perfil.instagram,
+      email: perfil.email, nome: perfil.nome_fantasia, latitude: perfil.latitude, longitude: perfil.longitude,
+    }).eq('id', estabelecimento.id)
+    if (updateError) { alert('Erro ao salvar perfil: ' + updateError.message); setSalvandoPerfil(false); return }
 
-    const { error: updateError } = await supabase
-      .from('estabelecimentos')
-      .update({
-        cnpj: perfil.cnpj,
-        razao_social: perfil.razao_social,
-        nome_fantasia: perfil.nome_fantasia,
-        endereco: perfil.endereco,
-        bairro: perfil.bairro,
-        cep: perfil.cep,
-        telefone: perfil.telefone,
-        whatsapp: perfil.whatsapp,
-        instagram: perfil.instagram,
-        email: perfil.email,
-        nome: perfil.nome_fantasia,
-        latitude: perfil.latitude,
-        longitude: perfil.longitude,
-      })
-      .eq('id', estabelecimento.id)
-
-    if (updateError) {
-      alert('Erro ao salvar perfil: ' + updateError.message)
-      setSalvandoPerfil(false)
-      return
-    }
-
-    // Tipos de cozinha
-    const { data: tiposAtuais } = await supabase
-      .from('estabelecimento_tipos_cozinha')
-      .select('tipo_cozinha_id')
-      .eq('estabelecimento_id', estabelecimento.id)
+    const { data: tiposAtuais } = await supabase.from('estabelecimento_tipos_cozinha').select('tipo_cozinha_id').eq('estabelecimento_id', estabelecimento.id)
     const idsAtuais = tiposAtuais?.map(t => t.tipo_cozinha_id) || []
     const idsNovos = perfil.tipos_cozinha_ids || []
-
     const paraRemover = idsAtuais.filter(id => !idsNovos.includes(id))
     const paraAdicionar = idsNovos.filter(id => !idsAtuais.includes(id))
-
-    if (paraRemover.length) {
-      await supabase
-        .from('estabelecimento_tipos_cozinha')
-        .delete()
-        .eq('estabelecimento_id', estabelecimento.id)
-        .in('tipo_cozinha_id', paraRemover)
-    }
-    if (paraAdicionar.length) {
-      const insercoes = paraAdicionar.map(tipo_id => ({
-        estabelecimento_id: estabelecimento.id,
-        tipo_cozinha_id: tipo_id,
-      }))
-      await supabase.from('estabelecimento_tipos_cozinha').insert(insercoes)
-    }
+    if (paraRemover.length) await supabase.from('estabelecimento_tipos_cozinha').delete().eq('estabelecimento_id', estabelecimento.id).in('tipo_cozinha_id', paraRemover)
+    if (paraAdicionar.length) await supabase.from('estabelecimento_tipos_cozinha').insert(paraAdicionar.map(tipo_id => ({ estabelecimento_id: estabelecimento.id, tipo_cozinha_id: tipo_id })))
 
     setEstabelecimento((prev: any) => ({ ...prev, ...perfil, nome: perfil.nome_fantasia }))
     alert('Perfil atualizado!')
@@ -462,55 +356,16 @@ export default function PainelDono() {
     setSalvandoPerfil(false)
   }
 
-  // Imagens
-  const salvarFotoCapa = async (url: string) => {
-    await supabase.from('estabelecimentos').update({ foto_capa: url }).eq('id', estabelecimento.id)
-    setEstabelecimento((prev: any) => ({ ...prev, foto_capa: url }))
-  }
-  const salvarLogo = async (url: string) => {
-    await supabase.from('estabelecimentos').update({ logo_url: url }).eq('id', estabelecimento.id)
-    setEstabelecimento((prev: any) => ({ ...prev, logo_url: url }))
-  }
-  const atualizarGaleria = async (urls: string[]) => {
-    await supabase.from('estabelecimentos').update({ galeria_fotos: urls }).eq('id', estabelecimento.id)
-    setEstabelecimento((prev: any) => ({ ...prev, galeria_fotos: urls }))
-  }
+  const salvarFotoCapa = async (url: string) => { await supabase.from('estabelecimentos').update({ foto_capa: url }).eq('id', estabelecimento.id); setEstabelecimento((prev: any) => ({ ...prev, foto_capa: url })) }
+  const salvarLogo = async (url: string) => { await supabase.from('estabelecimentos').update({ logo_url: url }).eq('id', estabelecimento.id); setEstabelecimento((prev: any) => ({ ...prev, logo_url: url })) }
+  const atualizarGaleria = async (urls: string[]) => { await supabase.from('estabelecimentos').update({ galeria_fotos: urls }).eq('id', estabelecimento.id); setEstabelecimento((prev: any) => ({ ...prev, galeria_fotos: urls })) }
+  const salvarHorario = async (dia: any) => { if (!estabelecimento?.id) return; await supabase.from('horarios_funcionamento').upsert({ estabelecimento_id: estabelecimento.id, dia_semana: dia.dia_semana, horario_abertura: dia.horario_abertura, horario_fechamento: dia.horario_fechamento, fechado: dia.fechado }, { onConflict: 'estabelecimento_id,dia_semana' }) }
+  const salvarWhatsAppConfig = async () => { await supabase.from('estabelecimentos').update({ whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo } }).eq('id', estabelecimento.id); alert('Configurações do WhatsApp salvas!') }
+  const salvarDescricao = async (descricao: string) => { await supabase.from('estabelecimentos').update({ descricao }).eq('id', estabelecimento.id); setEstabelecimento((prev: any) => ({ ...prev, descricao })) }
 
-  // Horários
-  const salvarHorario = async (dia: any) => {
-    if (!estabelecimento?.id) return
-    await supabase.from('horarios_funcionamento').upsert({
-      estabelecimento_id: estabelecimento.id,
-      dia_semana: dia.dia_semana,
-      horario_abertura: dia.horario_abertura,
-      horario_fechamento: dia.horario_fechamento,
-      fechado: dia.fechado,
-    }, { onConflict: 'estabelecimento_id,dia_semana' })
-  }
-
-  // WhatsApp
-  const salvarWhatsAppConfig = async () => {
-    await supabase.from('estabelecimentos').update({
-      whatsapp_config: { mensagem_padrao: whatsappMensagem, ativo: whatsappAtivo }
-    }).eq('id', estabelecimento.id)
-    alert('Configurações do WhatsApp salvas!')
-  }
-
-  // Descrição (usada em ConfiguracoesTab)
-  const salvarDescricao = async (descricao: string) => {
-    await supabase.from('estabelecimentos').update({ descricao }).eq('id', estabelecimento.id)
-    setEstabelecimento((prev: any) => ({ ...prev, descricao }))
-  }
-
-  // ----------------------------------------------------------------
-  // Efeitos iniciais
-  // ----------------------------------------------------------------
   useEffect(() => {
     const userData = localStorage.getItem('usuario')
-    if (!userData) {
-      router.push('/login')
-      return
-    }
+    if (!userData) { router.push('/login'); return }
     const user = JSON.parse(userData)
     setUsuario(user)
     if (user.estabelecimento_id) carregarEstabelecimento(user.estabelecimento_id)
@@ -536,7 +391,6 @@ export default function PainelDono() {
 
   return (
     <div className="min-h-screen bg-[#fef9e8]">
-      {/* Header */}
       <header className="bg-white shadow-sm px-4 md:px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => setMenuAberto(!menuAberto)} className="md:hidden text-2xl">☰</button>
@@ -547,16 +401,12 @@ export default function PainelDono() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {estabelecimento?.qrcode_short_url && (
-            <Link href={`/menu/${estabelecimento.qrcode_short_url}`} target="_blank" className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">👁️ Ver</Link>
-          )}
+          {estabelecimento?.qrcode_short_url && <Link href={`/menu/${estabelecimento.qrcode_short_url}`} target="_blank" className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm">👁️ Ver</Link>}
           <button onClick={() => { localStorage.removeItem('usuario'); router.push('/login') }} className="text-red-600 text-sm">Sair</button>
         </div>
       </header>
 
-      {/* Layout principal */}
       <div className="flex">
-        {/* Sidebar */}
         <aside className={`fixed top-0 left-0 z-50 w-60 bg-white min-h-screen shadow-lg transition-transform duration-300 md:relative md:translate-x-0 ${menuAberto ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-4 flex justify-between items-center md:hidden">
             <span className="font-bold">Menu</span>
@@ -564,11 +414,7 @@ export default function PainelDono() {
           </div>
           <nav className="p-4 space-y-1">
             {navItems.map(aba => (
-              <button
-                key={aba.key}
-                onClick={() => { setAbaAtiva(aba.key); setMenuAberto(false) }}
-                className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 ${abaAtiva === aba.key ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
-              >
+              <button key={aba.key} onClick={() => { setAbaAtiva(aba.key); setMenuAberto(false) }} className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 ${abaAtiva === aba.key ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-700 hover:bg-gray-100'}`}>
                 {aba.icon} {aba.label}
               </button>
             ))}
@@ -576,7 +422,6 @@ export default function PainelDono() {
         </aside>
         {menuAberto && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMenuAberto(false)} />}
 
-        {/* Conteúdo principal */}
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
           {abaAtiva === 'dashboard' && (
             <DashboardTab
@@ -592,7 +437,6 @@ export default function PainelDono() {
             />
           )}
 
-          {/* ✅ CardapioTab COM PROPS CORRIGIDAS */}
           {abaAtiva === 'cardapio' && (
             <CardapioTab
               categorias={categorias}
@@ -612,6 +456,8 @@ export default function PainelDono() {
               onExcluirItem={deleteItem}
               onTogglePromocao={handleTogglePromocao}
               onPublicarItem={handleTogglePublicar}
+              onRenomearCategoria={handleRenomearCategoria}
+              onExcluirCategoria={handleExcluirCategoria}
             />
           )}
 
