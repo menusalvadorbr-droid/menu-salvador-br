@@ -1,3 +1,4 @@
+// src/app/menu/[shortUrl]/page.tsx
 'use client'
 
 import { useEffect, useState, useCallback, useRef, memo } from 'react'
@@ -8,7 +9,6 @@ import { isEstabelecimentoAberto } from '@/lib/statusAberto'
 import { useSacola } from '@/features/delivery/useSacola'
 import SacolaDrawer from '@/features/delivery/SacolaDrawer'
 import FinalizarPedidoModal from '@/features/delivery/FinalizarPedidoModal'
-import Link from 'next/link'
 
 // Helper para otimizar URLs do Cloudinary
 function optimizeCloudinaryUrl(url: string | null, width: number, height: number, quality: number = 80): string {
@@ -227,7 +227,7 @@ export default function MenuDigital() {
   const [temItensDelivery, setTemItensDelivery] = useState(false)
   const [idiomasDisponiveis, setIdiomasDisponiveis] = useState<string[]>(['pt'])
   const [idiomaAtual, setIdiomaAtual] = useState('pt')
-  const [temaConfig, setTemaConfig] = useState<any>(null) // detalhes do tema carregado
+  const [temaConfig, setTemaConfig] = useState<any>(null)
 
   const sacola = useSacola()
   const [sacolaAberta, setSacolaAberta] = useState(false)
@@ -288,14 +288,14 @@ export default function MenuDigital() {
         setTema(menu.tema || 'raiz-brasileira')
         setLayoutCardapio(menu.layout_cardapio || 'foto-esquerda')
 
-        // ✅ CORREÇÃO 1: Buscar detalhes do tema SEMPRE, não apenas se não for 'raiz-brasileira'
+        // Buscar detalhes do tema SEMPRE
         let temaDetalhes = null
         if (menu.tema) {
           const { data: temaData } = await supabase
             .from('temas')
             .select('*')
             .eq('slug', menu.tema)
-            .maybeSingle() // usar maybeSingle evita erro se não encontrar
+            .maybeSingle()
           if (temaData) temaDetalhes = temaData
         }
         setTemaConfig(temaDetalhes)
@@ -407,8 +407,8 @@ export default function MenuDigital() {
   const urlCapa = optimizeCloudinaryUrl(estabelecimento.foto_capa, 1200, 400, 80)
   const mapaIdiomaBandeira: Record<string, string> = { pt: '🇧🇷', en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }
 
-  // ✅ CORREÇÃO 2: Definir variáveis CSS customizadas e estilos do container
-  const themeStyles = {
+  // Variáveis CSS customizadas (usadas no container e em fallbacks)
+  const themeVariables = {
     '--theme-bg': temaConfig?.background_color || '#fef9e8',
     '--theme-bg-image': temaConfig?.background_image ? `url(${temaConfig.background_image})` : 'none',
     '--theme-primary': temaConfig?.primary_color || '#c7a252',
@@ -425,9 +425,8 @@ export default function MenuDigital() {
     '--theme-font': temaConfig?.font_family || 'system-ui, sans-serif',
   } as React.CSSProperties
 
-  // Estilo inline do container (combina background e fonte global)
   const containerStyle: React.CSSProperties = {
-    ...themeStyles,
+    ...themeVariables,
     backgroundColor: temaConfig?.background_color || '#fef9e8',
     backgroundImage: temaConfig?.background_image ? `url(${temaConfig.background_image})` : 'none',
     backgroundSize: 'cover',
@@ -438,7 +437,7 @@ export default function MenuDigital() {
 
   return (
     <div className="min-h-screen menu-container" style={containerStyle}>
-      {/* Cabeçalho adaptado ao tema */}
+      {/* Cabeçalho com foto de capa ou gradiente */}
       <div
         className="relative w-full pt-6 pb-4"
         style={{
@@ -453,7 +452,7 @@ export default function MenuDigital() {
         <div className="container mx-auto px-4 relative z-10">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h1 className="text-xl font-bold" style={{ fontFamily: themeStyles['--theme-font'] }}>
+              <h1 className="text-xl font-bold" style={{ fontFamily: temaConfig?.font_family || 'system-ui, sans-serif' }}>
                 {estabelecimento.nome_fantasia || estabelecimento.nome}
               </h1>
               <p className="text-sm opacity-90">{estabelecimento.tipo_cozinha} • {estabelecimento.bairro}</p>
@@ -505,7 +504,7 @@ export default function MenuDigital() {
                 style={{
                   backgroundColor: categoriaAtiva === cat.id ? (temaConfig?.primary_color || '#c7a252') : '#f3f4f6',
                   color: categoriaAtiva === cat.id ? (temaConfig?.button_text_color || '#ffffff') : (temaConfig?.text_color || '#374151'),
-                  fontFamily: themeStyles['--theme-font'],
+                  fontFamily: temaConfig?.font_family || 'system-ui, sans-serif',
                 }}
               >
                 {cat.nome}
@@ -523,12 +522,12 @@ export default function MenuDigital() {
               <div className="mb-4 pb-2 border-b-2" style={{ borderColor: categoria.eh_promocao ? '#ef4444' : (temaConfig?.primary_color || '#c7a252') }}>
                 <h2
                   className={`text-xl font-bold flex items-center gap-2 ${categoria.eh_promocao ? 'text-red-600' : ''}`}
-                  style={categoria.eh_promocao ? {} : { color: temaConfig?.primary_color || '#c7a252', fontFamily: themeStyles['--theme-font'] }}
+                  style={categoria.eh_promocao ? {} : { color: temaConfig?.primary_color || '#c7a252', fontFamily: temaConfig?.font_family || 'system-ui, sans-serif' }}
                 >
                   {categoria.nome}
                   {categoria.eh_promocao && <span className="text-sm animate-pulse">🔥</span>}
                 </h2>
-                {categoria.descricao && <p className="text-sm opacity-75 mt-1" style={{ fontFamily: themeStyles['--theme-font'] }}>{categoria.descricao}</p>}
+                {categoria.descricao && <p className="text-sm opacity-75 mt-1" style={{ fontFamily: temaConfig?.font_family || 'system-ui, sans-serif' }}>{categoria.descricao}</p>}
               </div>
               <div className="space-y-3">
                 {categoria.itens_cardapio.map((item: any) => (
@@ -573,8 +572,8 @@ export default function MenuDigital() {
       {/* Rodapé */}
       <footer className="py-6 mt-8 border-t" style={{ backgroundColor: temaConfig?.background_color || '#f3f4f6', borderColor: temaConfig?.primary_color || '#e5e7eb' }}>
         <div className="container mx-auto px-4 text-center">
-          <p className="text-sm opacity-75" style={{ fontFamily: themeStyles['--theme-font'] }}>Cardápio digital • {estabelecimento.nome}</p>
-          <p className="text-xs opacity-50 mt-1" style={{ fontFamily: themeStyles['--theme-font'] }}>menu.salvador.br/menu/{shortUrl}</p>
+          <p className="text-sm opacity-75" style={{ fontFamily: temaConfig?.font_family || 'system-ui, sans-serif' }}>Cardápio digital • {estabelecimento.nome}</p>
+          <p className="text-xs opacity-50 mt-1" style={{ fontFamily: temaConfig?.font_family || 'system-ui, sans-serif' }}>menu.salvador.br/menu/{shortUrl}</p>
         </div>
       </footer>
 
