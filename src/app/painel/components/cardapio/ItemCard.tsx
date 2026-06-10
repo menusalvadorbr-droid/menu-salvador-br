@@ -246,7 +246,7 @@ export function ItemCard({
         </div>
         <div>
           <label className="text-xs font-medium text-gray-700">Foto</label>
-          <ImageUpload onUpload={(url) => setFotoUrl(url)} defaultImage={fotoUrl} tipo="item" />
+          <ImageUpload onUpload={(url) => setFotoUrl(url)} defaultImage={fotoUrl}  />
         </div>
       </div>
 

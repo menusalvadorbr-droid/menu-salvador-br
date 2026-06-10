@@ -694,7 +694,7 @@ export default function PainelDono() {
                 />
               </div>
               <textarea placeholder="Descrição" rows={2} value={formItem.descricao} onChange={e => setFormItem({...formItem, descricao: e.target.value})} className="border rounded-lg px-3 py-2" />
-              <ImageUpload onUpload={(url) => setFormItem({...formItem, foto_url: url})} defaultImage={formItem.foto_url} tipo="item" />
+              <ImageUpload onUpload={(url) => setFormItem({...formItem, foto_url: url})} defaultImage={formItem.foto_url} />
               <div className="bg-purple-50 p-4 rounded-lg">
                 <label><input type="checkbox" checked={formItem.promocao_ativa} onChange={e => setFormItem({...formItem, promocao_ativa: e.target.checked})} /> Ativar promoção</label>
                 {formItem.promocao_ativa && (
