@@ -12,6 +12,8 @@ interface ItensSubTabProps {
   onTogglePromocao: (itemId: string, ativaAtual: boolean) => void
   onTogglePublicar: (itemId: string, disponivelAtual: boolean) => void
   onAdicionarItem: (categoriaId: string) => void
+  onRenomearCategoria: (catId: string, novoNome: string) => void
+  onExcluirCategoria: (catId: string) => void
 }
 
 export function ItensSubTab({
@@ -24,6 +26,8 @@ export function ItensSubTab({
   onTogglePromocao,
   onTogglePublicar,
   onAdicionarItem,
+  onRenomearCategoria,
+  onExcluirCategoria,
 }: ItensSubTabProps) {
   return (
     <ListaCategorias
@@ -31,11 +35,13 @@ export function ItensSubTab({
       modeloVisual={modeloVisual}
       idiomasAtivos={idiomasAtivos}
       limitePlano={limitePlano}
-      onUpdateItem={onUpdateItem}
-      onDeleteItem={onDeleteItem}
+      onAtualizarItem={onUpdateItem}
+      onExcluirItem={onDeleteItem}
       onTogglePromocao={onTogglePromocao}
-      onTogglePublicar={onTogglePublicar}
+      onPublicarItem={onTogglePublicar}
       onAdicionarItem={onAdicionarItem}
+      onRenomearCategoria={onRenomearCategoria}
+      onExcluirCategoria={onExcluirCategoria}
     />
   )
 }
