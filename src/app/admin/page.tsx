@@ -11,6 +11,7 @@ import { GerenciadorPlanos } from './components/GerenciadorPlanos'
 import { GerenciarHome } from './components/GerenciarHome'
 import { GerenciarTiposCozinha } from './components/GerenciarTiposCozinha'
 import { EditarEstabelecimentoModal } from './components/EditarEstabelecimentoModal'
+import { GerenciarTemas } from './components/GerenciarTemas'  // NOVA IMPORTAÇÃO
 
 export default function AdminPage() {
   const [logado, setLogado] = useState(false)
@@ -131,6 +132,7 @@ export default function AdminPage() {
             { key: 'planos', icon: '💰', label: 'Planos' },
             { key: 'home', icon: '🏠', label: 'Página Inicial' },
             { key: 'tipos_cozinha', icon: '🍽️', label: 'Tipos de Cozinha' },
+            { key: 'temas', icon: '🎨', label: 'Temas' },  // NOVA ABA
           ].map((aba) => (
             <button
               key={aba.key}
@@ -172,11 +174,12 @@ export default function AdminPage() {
               temas={temas}
               modelosQR={modelosQR}
               recursos={recursos}
-              onUpdate={setPlanos}   // ← CRUCIAL: atualização otimista sem recarregar tudo
+              onUpdate={setPlanos}
             />
           )}
           {abaAtiva === 'home' && <GerenciarHome />}
           {abaAtiva === 'tipos_cozinha' && <GerenciarTiposCozinha />}
+          {abaAtiva === 'temas' && <GerenciarTemas />}  {/* RENDERIZAÇÃO DA NOVA ABA */}
         </main>
       </div>
 

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { ImageUpload } from '@/components/upload/ImageUpload'
 import GaleriaUpload from '@/components/upload/GaleriaUpload'
 
+// ---------- máscaras ----------
 function formatarCNPJ(valor: string): string {
   const numeros = valor.replace(/\D/g, '')
   if (numeros.length <= 2) return numeros
@@ -34,6 +35,7 @@ function formatarTelefone(valor: string): string {
   return aplicarMascaraTelefone(valor)
 }
 
+// ---------- props ----------
 interface PerfilTabProps {
   estabelecimento: any
   perfil: {
@@ -47,7 +49,6 @@ interface PerfilTabProps {
     whatsapp: string
     instagram: string
     email: string
-    descricao: string
     latitude: number | null
     longitude: number | null
     tipos_cozinha_ids: number[]
@@ -81,6 +82,11 @@ export function PerfilTab({
   limiteGaleria,
 }: PerfilTabProps) {
   const [tiposCozinhaDisponiveis, setTiposCozinhaDisponiveis] = useState<any[]>([])
+  const [latInput, setLatInput] = useState(perfil.latitude !== null ? perfil.latitude.toString().replace('.', ',') : '')
+  const [lonInput, setLonInput] = useState(perfil.longitude !== null ? perfil.longitude.toString().replace('.', ',') : '')
+
+  // Estado local para o CNPJ da consulta
+  const [cnpjBusca, setCnpjBusca] = useState('')
 
   useEffect(() => {
     const carregarTipos = async () => {
@@ -94,6 +100,9 @@ export function PerfilTab({
     carregarTipos()
   }, [])
 
+  useEffect(() => { setLatInput(perfil.latitude !== null ? perfil.latitude.toString().replace('.', ',') : '') }, [perfil.latitude])
+  useEffect(() => { setLonInput(perfil.longitude !== null ? perfil.longitude.toString().replace('.', ',') : '') }, [perfil.longitude])
+
   const toggleTipoCozinha = (id: number) => {
     const atuais = perfil.tipos_cozinha_ids || []
     if (atuais.includes(id)) {
@@ -103,10 +112,17 @@ export function PerfilTab({
     }
   }
 
+  const handleConsultar = async () => {
+    const numeros = cnpjBusca.replace(/\D/g, '')
+    if (numeros.length !== 14) return
+    await onBuscarCnpj(numeros)
+  }
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">🏢 Perfil do Estabelecimento</h2>
-      <div className="bg-white rounded-xl p-6 shadow-sm">
+
+      <div className="bg-white rounded-xl p-6 shadow-sm mb-8">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-lg">Dados Cadastrais</h3>
           {!editandoPerfil && (
@@ -115,230 +131,168 @@ export function PerfilTab({
         </div>
 
         {editandoPerfil ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* CNPJ */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
-              <input
-                type="text"
-                value={formatarCNPJ(perfil.cnpj)}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/\D/g, '').slice(0, 14)
-                  setPerfil({ ...perfil, cnpj: raw })
-                }}
-                onBlur={() => onBuscarCnpj(perfil.cnpj)}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="00.000.000/0000-00"
-              />
-              {buscandoCnpj && <span className="text-xs text-gray-400">Buscando...</span>}
+          <div className="space-y-6">
+            {/* Consulta CNPJ */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Consulta CNPJ</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={cnpjBusca}
+                  onChange={(e) => setCnpjBusca(e.target.value)}
+                  className="border rounded-lg px-3 py-2 flex-1"
+                  placeholder="Digite o CNPJ (apenas números)"
+                />
+                <button
+                  type="button"
+                  onClick={handleConsultar}
+                  disabled={buscandoCnpj || cnpjBusca.replace(/\D/g, '').length !== 14}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {buscandoCnpj ? 'Buscando...' : '🔍 Consultar'}
+                </button>
+              </div>
             </div>
 
-            {/* Razão Social (read-only) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Razão Social</label>
-              <input
-                type="text"
-                value={perfil.razao_social}
-                readOnly
-                className="border rounded-lg px-3 py-2 w-full bg-gray-100"
-              />
+            {/* Dados da empresa (apenas leitura) – sem títulos */}
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs text-blue-600">Razão Social</span>
+                  <p className="font-medium text-gray-800">{perfil.razao_social || '—'}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-blue-600">CNPJ</span>
+                  <p className="font-medium text-gray-800">{perfil.cnpj ? formatarCNPJ(perfil.cnpj) : '—'}</p>
+                </div>
+              </div>
             </div>
 
+            {/* Dados editáveis */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome Fantasia</label>
-              <input
-                type="text"
-                value={perfil.nome_fantasia}
-                onChange={(e) => setPerfil({ ...perfil, nome_fantasia: e.target.value })}
-                className="border rounded-lg px-3 py-2 w-full"
-              />
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Dados do Estabelecimento</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome Fantasia</label>
+                  <input type="text" value={perfil.nome_fantasia} onChange={(e) => setPerfil({ ...perfil, nome_fantasia: e.target.value })} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+                  <input type="text" value={perfil.endereco} onChange={(e) => setPerfil({ ...perfil, endereco: e.target.value })} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+                  <input type="text" value={perfil.bairro} onChange={(e) => setPerfil({ ...perfil, bairro: e.target.value })} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
+                  <input type="text" value={aplicarMascaraCEP(perfil.cep)} onChange={(e) => { const raw = e.target.value.replace(/\D/g, '').slice(0, 8); setPerfil({ ...perfil, cep: raw }) }} className="border rounded-lg px-3 py-2 w-full" placeholder="00000-000" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                  <input type="text" value={aplicarMascaraTelefone(perfil.telefone)} onChange={(e) => { let raw = e.target.value.replace(/\D/g, ''); if (raw.length > 11) raw = raw.slice(0, 11); setPerfil({ ...perfil, telefone: raw }) }} className="border rounded-lg px-3 py-2 w-full" placeholder="(71) 99999-9999" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
+                  <input type="text" value={aplicarMascaraTelefone(perfil.whatsapp)} onChange={(e) => { let raw = e.target.value.replace(/\D/g, ''); if (raw.length > 11) raw = raw.slice(0, 11); setPerfil({ ...perfil, whatsapp: raw }) }} className="border rounded-lg px-3 py-2 w-full" placeholder="(71) 99999-9999" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
+                  <input type="text" value={perfil.instagram} onChange={(e) => setPerfil({ ...perfil, instagram: e.target.value.replace('@', '') })} className="border rounded-lg px-3 py-2 w-full" placeholder="@seudominio" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={perfil.email} onChange={(e) => setPerfil({ ...perfil, email: e.target.value })} className="border rounded-lg px-3 py-2 w-full" />
+                </div>
+              </div>
             </div>
 
+            {/* Localização (somente manual) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
-              <input
-                type="text"
-                value={perfil.endereco}
-                onChange={(e) => setPerfil({ ...perfil, endereco: e.target.value })}
-                className="border rounded-lg px-3 py-2 w-full"
-              />
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Localização</h4>
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                  <input
+                    type="text"
+                    value={latInput}
+                    onChange={(e) => {
+                      setLatInput(e.target.value)
+                    }}
+                    onBlur={(e) => {
+                      let raw = e.target.value.trim()
+                      if (raw === '') {
+                        setPerfil({ ...perfil, latitude: null })
+                        setLatInput('')
+                        return
+                      }
+                      let num = parseFloat(raw.replace(',', '.'))
+                      if (!isNaN(num) && num >= -90 && num <= 90) {
+                        setPerfil({ ...perfil, latitude: num })
+                        setLatInput(num.toString().replace('.', ','))
+                      } else {
+                        setLatInput(perfil.latitude !== null ? perfil.latitude.toString().replace('.', ',') : '')
+                      }
+                    }}
+                    className="border rounded-lg px-3 py-2 w-full"
+                    placeholder="Ex: -12,98"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                  <input
+                    type="text"
+                    value={lonInput}
+                    onChange={(e) => {
+                      setLonInput(e.target.value)
+                    }}
+                    onBlur={(e) => {
+                      let raw = e.target.value.trim()
+                      if (raw === '') {
+                        setPerfil({ ...perfil, longitude: null })
+                        setLonInput('')
+                        return
+                      }
+                      let num = parseFloat(raw.replace(',', '.'))
+                      if (!isNaN(num) && num >= -180 && num <= 180) {
+                        setPerfil({ ...perfil, longitude: num })
+                        setLonInput(num.toString().replace('.', ','))
+                      } else {
+                        setLonInput(perfil.longitude !== null ? perfil.longitude.toString().replace('.', ',') : '')
+                      }
+                    }}
+                    className="border rounded-lg px-3 py-2 w-full"
+                    placeholder="Ex: -38,46"
+                  />
+                </div>
+                {/* Nenhum botão ou texto extra */}
+              </div>
             </div>
 
+            {/* Tipos de Cozinha */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
-              <input
-                type="text"
-                value={perfil.bairro}
-                onChange={(e) => setPerfil({ ...perfil, bairro: e.target.value })}
-                className="border rounded-lg px-3 py-2 w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
-              <input
-                type="text"
-                value={aplicarMascaraCEP(perfil.cep)}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/\D/g, '').slice(0, 8)
-                  setPerfil({ ...perfil, cep: raw })
-                }}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="00000-000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input
-                type="text"
-                value={aplicarMascaraTelefone(perfil.telefone)}
-                onChange={(e) => {
-                  let raw = e.target.value.replace(/\D/g, '')
-                  if (raw.length > 11) raw = raw.slice(0, 11)
-                  setPerfil({ ...perfil, telefone: raw })
-                }}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="(71) 99999-9999"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
-              <input
-                type="text"
-                value={aplicarMascaraTelefone(perfil.whatsapp)}
-                onChange={(e) => {
-                  let raw = e.target.value.replace(/\D/g, '')
-                  if (raw.length > 11) raw = raw.slice(0, 11)
-                  setPerfil({ ...perfil, whatsapp: raw })
-                }}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="(71) 99999-9999"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
-              <input
-                type="text"
-                value={perfil.instagram}
-                onChange={(e) => setPerfil({ ...perfil, instagram: e.target.value.replace('@', '') })}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="@seudominio"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={perfil.email}
-                onChange={(e) => setPerfil({ ...perfil, email: e.target.value })}
-                className="border rounded-lg px-3 py-2 w-full"
-              />
-            </div>
-
-            {/* Latitude */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
-              <input
-                type="text"
-                defaultValue={perfil.latitude !== null && perfil.latitude !== undefined ? perfil.latitude.toString().replace('.', ',') : ''}
-                onBlur={(e) => {
-                  let raw = e.target.value.trim()
-                  if (raw === '') {
-                    setPerfil({ ...perfil, latitude: null })
-                    return
-                  }
-                  let num = parseFloat(raw.replace(',', '.'))
-                  if (!isNaN(num) && num >= -90 && num <= 90) {
-                    setPerfil({ ...perfil, latitude: num })
-                  } else {
-                    e.target.value = perfil.latitude !== null ? perfil.latitude.toString().replace('.', ',') : ''
-                  }
-                }}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="Ex: -12,98 ou 0"
-              />
-            </div>
-
-            {/* Longitude */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
-              <input
-                type="text"
-                defaultValue={perfil.longitude !== null && perfil.longitude !== undefined ? perfil.longitude.toString().replace('.', ',') : ''}
-                onBlur={(e) => {
-                  let raw = e.target.value.trim()
-                  if (raw === '') {
-                    setPerfil({ ...perfil, longitude: null })
-                    return
-                  }
-                  let num = parseFloat(raw.replace(',', '.'))
-                  if (!isNaN(num) && num >= -180 && num <= 180) {
-                    setPerfil({ ...perfil, longitude: num })
-                  } else {
-                    e.target.value = perfil.longitude !== null ? perfil.longitude.toString().replace('.', ',') : ''
-                  }
-                }}
-                className="border rounded-lg px-3 py-2 w-full"
-                placeholder="Ex: -38,4657 ou 0"
-              />
-            </div>
-
-            {/* Tipos de Cozinha (múltipla escolha) */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tipos de Cozinha (pode escolher vários)</label>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Tipos de Cozinha</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {tiposCozinhaDisponiveis.map((tipo) => {
                   const isChecked = (perfil.tipos_cozinha_ids || []).includes(tipo.id)
                   return (
                     <label key={tipo.id} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleTipoCozinha(tipo.id)}
-                        className="rounded text-orange-600 focus:ring-orange-500"
-                      />
+                      <input type="checkbox" checked={isChecked} onChange={() => toggleTipoCozinha(tipo.id)} className="rounded text-orange-600 focus:ring-orange-500" />
                       <span className="text-sm text-gray-800">{tipo.nome}</span>
                     </label>
                   )
                 })}
               </div>
-              {tiposCozinhaDisponiveis.length === 0 && (
-                <p className="text-xs text-gray-400 mt-1">Nenhum tipo de cozinha cadastrado. Entre em contato com o administrador.</p>
-              )}
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-              <textarea
-                value={perfil.descricao}
-                onChange={(e) => setPerfil({ ...perfil, descricao: e.target.value })}
-                className="border rounded-lg px-3 py-2 w-full"
-                rows={4}
-              />
-            </div>
-
-            <div className="md:col-span-2 flex gap-3">
-              <button
-                onClick={onSalvarPerfil}
-                disabled={salvandoPerfil}
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg"
-              >
-                {salvandoPerfil ? 'Salvando...' : '💾 Salvar Perfil'}
-              </button>
-              <button
-                onClick={() => setEditandoPerfil(false)}
-                className="border px-4 py-2 rounded-lg"
-              >
-                Cancelar
-              </button>
+            {/* Botões de ação */}
+            <div className="flex gap-3 pt-2">
+              <button onClick={onSalvarPerfil} disabled={salvandoPerfil} className="bg-orange-600 text-white px-4 py-2 rounded-lg">{salvandoPerfil ? 'Salvando...' : '💾 Salvar Perfil'}</button>
+              <button onClick={() => setEditandoPerfil(false)} className="border px-4 py-2 rounded-lg">Cancelar</button>
             </div>
           </div>
         ) : (
-          // Modo visualização
+          // Modo visualização (sem alterações)
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             {perfil.cnpj && <div><span className="text-gray-500">CNPJ:</span> <p className="font-medium">{formatarCNPJ(perfil.cnpj)}</p></div>}
             {perfil.razao_social && <div><span className="text-gray-500">Razão Social:</span> <p className="font-medium">{perfil.razao_social}</p></div>}
@@ -357,9 +311,7 @@ export function PerfilTab({
                   {tiposCozinhaDisponiveis
                     .filter(t => perfil.tipos_cozinha_ids?.includes(t.id))
                     .map(tipo => (
-                      <span key={tipo.id} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                        {tipo.nome}
-                      </span>
+                      <span key={tipo.id} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{tipo.nome}</span>
                     ))}
                 </div>
               </div>
@@ -370,10 +322,6 @@ export function PerfilTab({
                 <p className="font-medium">{perfil.latitude}, {perfil.longitude}</p>
               </div>
             )}
-            <div className="col-span-2">
-              <span className="text-gray-500">Descrição:</span>
-              <p className="font-medium whitespace-pre-wrap">{perfil.descricao}</p>
-            </div>
           </div>
         )}
       </div>

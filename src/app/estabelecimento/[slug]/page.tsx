@@ -447,7 +447,10 @@ export default function PerfilEstabelecimento() {
             {estabelecimento.descricao && (
               <div className="bg-white rounded-xl p-5 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-800 mb-3">📝 Sobre</h2>
-                <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{estabelecimento.descricao}</p>
+                <div
+                  className="text-gray-600 leading-relaxed whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: estabelecimento.descricao || '' }}
+                />
               </div>
             )}
 

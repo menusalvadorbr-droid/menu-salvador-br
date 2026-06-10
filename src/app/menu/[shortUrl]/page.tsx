@@ -27,7 +27,7 @@ function getTextItem(item: any, idioma: string, campo: string) {
   return item[campoTraduzido] || item[campo] || ''
 }
 
-// Componente memoizado ItemCard (evita re-renderizações desnecessárias)
+// Componente memoizado ItemCard – agora com suporte a tema (cores e fontes)
 const ItemCard = memo(function ItemCard({
   item,
   layout,
@@ -35,6 +35,7 @@ const ItemCard = memo(function ItemCard({
   modoDelivery,
   onAdicionarSacola,
   idioma,
+  temaConfig, // recebe as configurações do tema (cores, fontes)
 }: {
   item: any
   layout: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
@@ -42,26 +43,38 @@ const ItemCard = memo(function ItemCard({
   modoDelivery: boolean
   onAdicionarSacola?: (item: any) => void
   idioma: string
+  temaConfig?: any
 }) {
   const promocao = item.promocao_ativa && item.preco_promocional
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'
   const nomeExibicao = item.codigo ? `${item.codigo} - ${getTextItem(item, idioma, 'nome')}` : getTextItem(item, idioma, 'nome')
   const tagsExibidas = item[`tags_${idioma}`] || item.tags || []
 
-  // Layout sem foto
+  // Estilos baseados no tema (se disponível)
+  const titleStyle = temaConfig ? { color: temaConfig.title_color, fontFamily: temaConfig.font_family } : {}
+  const descriptionStyle = temaConfig ? { color: temaConfig.description_color } : {}
+  const priceStyle = temaConfig ? { color: temaConfig.price_color } : {}
+  const promoPriceStyle = temaConfig ? { color: temaConfig.promo_price_color } : {}
+  const tagStyle = temaConfig ? { backgroundColor: temaConfig.tag_bg_color, color: temaConfig.tag_text_color } : {}
+  const buttonStyle = temaConfig ? { backgroundColor: temaConfig.button_bg_color, color: temaConfig.button_text_color } : {}
+
   if (layout === 'sem-foto') {
     return (
       <div className={`p-4 rounded-xl transition ${promocao ? 'bg-red-50 border-2 border-red-200' : 'bg-white border border-gray-100 shadow-sm'}`}>
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold text-gray-900">{nomeExibicao}</h3>
+              <h3 className="font-semibold" style={titleStyle}>{nomeExibicao}</h3>
               {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded animate-pulse">Promoção</span>}
             </div>
-            {getTextItem(item, idioma, 'descricao') && <p className="text-sm text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: getTextItem(item, idioma, 'descricao') }} />}
+            {getTextItem(item, idioma, 'descricao') && (
+              <div className="text-sm mt-1" style={descriptionStyle} dangerouslySetInnerHTML={{ __html: getTextItem(item, idioma, 'descricao') }} />
+            )}
             {tagsExibidas.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
-                {tagsExibidas.map((tag: string) => <span key={tag} className="text-xs bg-gray-100 border px-2 py-0.5 rounded-full text-gray-600">{tag}</span>)}
+                {tagsExibidas.map((tag: string) => (
+                  <span key={tag} className="text-xs border px-2 py-0.5 rounded-full" style={tagStyle}>{tag}</span>
+                ))}
               </div>
             )}
           </div>
@@ -69,15 +82,19 @@ const ItemCard = memo(function ItemCard({
             {promocao ? (
               <>
                 <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
-                <div className="text-lg font-bold text-green-600">R$ {fmt(item.preco_promocional)}</div>
+                <div className="text-lg font-bold" style={promoPriceStyle}>R$ {fmt(item.preco_promocional)}</div>
               </>
             ) : (
-              <div className="text-lg font-bold text-gray-900">R$ {fmt(item.preco)}</div>
+              <div className="text-lg font-bold" style={priceStyle}>R$ {fmt(item.preco)}</div>
             )}
           </div>
         </div>
         {modoDelivery && onAdicionarSacola && (
-          <button onClick={() => onAdicionarSacola(item)} className="mt-3 w-full bg-orange-500 text-white py-1.5 rounded-lg text-sm font-medium hover:bg-orange-600 transition">
+          <button
+            onClick={() => onAdicionarSacola(item)}
+            className="mt-3 w-full py-1.5 rounded-lg text-sm font-medium transition hover:opacity-90"
+            style={buttonStyle}
+          >
             🛒 Adicionar
           </button>
         )}
@@ -85,7 +102,6 @@ const ItemCard = memo(function ItemCard({
     )
   }
 
-  // Layout foto à esquerda
   if (layout === 'foto-esquerda') {
     const imgUrl = optimizeCloudinaryUrl(item.foto_url, 80, 80)
     return (
@@ -97,28 +113,38 @@ const ItemCard = memo(function ItemCard({
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-semibold text-gray-900">{nomeExibicao}</h3>
+                <h3 className="font-semibold" style={titleStyle}>{nomeExibicao}</h3>
                 {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded mt-1 inline-block">Promoção</span>}
               </div>
               <div className="text-right">
                 {promocao ? (
                   <>
                     <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
-                    <div className="text-lg font-bold text-green-600">R$ {fmt(item.preco_promocional)}</div>
+                    <div className="text-lg font-bold" style={promoPriceStyle}>R$ {fmt(item.preco_promocional)}</div>
                   </>
                 ) : (
-                  <div className="text-lg font-bold text-gray-900">R$ {fmt(item.preco)}</div>
+                  <div className="text-lg font-bold" style={priceStyle}>R$ {fmt(item.preco)}</div>
                 )}
               </div>
             </div>
-            {getTextItem(item, idioma, 'descricao') && <p className="text-sm text-gray-600 mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: getTextItem(item, idioma, 'descricao') }} />}
+            {getTextItem(item, idioma, 'descricao') && (
+              <div className="text-sm mt-1 line-clamp-2" style={descriptionStyle} dangerouslySetInnerHTML={{ __html: getTextItem(item, idioma, 'descricao') }} />
+            )}
             {tagsExibidas.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
-                {tagsExibidas.map((tag: string) => <span key={tag} className="text-xs bg-gray-100 border px-2 py-0.5 rounded-full text-gray-600">{tag}</span>)}
+                {tagsExibidas.map((tag: string) => (
+                  <span key={tag} className="text-xs border px-2 py-0.5 rounded-full" style={tagStyle}>{tag}</span>
+                ))}
               </div>
             )}
             {modoDelivery && onAdicionarSacola && (
-              <button onClick={() => onAdicionarSacola(item)} className="mt-2 bg-orange-500 text-white text-sm px-3 py-1 rounded-full hover:bg-orange-600 transition">🛒 Adicionar</button>
+              <button
+                onClick={() => onAdicionarSacola(item)}
+                className="mt-2 text-sm px-3 py-1 rounded-full hover:opacity-90 transition"
+                style={buttonStyle}
+              >
+                🛒 Adicionar
+              </button>
             )}
           </div>
         </div>
@@ -137,28 +163,38 @@ const ItemCard = memo(function ItemCard({
       )}
       <div className="flex justify-between items-start gap-2">
         <div>
-          <h3 className="font-semibold text-gray-900">{nomeExibicao}</h3>
+          <h3 className="font-semibold" style={titleStyle}>{nomeExibicao}</h3>
           {promocao && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded mt-1 inline-block">Promoção</span>}
         </div>
         <div className="text-right">
           {promocao ? (
             <>
               <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
-              <div className="text-lg font-bold text-green-600">R$ {fmt(item.preco_promocional)}</div>
+              <div className="text-lg font-bold" style={promoPriceStyle}>R$ {fmt(item.preco_promocional)}</div>
             </>
           ) : (
-            <div className="text-lg font-bold text-gray-900">R$ {fmt(item.preco)}</div>
+            <div className="text-lg font-bold" style={priceStyle}>R$ {fmt(item.preco)}</div>
           )}
         </div>
       </div>
-      {getTextItem(item, idioma, 'descricao') && <p className="text-sm text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: getTextItem(item, idioma, 'descricao') }} />}
+      {getTextItem(item, idioma, 'descricao') && (
+        <div className="text-sm mt-1" style={descriptionStyle} dangerouslySetInnerHTML={{ __html: getTextItem(item, idioma, 'descricao') }} />
+      )}
       {tagsExibidas.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
-          {tagsExibidas.map((tag: string) => <span key={tag} className="text-xs bg-gray-100 border px-2 py-0.5 rounded-full text-gray-600">{tag}</span>)}
+          {tagsExibidas.map((tag: string) => (
+            <span key={tag} className="text-xs border px-2 py-0.5 rounded-full" style={tagStyle}>{tag}</span>
+          ))}
         </div>
       )}
       {modoDelivery && onAdicionarSacola && (
-        <button onClick={() => onAdicionarSacola(item)} className="mt-3 w-full bg-orange-500 text-white py-1.5 rounded-lg text-sm font-medium hover:bg-orange-600 transition">🛒 Adicionar</button>
+        <button
+          onClick={() => onAdicionarSacola(item)}
+          className="mt-3 w-full py-1.5 rounded-lg text-sm font-medium transition hover:opacity-90"
+          style={buttonStyle}
+        >
+          🛒 Adicionar
+        </button>
       )}
     </div>
   )
@@ -182,12 +218,11 @@ export default function MenuDigital() {
   const [temItensDelivery, setTemItensDelivery] = useState(false)
   const [idiomasDisponiveis, setIdiomasDisponiveis] = useState<string[]>(['pt'])
   const [idiomaAtual, setIdiomaAtual] = useState('pt')
+  const [temaConfig, setTemaConfig] = useState<any>(null) // armazena detalhes do tema
 
   const sacola = useSacola()
   const [sacolaAberta, setSacolaAberta] = useState(false)
   const [finalizarAberto, setFinalizarAberto] = useState(false)
-  
-  // Ref para controlar se o scan já foi registrado nesta sessão (evita múltiplos incrementos)
   const scanRegistrado = useRef(false)
   const chipsRef = useRef<HTMLDivElement>(null)
 
@@ -221,7 +256,6 @@ export default function MenuDigital() {
       setEstabelecimento(estab)
       setIdiomasDisponiveis(estab.idiomas_ativos || ['pt'])
       
-      // Incrementar scan APENAS UMA VEZ por sessão (controle via ref)
       if (!scanRegistrado.current) {
         scanRegistrado.current = true
         supabase.from('estabelecimentos').update({ scans_qrcode: (estab.scans_qrcode || 0) + 1 }).eq('id', estab.id).then()
@@ -244,6 +278,20 @@ export default function MenuDigital() {
       if (menu) {
         setTema(menu.tema || 'raiz-brasileira')
         setLayoutCardapio(menu.layout_cardapio || 'foto-esquerda')
+
+        // Buscar detalhes do tema (se não for o padrão)
+        let temaDetalhes = null
+        if (menu.tema && menu.tema !== 'raiz-brasileira') {
+          const { data: temaData, error: temaError } = await supabase
+            .from('temas')
+            .select('*')
+            .eq('slug', menu.tema)
+            .single()
+          if (!temaError && temaData) {
+            temaDetalhes = temaData
+          }
+        }
+        setTemaConfig(temaDetalhes)
 
         const { data: cats } = await supabase
           .from('categorias')
@@ -352,9 +400,26 @@ export default function MenuDigital() {
   const urlCapa = optimizeCloudinaryUrl(estabelecimento.foto_capa, 1200, 400, 80)
   const mapaIdiomaBandeira: Record<string, string> = { pt: '🇧🇷', en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }
 
+  // Estilo do container principal (background e cor global)
+  const containerStyle: React.CSSProperties = {}
+  if (temaConfig?.background_image) {
+    containerStyle.backgroundImage = `url(${temaConfig.background_image})`
+    containerStyle.backgroundSize = 'cover'
+    containerStyle.backgroundAttachment = 'fixed'
+  }
+  if (temaConfig?.background_color) {
+    containerStyle.backgroundColor = temaConfig.background_color
+  }
+  if (temaConfig?.text_color) {
+    containerStyle.color = temaConfig.text_color
+  }
+  if (temaConfig?.font_family) {
+    containerStyle.fontFamily = temaConfig.font_family
+  }
+
   return (
-    <div className={`min-h-screen menu-container tema-${tema}`}>
-      {/* Cabeçalho com foto de capa (se existir) */}
+    <div className={`min-h-screen menu-container tema-${tema}`} style={containerStyle}>
+      {/* Cabeçalho com foto de capa ou gradiente */}
       {urlCapa ? (
         <div className="relative w-full h-48 md:h-64 bg-cover bg-center" style={{ backgroundImage: `url(${urlCapa})` }}>
           <div className="absolute inset-0 bg-black/30" />
@@ -399,7 +464,6 @@ export default function MenuDigital() {
           </div>
         </div>
       ) : (
-        /* Cabeçalho sem foto de capa (gradiente) */
         <div className="bg-gradient-to-br from-orange-600 to-red-700 text-white">
           <div className="container mx-auto px-4 py-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -443,14 +507,10 @@ export default function MenuDigital() {
         </div>
       )}
 
-      {/* Chips de categorias (fixo no topo ao rolar) */}
+      {/* Chips de categorias */}
       {categoriasNav.length > 1 && (
         <div className="sticky top-0 z-40 bg-white/95 backdrop-blur shadow-sm border-b">
-          <div
-            ref={chipsRef}
-            className="flex gap-2 px-4 py-3 overflow-x-auto"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
+          <div ref={chipsRef} className="flex gap-2 px-4 py-3 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {categoriasNav.map((cat) => (
               <button
                 key={cat.id}
@@ -468,15 +528,15 @@ export default function MenuDigital() {
         </div>
       )}
 
-      {/* Conteúdo principal (itens do cardápio) */}
+      {/* Conteúdo principal */}
       <main className="container mx-auto px-4 py-6 max-w-2xl">
         {categorias.length > 0 ? (
           categorias.map((categoria) => (
             <section key={categoria.id} id={categoria.id} className="mb-8 scroll-mt-24">
-              <div className="mb-4 pb-2 border-b-2" style={{ borderColor: categoria.eh_promocao ? 'var(--menu-accent)' : '#ccc' }}>
+              <div className="mb-4 pb-2 border-b-2" style={{ borderColor: categoria.eh_promocao ? (temaConfig?.primary_color || 'var(--menu-accent)') : '#ccc' }}>
                 <h2
                   className={`text-xl font-bold flex items-center gap-2 ${categoria.eh_promocao ? 'text-red-600' : ''}`}
-                  style={{ color: categoria.eh_promocao ? undefined : 'var(--menu-text)' }}
+                  style={{ color: categoria.eh_promocao ? undefined : (temaConfig?.primary_color || 'var(--menu-text)') }}
                 >
                   {categoria.nome}
                   {categoria.eh_promocao && <span className="text-sm animate-pulse">🔥</span>}
@@ -493,6 +553,7 @@ export default function MenuDigital() {
                     modoDelivery={modoDelivery}
                     onAdicionarSacola={modoDelivery ? handleAdicionarSacola : undefined}
                     idioma={idiomaAtual}
+                    temaConfig={temaConfig}
                   />
                 ))}
               </div>
@@ -503,7 +564,7 @@ export default function MenuDigital() {
         )}
       </main>
 
-      {/* Botão flutuante da sacola (modo delivery) */}
+      {/* Botão flutuante da sacola */}
       {modoDelivery && (
         <button
           onClick={() => setSacolaAberta(true)}
@@ -529,7 +590,7 @@ export default function MenuDigital() {
       {/* Lightbox */}
       {lightboxSrc && <Lightbox src={lightboxSrc} alt="Foto do item" onClose={() => setLightboxSrc(null)} />}
 
-      {/* Sacola Drawer e Modal de finalização */}
+      {/* Sacola Drawer e modal */}
       <SacolaDrawer
         aberto={sacolaAberta}
         itens={sacola.itens}
