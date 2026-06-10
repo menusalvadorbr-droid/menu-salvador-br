@@ -1,9 +1,9 @@
-// src/app/painel/components/CardapioTab.tsx
+// src/app/painel/components/cardapio/CardapioTab.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { ListaCategorias } from './ListaCategorias'
-import { TemaCard } from './TemaCard'
+import { TemaCard } from '../TemaCard'   // ✅ CORRIGIDO
 import { ImageUpload } from '@/components/upload/ImageUpload'
 
 interface CardapioTabProps {
