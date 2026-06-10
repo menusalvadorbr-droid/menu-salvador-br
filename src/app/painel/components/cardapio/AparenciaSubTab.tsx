@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TemaCard } from '../TemaCard'
+import { TemaCard } from '../../TemaCard'
 import { ImageUpload } from '@/components/upload/ImageUpload'
 
 interface AparenciaSubTabProps {
