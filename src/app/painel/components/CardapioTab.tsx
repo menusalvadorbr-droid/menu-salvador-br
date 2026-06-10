@@ -1,9 +1,8 @@
-// src/app/painel/components/cardapio/CardapioTab.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { ListaCategorias } from './ListaCategorias'
-import { TemaCard } from '../TemaCard'   // ✅ CORRIGIDO
+import { TemaCard } from '../TemaCard'
 import { ImageUpload } from '@/components/upload/ImageUpload'
 
 interface CardapioTabProps {
@@ -24,8 +23,8 @@ interface CardapioTabProps {
   onExcluirItem: (itemId: string) => void
   onTogglePromocao: (itemId: string, ativaAtual: boolean) => void
   onPublicarItem: (itemId: string, disponivelAtual: boolean) => void
-  onRenomearCategoria: (catId: string, novoNome: string) => void   // NOVA
-  onExcluirCategoria: (catId: string) => void                      // NOVA
+  onRenomearCategoria: (catId: string, novoNome: string) => void
+  onExcluirCategoria: (catId: string) => void
 }
 
 export function CardapioTab({
@@ -46,25 +45,20 @@ export function CardapioTab({
   onExcluirItem,
   onTogglePromocao,
   onPublicarItem,
-  onRenomearCategoria,    // NOVA
-  onExcluirCategoria,     // NOVA
+  onRenomearCategoria,
+  onExcluirCategoria,
 }: CardapioTabProps) {
-  // Layout
   const [layoutAtual, setLayoutAtual] = useState(layoutSalvo)
   const [layoutTemp, setLayoutTemp] = useState(layoutSalvo)
 
-  // Tema
   const [temaAtual, setTemaAtual] = useState(temaSalvo)
   const [temaTemp, setTemaTemp] = useState(temaSalvo)
 
-  // Fundo
   const [bgAtual, setBgAtual] = useState(bgSalvo)
   const [bgTemp, setBgTemp] = useState(bgSalvo)
 
-  // Temas disponíveis (filtrados pelos permitidos no plano)
   const temasDisponiveisFiltrados = temasDisponiveis.filter(t => temasPermitidos.includes(t.slug))
 
-  // Sincronização
   useEffect(() => {
     setLayoutAtual(layoutSalvo)
     setLayoutTemp(layoutSalvo)
@@ -103,7 +97,6 @@ export function CardapioTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <h2 className="text-xl md:text-2xl font-bold text-gray-800">📋 Meu Cardápio</h2>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Layout */}
           <div className="flex items-center gap-1">
             <select
               value={layoutTemp}
@@ -127,7 +120,6 @@ export function CardapioTab({
             </button>
           </div>
 
-          {/* Nova Categoria */}
           <button
             onClick={onNovaCategoria}
             className="border-2 border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-gray-100"
@@ -137,7 +129,6 @@ export function CardapioTab({
         </div>
       </div>
 
-      {/* Seletor de Temas */}
       {temasDisponiveisFiltrados.length > 0 && (
         <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
           <h3 className="font-bold text-lg mb-4">🎨 Aparência do Cardápio</h3>
@@ -165,7 +156,6 @@ export function CardapioTab({
         </div>
       )}
 
-      {/* Imagem de fundo personalizada */}
       <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
         <h3 className="font-bold text-lg mb-4">🖼️ Imagem de fundo personalizada</h3>
         <p className="text-xs text-gray-500 mb-3">Envie uma imagem leve (ex: textura de papel, linho). Substitui o fundo do tema atual.</p>
@@ -192,7 +182,6 @@ export function CardapioTab({
         )}
       </div>
 
-      {/* Lista de categorias e itens */}
       <ListaCategorias
         categorias={categorias}
         onAtualizarItem={onAtualizarItem}
@@ -203,8 +192,8 @@ export function CardapioTab({
         modeloVisual={layoutAtual}
         idiomasAtivos={idiomasSelecionados}
         onAdicionarItem={onAdicionarItem}
-        onRenomearCategoria={onRenomearCategoria}   {/* NOVA */}
-        onExcluirCategoria={onExcluirCategoria}      {/* NOVA */}
+        onRenomearCategoria={onRenomearCategoria}
+        onExcluirCategoria={onExcluirCategoria}
       />
     </div>
   )
