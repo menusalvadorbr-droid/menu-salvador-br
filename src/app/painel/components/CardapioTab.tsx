@@ -24,6 +24,8 @@ interface CardapioTabProps {
   onExcluirItem: (itemId: string) => void
   onTogglePromocao: (itemId: string, ativaAtual: boolean) => void
   onPublicarItem: (itemId: string, disponivelAtual: boolean) => void
+  onRenomearCategoria: (catId: string, novoNome: string) => void   // NOVA
+  onExcluirCategoria: (catId: string) => void                      // NOVA
 }
 
 export function CardapioTab({
@@ -44,6 +46,8 @@ export function CardapioTab({
   onExcluirItem,
   onTogglePromocao,
   onPublicarItem,
+  onRenomearCategoria,    // NOVA
+  onExcluirCategoria,     // NOVA
 }: CardapioTabProps) {
   // Layout
   const [layoutAtual, setLayoutAtual] = useState(layoutSalvo)
@@ -199,6 +203,8 @@ export function CardapioTab({
         modeloVisual={layoutAtual}
         idiomasAtivos={idiomasSelecionados}
         onAdicionarItem={onAdicionarItem}
+        onRenomearCategoria={onRenomearCategoria}   {/* NOVA */}
+        onExcluirCategoria={onExcluirCategoria}      {/* NOVA */}
       />
     </div>
   )

@@ -1,4 +1,3 @@
-// src/app/admin/page.tsx
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -11,7 +10,7 @@ import { GerenciadorPlanos } from './components/GerenciadorPlanos'
 import { GerenciarHome } from './components/GerenciarHome'
 import { GerenciarTiposCozinha } from './components/GerenciarTiposCozinha'
 import { EditarEstabelecimentoModal } from './components/EditarEstabelecimentoModal'
-import { GerenciarTemas } from './components/GerenciarTemas'  // NOVA IMPORTAÇÃO
+import { GerenciarTemas } from './components/GerenciarTemas'
 
 export default function AdminPage() {
   const [logado, setLogado] = useState(false)
@@ -28,7 +27,6 @@ export default function AdminPage() {
   })
   const [estabelecimentoEditando, setEstabelecimentoEditando] = useState<any>(null)
 
-  // Funções de carregamento
   const carregarDados = useCallback(async () => {
     const { data } = await supabase
       .from('estabelecimentos')
@@ -70,7 +68,13 @@ export default function AdminPage() {
     }
   }, [logado, carregarDados, carregarPlanosETemas])
 
-  // Ações
+  // ✅ NOVO: atualiza temas e planos sempre que entrar nas abas "planos" ou "temas"
+  useEffect(() => {
+    if (logado && (abaAtiva === 'planos' || abaAtiva === 'temas')) {
+      carregarPlanosETemas()
+    }
+  }, [abaAtiva, logado, carregarPlanosETemas])
+
   const toggleStatus = async (id: string, ativo: boolean) => {
     await supabase.from('estabelecimentos').update({ ativo: !ativo }).eq('id', id)
     carregarDados()
@@ -132,7 +136,7 @@ export default function AdminPage() {
             { key: 'planos', icon: '💰', label: 'Planos' },
             { key: 'home', icon: '🏠', label: 'Página Inicial' },
             { key: 'tipos_cozinha', icon: '🍽️', label: 'Tipos de Cozinha' },
-            { key: 'temas', icon: '🎨', label: 'Temas' },  // NOVA ABA
+            { key: 'temas', icon: '🎨', label: 'Temas' },
           ].map((aba) => (
             <button
               key={aba.key}
@@ -179,7 +183,7 @@ export default function AdminPage() {
           )}
           {abaAtiva === 'home' && <GerenciarHome />}
           {abaAtiva === 'tipos_cozinha' && <GerenciarTiposCozinha />}
-          {abaAtiva === 'temas' && <GerenciarTemas />}  {/* RENDERIZAÇÃO DA NOVA ABA */}
+          {abaAtiva === 'temas' && <GerenciarTemas />}
         </main>
       </div>
 
@@ -195,7 +199,6 @@ export default function AdminPage() {
   )
 }
 
-// Componente LoginForm
 function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')

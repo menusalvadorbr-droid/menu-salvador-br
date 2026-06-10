@@ -95,19 +95,6 @@ export default function PainelDono() {
 
   // Idiomas
   const [idiomasSelecionados, setIdiomasSelecionados] = useState<string[]>(['pt'])
- const salvarTema = async (slug: string) => {
-  if (!estabelecimento) return
-  const { data: menu } = await supabase
-    .from('menus')
-    .select('id')
-    .eq('estabelecimento_id', estabelecimento.id)
-    .eq('ativo', true)
-    .single()
-  if (menu) {
-    await supabase.from('menus').update({ tema: slug }).eq('id', menu.id)
-    setTemaSelecionado(slug)
-  }
-}
 
   // Perfil
   const [perfil, setPerfil] = useState({
@@ -604,27 +591,26 @@ export default function PainelDono() {
             />
           )}
 
+          {/* ✅ CardapioTab COM PROPS CORRIGIDAS */}
           {abaAtiva === 'cardapio' && (
             <CardapioTab
               categorias={categorias}
               modeloVisual={modeloVisual}
               temaSelecionado={temaSelecionado}
+              backgroundImageAtual={imagemFundo}
               temasDisponiveis={temasDisponiveis}
               temasPermitidos={temasPermitidos}
               limitePlano={limitePlano}
-              idiomasAtivos={idiomasSelecionados}
-              imagemFundo={imagemFundo}
+              idiomasSelecionados={idiomasSelecionados}
               onSalvarLayout={salvarLayoutCardapio}
-              onAlterarTema={alterarTema}
-              onAlterarFundo={alterarFundo}
+              onSalvarTema={alterarTema}
+              onSalvarBackgroundImage={alterarFundo}
               onNovaCategoria={handleNovaCategoria}
-              onRenomearCategoria={handleRenomearCategoria}
-              onExcluirCategoria={handleExcluirCategoria}
               onAdicionarItem={handleAdicionarItem}
-              onUpdateItem={updateItem}
-              onDeleteItem={deleteItem}
+              onAtualizarItem={updateItem}
+              onExcluirItem={deleteItem}
               onTogglePromocao={handleTogglePromocao}
-              onTogglePublicar={handleTogglePublicar}
+              onPublicarItem={handleTogglePublicar}
             />
           )}
 

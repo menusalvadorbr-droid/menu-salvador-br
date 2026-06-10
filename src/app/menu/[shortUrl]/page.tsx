@@ -1,4 +1,3 @@
-// src/app/menu/[shortUrl]/page.tsx
 'use client'
 
 import { useEffect, useState, useCallback, useRef, memo } from 'react'
@@ -27,7 +26,7 @@ function getTextItem(item: any, idioma: string, campo: string) {
   return item[campoTraduzido] || item[campo] || ''
 }
 
-// Componente memoizado ItemCard – agora com suporte a tema (cores e fontes)
+// Componente ItemCard – agora com suporte completo ao tema
 const ItemCard = memo(function ItemCard({
   item,
   layout,
@@ -35,7 +34,7 @@ const ItemCard = memo(function ItemCard({
   modoDelivery,
   onAdicionarSacola,
   idioma,
-  temaConfig, // recebe as configurações do tema (cores, fontes)
+  temaConfig,
 }: {
   item: any
   layout: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
@@ -50,13 +49,23 @@ const ItemCard = memo(function ItemCard({
   const nomeExibicao = item.codigo ? `${item.codigo} - ${getTextItem(item, idioma, 'nome')}` : getTextItem(item, idioma, 'nome')
   const tagsExibidas = item[`tags_${idioma}`] || item.tags || []
 
-  // Estilos baseados no tema (se disponível)
-  const titleStyle = temaConfig ? { color: temaConfig.title_color, fontFamily: temaConfig.font_family } : {}
-  const descriptionStyle = temaConfig ? { color: temaConfig.description_color } : {}
-  const priceStyle = temaConfig ? { color: temaConfig.price_color } : {}
-  const promoPriceStyle = temaConfig ? { color: temaConfig.promo_price_color } : {}
-  const tagStyle = temaConfig ? { backgroundColor: temaConfig.tag_bg_color, color: temaConfig.tag_text_color } : {}
-  const buttonStyle = temaConfig ? { backgroundColor: temaConfig.button_bg_color, color: temaConfig.button_text_color } : {}
+  // Estilos do tema (fallback para variáveis CSS)
+  const titleColor = temaConfig?.title_color || 'var(--theme-title-color)'
+  const descColor = temaConfig?.description_color || 'var(--theme-description-color)'
+  const priceColor = temaConfig?.price_color || 'var(--theme-price-color)'
+  const promoPriceColor = temaConfig?.promo_price_color || 'var(--theme-promo-price-color)'
+  const tagBg = temaConfig?.tag_bg_color || 'var(--theme-tag-bg)'
+  const tagText = temaConfig?.tag_text_color || 'var(--theme-tag-text)'
+  const btnBg = temaConfig?.button_bg_color || 'var(--theme-button-bg)'
+  const btnText = temaConfig?.button_text_color || 'var(--theme-button-text)'
+  const fontFamily = temaConfig?.font_family || 'var(--theme-font)'
+
+  const titleStyle = { color: titleColor, fontFamily }
+  const descriptionStyle = { color: descColor, fontFamily }
+  const priceStyle = { color: priceColor, fontFamily }
+  const promoPriceStyle = { color: promoPriceColor, fontFamily }
+  const tagStyle = { backgroundColor: tagBg, color: tagText, fontFamily }
+  const buttonStyle = { backgroundColor: btnBg, color: btnText, fontFamily }
 
   if (layout === 'sem-foto') {
     return (
@@ -218,7 +227,7 @@ export default function MenuDigital() {
   const [temItensDelivery, setTemItensDelivery] = useState(false)
   const [idiomasDisponiveis, setIdiomasDisponiveis] = useState<string[]>(['pt'])
   const [idiomaAtual, setIdiomaAtual] = useState('pt')
-  const [temaConfig, setTemaConfig] = useState<any>(null) // armazena detalhes do tema
+  const [temaConfig, setTemaConfig] = useState<any>(null) // detalhes do tema carregado
 
   const sacola = useSacola()
   const [sacolaAberta, setSacolaAberta] = useState(false)
@@ -279,17 +288,15 @@ export default function MenuDigital() {
         setTema(menu.tema || 'raiz-brasileira')
         setLayoutCardapio(menu.layout_cardapio || 'foto-esquerda')
 
-        // Buscar detalhes do tema (se não for o padrão)
+        // ✅ CORREÇÃO 1: Buscar detalhes do tema SEMPRE, não apenas se não for 'raiz-brasileira'
         let temaDetalhes = null
-        if (menu.tema && menu.tema !== 'raiz-brasileira') {
-          const { data: temaData, error: temaError } = await supabase
+        if (menu.tema) {
+          const { data: temaData } = await supabase
             .from('temas')
             .select('*')
             .eq('slug', menu.tema)
-            .single()
-          if (!temaError && temaData) {
-            temaDetalhes = temaData
-          }
+            .maybeSingle() // usar maybeSingle evita erro se não encontrar
+          if (temaData) temaDetalhes = temaData
         }
         setTemaConfig(temaDetalhes)
 
@@ -400,114 +407,93 @@ export default function MenuDigital() {
   const urlCapa = optimizeCloudinaryUrl(estabelecimento.foto_capa, 1200, 400, 80)
   const mapaIdiomaBandeira: Record<string, string> = { pt: '🇧🇷', en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }
 
-  // Estilo do container principal (background e cor global)
-  const containerStyle: React.CSSProperties = {}
-  if (temaConfig?.background_image) {
-    containerStyle.backgroundImage = `url(${temaConfig.background_image})`
-    containerStyle.backgroundSize = 'cover'
-    containerStyle.backgroundAttachment = 'fixed'
-  }
-  if (temaConfig?.background_color) {
-    containerStyle.backgroundColor = temaConfig.background_color
-  }
-  if (temaConfig?.text_color) {
-    containerStyle.color = temaConfig.text_color
-  }
-  if (temaConfig?.font_family) {
-    containerStyle.fontFamily = temaConfig.font_family
+  // ✅ CORREÇÃO 2: Definir variáveis CSS customizadas e estilos do container
+  const themeStyles = {
+    '--theme-bg': temaConfig?.background_color || '#fef9e8',
+    '--theme-bg-image': temaConfig?.background_image ? `url(${temaConfig.background_image})` : 'none',
+    '--theme-primary': temaConfig?.primary_color || '#c7a252',
+    '--theme-secondary': temaConfig?.secondary_color || '#8b5a2b',
+    '--theme-text': temaConfig?.text_color || '#2c2c2c',
+    '--theme-title-color': temaConfig?.title_color || '#2c2c2c',
+    '--theme-description-color': temaConfig?.description_color || '#5a5a5a',
+    '--theme-price-color': temaConfig?.price_color || '#2c2c2c',
+    '--theme-promo-price-color': temaConfig?.promo_price_color || '#c7a252',
+    '--theme-tag-bg': temaConfig?.tag_bg_color || '#e8e8e8',
+    '--theme-tag-text': temaConfig?.tag_text_color || '#2c2c2c',
+    '--theme-button-bg': temaConfig?.button_bg_color || '#c7a252',
+    '--theme-button-text': temaConfig?.button_text_color || '#ffffff',
+    '--theme-font': temaConfig?.font_family || 'system-ui, sans-serif',
+  } as React.CSSProperties
+
+  // Estilo inline do container (combina background e fonte global)
+  const containerStyle: React.CSSProperties = {
+    ...themeStyles,
+    backgroundColor: temaConfig?.background_color || '#fef9e8',
+    backgroundImage: temaConfig?.background_image ? `url(${temaConfig.background_image})` : 'none',
+    backgroundSize: 'cover',
+    backgroundAttachment: 'fixed',
+    color: temaConfig?.text_color || '#2c2c2c',
+    fontFamily: temaConfig?.font_family || 'system-ui, sans-serif',
   }
 
   return (
-    <div className={`min-h-screen menu-container tema-${tema}`} style={containerStyle}>
-      {/* Cabeçalho com foto de capa ou gradiente */}
-      {urlCapa ? (
-        <div className="relative w-full h-48 md:h-64 bg-cover bg-center" style={{ backgroundImage: `url(${urlCapa})` }}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="container mx-auto px-4 py-6 relative z-10">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h1 className="text-xl font-bold text-white">{estabelecimento.nome_fantasia || estabelecimento.nome}</h1>
-                <p className="text-sm text-white/80">{estabelecimento.tipo_cozinha} • {estabelecimento.bairro}</p>
-                {statusAberto.exibir && (
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${statusAberto.aberto ? 'bg-green-500/20 text-green-700' : 'bg-red-500/20 text-red-700'}`}>
-                    {statusAberto.aberto ? '🟢' : '🔴'} {statusAberto.texto}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {idiomasDisponiveis.length > 1 && (
-                  <div className="flex gap-1 bg-white/20 rounded-full p-1 backdrop-blur-sm">
-                    {idiomasDisponiveis.map((idioma) => (
-                      <button
-                        key={idioma}
-                        onClick={() => setIdiomaAtual(idioma)}
-                        className={`px-2 py-1 rounded-full text-xs font-medium transition ${idiomaAtual === idioma ? 'bg-orange-500 text-white' : 'text-white hover:bg-white/20'}`}
-                      >
-                        {mapaIdiomaBandeira[idioma]} {idioma.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {estabelecimento.recursos_ativos?.includes('delivery') && temItensDelivery && (
-                  <button
-                    onClick={() => {
-                      setModoDelivery(!modoDelivery)
-                      if (modoDelivery) sacola.limparSacola()
-                    }}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition ${modoDelivery ? 'bg-orange-500 text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}
-                  >
-                    🛵 {modoDelivery ? 'Delivery ON' : 'Delivery'}
-                  </button>
-                )}
-              </div>
+    <div className="min-h-screen menu-container" style={containerStyle}>
+      {/* Cabeçalho adaptado ao tema */}
+      <div
+        className="relative w-full pt-6 pb-4"
+        style={{
+          backgroundColor: temaConfig?.primary_color || '#c7a252',
+          color: temaConfig?.button_text_color || '#ffffff',
+          backgroundImage: urlCapa ? `url(${urlCapa})` : 'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        {urlCapa && <div className="absolute inset-0 bg-black/40" />}
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h1 className="text-xl font-bold" style={{ fontFamily: themeStyles['--theme-font'] }}>
+                {estabelecimento.nome_fantasia || estabelecimento.nome}
+              </h1>
+              <p className="text-sm opacity-90">{estabelecimento.tipo_cozinha} • {estabelecimento.bairro}</p>
+              {statusAberto.exibir && (
+                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${statusAberto.aberto ? 'bg-green-500/30 text-white' : 'bg-red-500/30 text-white'}`}>
+                  {statusAberto.aberto ? '🟢' : '🔴'} {statusAberto.texto}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {idiomasDisponiveis.length > 1 && (
+                <div className="flex gap-1 bg-white/20 rounded-full p-1 backdrop-blur-sm">
+                  {idiomasDisponiveis.map((idioma) => (
+                    <button
+                      key={idioma}
+                      onClick={() => setIdiomaAtual(idioma)}
+                      className={`px-2 py-1 rounded-full text-xs font-medium transition ${idiomaAtual === idioma ? 'bg-white text-gray-800' : 'text-white hover:bg-white/20'}`}
+                    >
+                      {mapaIdiomaBandeira[idioma]} {idioma.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {estabelecimento.recursos_ativos?.includes('delivery') && temItensDelivery && (
+                <button
+                  onClick={() => {
+                    setModoDelivery(!modoDelivery)
+                    if (modoDelivery) sacola.limparSacola()
+                  }}
+                  className="px-4 py-2 rounded-full text-sm font-medium transition bg-white/20 text-white hover:bg-white/30"
+                >
+                  🛵 {modoDelivery ? 'Delivery ON' : 'Delivery'}
+                </button>
+              )}
             </div>
           </div>
         </div>
-      ) : (
-        <div className="bg-gradient-to-br from-orange-600 to-red-700 text-white">
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h1 className="text-xl font-bold">{estabelecimento.nome_fantasia || estabelecimento.nome}</h1>
-                <p className="text-sm text-white/80">{estabelecimento.tipo_cozinha} • {estabelecimento.bairro}</p>
-                {statusAberto.exibir && (
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${statusAberto.aberto ? 'bg-green-500/20 text-green-700' : 'bg-red-500/20 text-red-700'}`}>
-                    {statusAberto.aberto ? '🟢' : '🔴'} {statusAberto.texto}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {idiomasDisponiveis.length > 1 && (
-                  <div className="flex gap-1 bg-white/20 rounded-full p-1 backdrop-blur-sm">
-                    {idiomasDisponiveis.map((idioma) => (
-                      <button
-                        key={idioma}
-                        onClick={() => setIdiomaAtual(idioma)}
-                        className={`px-2 py-1 rounded-full text-xs font-medium transition ${idiomaAtual === idioma ? 'bg-orange-500 text-white' : 'text-white hover:bg-white/20'}`}
-                      >
-                        {mapaIdiomaBandeira[idioma]} {idioma.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {estabelecimento.recursos_ativos?.includes('delivery') && temItensDelivery && (
-                  <button
-                    onClick={() => {
-                      setModoDelivery(!modoDelivery)
-                      if (modoDelivery) sacola.limparSacola()
-                    }}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition ${modoDelivery ? 'bg-orange-500 text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}
-                  >
-                    🛵 {modoDelivery ? 'Delivery ON' : 'Delivery'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
-      {/* Chips de categorias */}
+      {/* Chips de categorias – cores do tema */}
       {categoriasNav.length > 1 && (
         <div className="sticky top-0 z-40 bg-white/95 backdrop-blur shadow-sm border-b">
           <div ref={chipsRef} className="flex gap-2 px-4 py-3 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -515,11 +501,12 @@ export default function MenuDigital() {
               <button
                 key={cat.id}
                 onClick={() => handleScrollParaCategoria(cat.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                  categoriaAtiva === cat.id
-                    ? 'bg-[var(--menu-accent)] text-white shadow-md scale-105'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105'
-                }`}
+                className="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200"
+                style={{
+                  backgroundColor: categoriaAtiva === cat.id ? (temaConfig?.primary_color || '#c7a252') : '#f3f4f6',
+                  color: categoriaAtiva === cat.id ? (temaConfig?.button_text_color || '#ffffff') : (temaConfig?.text_color || '#374151'),
+                  fontFamily: themeStyles['--theme-font'],
+                }}
               >
                 {cat.nome}
               </button>
@@ -533,15 +520,15 @@ export default function MenuDigital() {
         {categorias.length > 0 ? (
           categorias.map((categoria) => (
             <section key={categoria.id} id={categoria.id} className="mb-8 scroll-mt-24">
-              <div className="mb-4 pb-2 border-b-2" style={{ borderColor: categoria.eh_promocao ? (temaConfig?.primary_color || 'var(--menu-accent)') : '#ccc' }}>
+              <div className="mb-4 pb-2 border-b-2" style={{ borderColor: categoria.eh_promocao ? '#ef4444' : (temaConfig?.primary_color || '#c7a252') }}>
                 <h2
                   className={`text-xl font-bold flex items-center gap-2 ${categoria.eh_promocao ? 'text-red-600' : ''}`}
-                  style={{ color: categoria.eh_promocao ? undefined : (temaConfig?.primary_color || 'var(--menu-text)') }}
+                  style={categoria.eh_promocao ? {} : { color: temaConfig?.primary_color || '#c7a252', fontFamily: themeStyles['--theme-font'] }}
                 >
                   {categoria.nome}
                   {categoria.eh_promocao && <span className="text-sm animate-pulse">🔥</span>}
                 </h2>
-                {categoria.descricao && <p className="text-sm opacity-75 mt-1">{categoria.descricao}</p>}
+                {categoria.descricao && <p className="text-sm opacity-75 mt-1" style={{ fontFamily: themeStyles['--theme-font'] }}>{categoria.descricao}</p>}
               </div>
               <div className="space-y-3">
                 {categoria.itens_cardapio.map((item: any) => (
@@ -568,7 +555,11 @@ export default function MenuDigital() {
       {modoDelivery && (
         <button
           onClick={() => setSacolaAberta(true)}
-          className="fixed bottom-6 right-6 z-40 bg-green-500 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl"
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl"
+          style={{
+            backgroundColor: temaConfig?.button_bg_color || '#22c55e',
+            color: temaConfig?.button_text_color || '#ffffff',
+          }}
         >
           🛒
           {sacola.totalItens > 0 && (
@@ -580,10 +571,10 @@ export default function MenuDigital() {
       )}
 
       {/* Rodapé */}
-      <footer className="bg-gray-100 py-6 mt-8 border-t">
+      <footer className="py-6 mt-8 border-t" style={{ backgroundColor: temaConfig?.background_color || '#f3f4f6', borderColor: temaConfig?.primary_color || '#e5e7eb' }}>
         <div className="container mx-auto px-4 text-center">
-          <p className="text-sm opacity-75">Cardápio digital • {estabelecimento.nome}</p>
-          <p className="text-xs opacity-50 mt-1">menu.salvador.br/menu/{shortUrl}</p>
+          <p className="text-sm opacity-75" style={{ fontFamily: themeStyles['--theme-font'] }}>Cardápio digital • {estabelecimento.nome}</p>
+          <p className="text-xs opacity-50 mt-1" style={{ fontFamily: themeStyles['--theme-font'] }}>menu.salvador.br/menu/{shortUrl}</p>
         </div>
       </footer>
 
