@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TemaCard } from '../TemaCard'
+import { TemaCard } from '@/app/painel/components/TemaCard'
 import { ImageUpload } from '@/components/upload/ImageUpload'
 
 interface AparenciaSubTabProps {
@@ -25,42 +25,24 @@ export function AparenciaSubTab({
   onAlterarTema,
   onAlterarFundo,
 }: AparenciaSubTabProps) {
-  // Estados locais para edição
   const [layoutTemp, setLayoutTemp] = useState(layoutSalvo)
   const [temaTemp, setTemaTemp] = useState(temaSalvo)
   const [bgTemp, setBgTemp] = useState(imagemFundo)
 
-  // Sincronizar quando as props externas mudarem
-  useEffect(() => {
-    setLayoutTemp(layoutSalvo)
-  }, [layoutSalvo])
-
-  useEffect(() => {
-    setTemaTemp(temaSalvo)
-  }, [temaSalvo])
-
-  useEffect(() => {
-    setBgTemp(imagemFundo)
-  }, [imagemFundo])
+  useEffect(() => { setLayoutTemp(layoutSalvo) }, [layoutSalvo])
+  useEffect(() => { setTemaTemp(temaSalvo) }, [temaSalvo])
+  useEffect(() => { setBgTemp(imagemFundo) }, [imagemFundo])
 
   const temasFiltrados = temasDisponiveis.filter(t => temasPermitidos.includes(t.slug))
 
   const handleSalvarLayout = () => {
-    if (layoutTemp !== layoutSalvo) {
-      onSalvarLayout(layoutTemp)
-    }
+    if (layoutTemp !== layoutSalvo) onSalvarLayout(layoutTemp)
   }
-
   const handleSalvarTema = () => {
-    if (temaTemp !== temaSalvo) {
-      onAlterarTema(temaTemp)
-    }
+    if (temaTemp !== temaSalvo) onAlterarTema(temaTemp)
   }
-
   const handleSalvarFundo = () => {
-    if (bgTemp !== imagemFundo) {
-      onAlterarFundo(bgTemp)
-    }
+    if (bgTemp !== imagemFundo) onAlterarFundo(bgTemp)
   }
 
   return (
@@ -82,9 +64,7 @@ export function AparenciaSubTab({
             onClick={handleSalvarLayout}
             disabled={layoutTemp === layoutSalvo}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              layoutTemp === layoutSalvo
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-orange-600 text-white hover:bg-orange-700'
+              layoutTemp === layoutSalvo ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
             }`}
           >
             Salvar layout
@@ -110,9 +90,7 @@ export function AparenciaSubTab({
             onClick={handleSalvarTema}
             disabled={temaTemp === temaSalvo}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              temaTemp === temaSalvo
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-orange-600 text-white hover:bg-orange-700'
+              temaTemp === temaSalvo ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
             }`}
           >
             Salvar tema
@@ -123,31 +101,21 @@ export function AparenciaSubTab({
       {/* Imagem de fundo */}
       <div className="bg-white rounded-xl p-4 shadow-sm">
         <h3 className="font-bold text-lg mb-3">🖼️ Imagem de fundo personalizada</h3>
-        <p className="text-xs text-gray-500 mb-3">
-          Substitui o fundo do tema atual.
-        </p>
-        <ImageUpload
-          onUpload={(url) => setBgTemp(url)}
-          defaultImage={bgTemp}
-        />
+        <p className="text-xs text-gray-500 mb-3">Substitui o fundo do tema atual.</p>
+        <ImageUpload onUpload={(url) => setBgTemp(url)} defaultImage={bgTemp} />
         <div className="flex gap-3 mt-4">
           <button
             onClick={handleSalvarFundo}
             disabled={bgTemp === imagemFundo}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              bgTemp === imagemFundo
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-orange-600 text-white hover:bg-orange-700'
+              bgTemp === imagemFundo ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700'
             }`}
           >
             Salvar fundo
           </button>
           {bgTemp && (
             <button
-              onClick={() => {
-                setBgTemp('')
-                onAlterarFundo('')
-              }}
+              onClick={() => { setBgTemp(''); onAlterarFundo('') }}
               className="text-sm text-red-600 hover:underline"
             >
               Remover fundo
