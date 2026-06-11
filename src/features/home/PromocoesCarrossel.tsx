@@ -1,17 +1,10 @@
-// src/features/home/PromocoesCarrossel.tsx
 'use client'
 
-import { useState, useEffect } from 'react'  // ← sem espaço!
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { Swiper, SwiperSlide } from 'swiper/react'
-import { Autoplay, Pagination, Navigation } from 'swiper/modules'
 
-// Estilos do Swiper
-import 'swiper/css'
-import 'swiper/css/pagination'
-import 'swiper/css/navigation'
-
+// Estrutura real: categorias[] -> menus[] -> estabelecimentos[]
 interface ItemPromocao {
   id: string
   nome: string
@@ -23,17 +16,24 @@ interface ItemPromocao {
       estabelecimentos: {
         nome: string
         qrcode_short_url: string
-      }
-    }
-  }
+      }[]
+    }[]
+  }[]
 }
 
-export default function PromocoesCarrossel() {
+function optimizeCloudinaryUrl(url: string | null, width: number, height: number): string {
+  if (!url || !url.includes('cloudinary.com')) return url || ''
+  const parts = url.split('/upload/')
+  if (parts.length !== 2) return url
+  return `${parts[0]}/upload/q_80,f_auto,c_fill,w_${width},h_${height}/${parts[1]}`
+}
+
+export function PromocoesCarrossel() {
   const [itens, setItens] = useState<ItemPromocao[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchPromocoes = async () => {
+    const carregarPromocoes = async () => {
       try {
         const { data, error } = await supabase
           .from('itens_cardapio')
@@ -43,9 +43,9 @@ export default function PromocoesCarrossel() {
             preco,
             preco_promocional,
             foto_url,
-            categorias!inner (
-              menus!inner (
-                estabelecimentos!inner (
+            categorias (
+              menus (
+                estabelecimentos (
                   nome,
                   qrcode_short_url
                 )
@@ -53,8 +53,8 @@ export default function PromocoesCarrossel() {
             )
           `)
           .eq('promocao_ativa', true)
-          .eq('disponivel', true)
-          .limit(20)
+          .order('created_at', { ascending: false })
+          .limit(10)
 
         if (error) throw error
         setItens(data || [])
@@ -65,140 +65,64 @@ export default function PromocoesCarrossel() {
       }
     }
 
-    fetchPromocoes()
+    carregarPromocoes()
   }, [])
 
-  if (loading) {
-    return (
-      <div className="bg-gradient-to-r from-orange-500 to-red-500 py-6">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-center">
-            <div className="animate-pulse text-white">Carregando promoções...</div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+  if (loading) return null
   if (itens.length === 0) return null
 
   return (
-    <section className="bg-gradient-to-r from-orange-500 to-red-500 py-6">
+    <section className="py-12 bg-gradient-to-br from-red-50 to-orange-50">
       <div className="container mx-auto px-4">
-        <Swiper
-          modules={[Autoplay, Pagination, Navigation]}
-          spaceBetween={16}
-          slidesPerView={1}
-          breakpoints={{
-            640: { slidesPerView: 2 },
-            768: { slidesPerView: 3 },
-            1024: { slidesPerView: 4 },
-          }}
-          autoplay={{
-            delay: 4000,
-            disableOnInteraction: false,
-            pauseOnMouseEnter: true,
-          }}
-          pagination={{ clickable: true, dynamicBullets: true }}
-          navigation
-          loop={itens.length > 1}
-          speed={800}
-          className="promocoes-swiper"
-        >
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
+          🎉 Promoções do Momento
+        </h2>
+        <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
           {itens.map((item) => {
-            const estabelecimento = item.categorias?.menus?.estabelecimentos
-            const qrcode = estabelecimento?.qrcode_short_url
-            const linkHref = qrcode ? `/menu/${qrcode}` : '#'
-            const desconto = item.preco && item.preco_promocional
-              ? Math.round((1 - item.preco_promocional / item.preco) * 100)
-              : 0
+            // Acessa o primeiro estabelecimento do primeiro menu da primeira categoria
+            const estabelecimento = item.categorias?.[0]?.menus?.[0]?.estabelecimentos?.[0]
+            const shortUrl = estabelecimento?.qrcode_short_url || '#'
+            const nomeEstabelecimento = estabelecimento?.nome || 'Estabelecimento'
 
             return (
-              <SwiperSlide key={item.id}>
-                <Link href={linkHref} className="block group">
-                  <div className="relative rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:scale-105">
-                    {/* Imagem de fundo */}
-                    {item.foto_url && (
-                      <div className="w-full h-48 bg-gray-800">
-                        <img
-                          src={item.foto_url}
-                          alt={item.nome}
-                          loading="lazy"
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
-                      </div>
-                    )}
-                    
-                    {/* Overlay escuro para melhor legibilidade */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                    
-                    {/* Nome do restaurante sobre a imagem (topo) */}
-                    <div className="absolute top-2 left-2 right-2">
-                      <div className="bg-black/50 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full inline-block">
-                        {estabelecimento?.nome || 'Restaurante'}
-                      </div>
+              <Link
+                key={item.id}
+                href={`/menu/${shortUrl}`}
+                className="min-w-[250px] max-w-[280px] bg-white rounded-xl shadow-md hover:shadow-lg transition flex-shrink-0 overflow-hidden"
+              >
+                <div className="h-40 bg-gray-100 relative">
+                  {item.foto_url ? (
+                    <img
+                      src={optimizeCloudinaryUrl(item.foto_url, 400, 200)}
+                      alt={item.nome}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-4xl">
+                      🍽️
                     </div>
-                    
-                    {/* Conteúdo do preço e desconto na parte inferior */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                      <h3 className="font-bold text-lg truncate">{item.nome}</h3>
-                      <div className="flex items-baseline gap-2 flex-wrap mt-1">
-                        <span className="text-white/70 line-through text-sm">
-                          R$ {item.preco?.toFixed(2)}
-                        </span>
-                        <span className="text-2xl font-extrabold">
-                          R$ {item.preco_promocional?.toFixed(2)}
-                        </span>
-                      </div>
-                      {desconto > 0 && (
-                        <div className="mt-1">
-                          <span className="bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                            {desconto}% OFF
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                  )}
+                  <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+                    Promoção
+                  </span>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-semibold text-gray-800 line-clamp-2">{item.nome}</h3>
+                  <p className="text-sm text-gray-500 mt-1">{nomeEstabelecimento}</p>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-lg font-bold text-red-600">
+                      R$ {item.preco_promocional?.toFixed(2)}
+                    </span>
+                    <span className="text-sm text-gray-400 line-through">
+                      R$ {item.preco?.toFixed(2)}
+                    </span>
                   </div>
-                </Link>
-              </SwiperSlide>
+                </div>
+              </Link>
             )
           })}
-        </Swiper>
+        </div>
       </div>
-
-      <style jsx global>{`
-        .promocoes-swiper .swiper-pagination-bullet {
-          background: white;
-          opacity: 0.5;
-        }
-        .promocoes-swiper .swiper-pagination-bullet-active {
-          background: white;
-          opacity: 1;
-        }
-        .promocoes-swiper .swiper-button-prev,
-        .promocoes-swiper .swiper-button-next {
-          color: white;
-          background: rgba(0,0,0,0.3);
-          width: 32px;
-          height: 32px;
-          border-radius: 9999px;
-        }
-        .promocoes-swiper .swiper-button-prev:hover,
-        .promocoes-swiper .swiper-button-next:hover {
-          background: rgba(0,0,0,0.6);
-        }
-        .promocoes-swiper .swiper-button-prev::after,
-        .promocoes-swiper .swiper-button-next::after {
-          font-size: 14px;
-          font-weight: bold;
-        }
-        @media (max-width: 640px) {
-          .promocoes-swiper .swiper-button-prev,
-          .promocoes-swiper .swiper-button-next {
-            display: none;
-          }
-        }
-      `}</style>
     </section>
   )
 }
