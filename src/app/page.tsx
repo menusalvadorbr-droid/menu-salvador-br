@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import PromocoesCarrossel from '@/features/home/PromocoesCarrossel'
+import { PromocoesCarrossel } from '@/features/home/PromocoesCarrossel'
 
 type Estabelecimento = {
   id: string
