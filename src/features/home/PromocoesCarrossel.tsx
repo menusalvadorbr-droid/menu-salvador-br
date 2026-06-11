@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
-// Estrutura real: categorias[] -> menus[] -> estabelecimentos[]
+// Estrutura correta: objetos únicos (has‑one)
 interface ItemPromocao {
   id: string
   nome: string
@@ -16,9 +16,9 @@ interface ItemPromocao {
       estabelecimentos: {
         nome: string
         qrcode_short_url: string
-      }[]
-    }[]
-  }[]
+      }
+    } | null
+  } | null
 }
 
 function optimizeCloudinaryUrl(url: string | null, width: number, height: number): string {
@@ -79,8 +79,8 @@ export function PromocoesCarrossel() {
         </h2>
         <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
           {itens.map((item) => {
-            // Acessa o primeiro estabelecimento do primeiro menu da primeira categoria
-            const estabelecimento = item.categorias?.[0]?.menus?.[0]?.estabelecimentos?.[0]
+            // Acesso direto aos objetos (não arrays)
+            const estabelecimento = item.categorias?.menus?.estabelecimentos
             const shortUrl = estabelecimento?.qrcode_short_url || '#'
             const nomeEstabelecimento = estabelecimento?.nome || 'Estabelecimento'
 
