@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { ItemCardPreview } from './ItemCardPreview'
+import { ItemEditForm } from './ItemEditForm'
 
 interface ListaCategoriasProps {
   categorias: any[]
@@ -12,8 +14,8 @@ interface ListaCategoriasProps {
   modeloVisual: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
   idiomasAtivos: string[]
   onAdicionarItem: (categoriaId: string) => void
-  onRenomearCategoria: (catId: string, novoNome: string) => void
-  onExcluirCategoria: (catId: string) => void
+  onRenomearCategoria: (catId: string, novoNome: string) => void   // NOVA
+  onExcluirCategoria: (catId: string) => void                      // NOVA
 }
 
 export function ListaCategorias({
@@ -29,6 +31,13 @@ export function ListaCategorias({
   onRenomearCategoria,
   onExcluirCategoria,
 }: ListaCategoriasProps) {
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+
+  const handleSave = async (itemId: string, novosDados: any) => {
+    await onAtualizarItem(itemId, novosDados)
+    setEditandoId(null)
+  }
+
   const itensPromocao = categorias.flatMap((cat: any) =>
     (cat.itens_cardapio || []).filter(
       (item: any) => item.promocao_ativa && item.preco_promocional
@@ -47,13 +56,25 @@ export function ListaCategorias({
           </div>
           <div className="divide-y">
             {itensPromocao.map((item: any) => (
-              <div key={`promo-${item.id}`} className="p-4">
-                <p className="font-medium">{item.nome}</p>
-                <p className="text-sm text-gray-500">{item.descricao}</p>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-sm text-red-500">R$ {item.preco_promocional?.toFixed(2)}</span>
-                  <span className="text-xs text-gray-400 line-through">R$ {item.preco?.toFixed(2)}</span>
-                </div>
+              <div key={`promo-${item.id}`}>
+                {editandoId === item.id ? (
+                  <ItemEditForm
+                    item={item}
+                    onSave={(dados) => handleSave(item.id, dados)}
+                    onCancel={() => setEditandoId(null)}
+                    idiomasAtivos={idiomasAtivos}
+                  />
+                ) : (
+                  <ItemCardPreview
+                    item={item}
+                    layout={modeloVisual}
+                    onEdit={() => setEditandoId(item.id)}
+                    onDelete={() => onExcluirItem(item.id)}
+                    onTogglePromocao={() => onTogglePromocao(item.id, item.promocao_ativa)}
+                    onTogglePublicar={() => onPublicarItem(item.id, item.disponivel)}
+                    editando={editandoId === item.id}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -88,53 +109,40 @@ export function ListaCategorias({
                 >
                   🗑️ Excluir
                 </button>
+                <button
+                  onClick={() => onAdicionarItem(cat.id)}
+                  className="text-orange-600 text-sm"
+                >
+                  + Adicionar Item
+                </button>
               </div>
-            </div>
-            <div className="p-4 flex justify-between items-center">
-              <button
-                onClick={() => onAdicionarItem(cat.id)}
-                className="text-orange-600 text-sm"
-              >
-                + Adicionar Item
-              </button>
             </div>
             {itens.length === 0 ? (
               <div className="p-4 text-center text-gray-400 text-sm">
-                Nenhum item nesta categoria. Clique em "+ Adicionar Item" para começar.
+                Nenhum item nesta categoria.
               </div>
             ) : (
               <div className="divide-y">
                 {itens.map((item: any) => (
-                  <div key={item.id} className="p-4 flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">{item.nome}</p>
-                      <p className="text-sm text-gray-500">{item.descricao}</p>
-                      <p className="text-sm">R$ {item.preco?.toFixed(2)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onTogglePromocao(item.id, item.promocao_ativa)}
-                        className={`text-xs px-2 py-1 rounded ${
-                          item.promocao_ativa ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {item.promocao_ativa ? 'Remover Promo' : 'Promo'}
-                      </button>
-                      <button
-                        onClick={() => onPublicarItem(item.id, item.disponivel)}
-                        className={`text-xs px-2 py-1 rounded ${
-                          item.disponivel ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {item.disponivel ? 'Publicado' : 'Publicar'}
-                      </button>
-                      <button
-                        onClick={() => onExcluirItem(item.id)}
-                        className="text-xs text-red-500"
-                      >
-                        Excluir
-                      </button>
-                    </div>
+                  <div key={item.id}>
+                    {editandoId === item.id ? (
+                      <ItemEditForm
+                        item={item}
+                        onSave={(dados) => handleSave(item.id, dados)}
+                        onCancel={() => setEditandoId(null)}
+                        idiomasAtivos={idiomasAtivos}
+                      />
+                    ) : (
+                      <ItemCardPreview
+                        item={item}
+                        layout={modeloVisual}
+                        onEdit={() => setEditandoId(item.id)}
+                        onDelete={() => onExcluirItem(item.id)}
+                        onTogglePromocao={() => onTogglePromocao(item.id, item.promocao_ativa)}
+                        onTogglePublicar={() => onPublicarItem(item.id, item.disponivel)}
+                        editando={editandoId === item.id}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
