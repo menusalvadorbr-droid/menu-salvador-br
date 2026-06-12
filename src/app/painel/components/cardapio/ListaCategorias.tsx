@@ -1,3 +1,4 @@
+// src/app/painel/components/cardapio/ListaCategorias.tsx
 'use client'
 
 import { useState } from 'react'
@@ -13,9 +14,9 @@ interface ListaCategoriasProps {
   limitePlano: number
   modeloVisual: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
   idiomasAtivos: string[]
-  onAdicionarItem: (categoriaId: string) => void
-  onRenomearCategoria: (catId: string, novoNome: string) => void   // NOVA
-  onExcluirCategoria: (catId: string) => void                      // NOVA
+  onCriarItem: (categoriaId: string, dados: any) => void
+  onRenomearCategoria: (catId: string, novoNome: string) => void
+  onExcluirCategoria: (catId: string) => void
 }
 
 export function ListaCategorias({
@@ -27,15 +28,21 @@ export function ListaCategorias({
   limitePlano,
   modeloVisual,
   idiomasAtivos,
-  onAdicionarItem,
+  onCriarItem,
   onRenomearCategoria,
   onExcluirCategoria,
 }: ListaCategoriasProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [novoCategoriaId, setNovoCategoriaId] = useState<string | null>(null)
 
-  const handleSave = async (itemId: string, novosDados: any) => {
+  const handleSaveEdicao = async (itemId: string, novosDados: any) => {
     await onAtualizarItem(itemId, novosDados)
     setEditandoId(null)
+  }
+
+  const handleCriarItem = async (categoriaId: string, dados: any) => {
+    await onCriarItem(categoriaId, dados)
+    setNovoCategoriaId(null)
   }
 
   const itensPromocao = categorias.flatMap((cat: any) =>
@@ -47,6 +54,7 @@ export function ListaCategorias({
 
   return (
     <div className="space-y-4">
+      {/* Seção de promoções */}
       {temPromocao && (
         <div className="bg-white rounded-xl border border-green-200 shadow-sm">
           <div className="p-4 border-b bg-green-50">
@@ -60,7 +68,7 @@ export function ListaCategorias({
                 {editandoId === item.id ? (
                   <ItemEditForm
                     item={item}
-                    onSave={(dados) => handleSave(item.id, dados)}
+                    onSave={(dados) => handleSaveEdicao(item.id, dados)}
                     onCancel={() => setEditandoId(null)}
                     idiomasAtivos={idiomasAtivos}
                   />
@@ -81,8 +89,11 @@ export function ListaCategorias({
         </div>
       )}
 
+      {/* Categorias normais */}
       {categorias.map((cat: any) => {
         const itens = cat.itens_cardapio || []
+        const criandoNestaCategoria = novoCategoriaId === cat.id
+
         return (
           <div key={cat.id} className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
@@ -110,14 +121,15 @@ export function ListaCategorias({
                   🗑️ Excluir
                 </button>
                 <button
-                  onClick={() => onAdicionarItem(cat.id)}
+                  onClick={() => setNovoCategoriaId(cat.id)}
                   className="text-orange-600 text-sm"
                 >
                   + Adicionar Item
                 </button>
               </div>
             </div>
-            {itens.length === 0 ? (
+
+            {itens.length === 0 && !criandoNestaCategoria ? (
               <div className="p-4 text-center text-gray-400 text-sm">
                 Nenhum item nesta categoria.
               </div>
@@ -128,7 +140,7 @@ export function ListaCategorias({
                     {editandoId === item.id ? (
                       <ItemEditForm
                         item={item}
-                        onSave={(dados) => handleSave(item.id, dados)}
+                        onSave={(dados) => handleSaveEdicao(item.id, dados)}
                         onCancel={() => setEditandoId(null)}
                         idiomasAtivos={idiomasAtivos}
                       />
@@ -145,6 +157,18 @@ export function ListaCategorias({
                     )}
                   </div>
                 ))}
+
+                {/* Formulário de novo item */}
+                {criandoNestaCategoria && (
+                  <div>
+                    <ItemEditForm
+                      item={{}}
+                      onSave={(dados) => handleCriarItem(cat.id, dados)}
+                      onCancel={() => setNovoCategoriaId(null)}
+                      idiomasAtivos={idiomasAtivos}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

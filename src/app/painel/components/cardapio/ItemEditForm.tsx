@@ -1,3 +1,4 @@
+// src/app/painel/components/cardapio/ItemEditForm.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -14,12 +15,14 @@ interface ItemEditFormProps {
 
 export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEditFormProps) {
   // Campos principais
-  const [codigo, setCodigo] = useState(item.codigo || '')        // 🆕 CÓDIGO
+  const [codigo, setCodigo] = useState(item.codigo || '')
   const [nome, setNome] = useState(item.nome || '')
   const [descricao, setDescricao] = useState(item.descricao || '')
   const [preco, setPreco] = useState(item.preco?.toString() || '')
   const [precoPromocional, setPrecoPromocional] = useState(item.preco_promocional?.toString() || '')
   const [fotoUrl, setFotoUrl] = useState(item.foto_url || '')
+  const [tagsInput, setTagsInput] = useState(item.tags?.join(', ') || '')
+  const [delivery, setDelivery] = useState(item.delivery_disponivel || false)
 
   // Idiomas que terão campos de tradução (todos exceto o padrão)
   const idiomasTraduziveis = idiomasAtivos.filter((idioma) => idioma !== IDIOMA_PADRAO)
@@ -46,6 +49,8 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
     setPreco(item.preco?.toString() || '')
     setPrecoPromocional(item.preco_promocional?.toString() || '')
     setFotoUrl(item.foto_url || '')
+    setTagsInput(item.tags?.join(', ') || '')
+    setDelivery(item.delivery_disponivel || false)
     setTraducoes(carregarTraducoes())
   }, [item])
 
@@ -53,15 +58,17 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
     e.preventDefault()
 
     const dados: any = {
-      codigo: codigo.trim() || null,   // Salva como null se vazio
+      codigo: codigo.trim() || null,
       nome,
       descricao,
       preco: parseFloat(preco),
       preco_promocional: precoPromocional ? parseFloat(precoPromocional) : null,
       foto_url: fotoUrl || null,
+      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      delivery_disponivel: delivery,
     }
 
-    // Adiciona traduções para os outros idiomas
+    // Adiciona apenas as traduções para os outros idiomas
     idiomasTraduziveis.forEach((idioma) => {
       const trad = traducoes[idioma]
       if (trad) {
@@ -89,7 +96,6 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
       <div>
         <h4 className="font-medium text-sm mb-2">Informações principais (Português)</h4>
         <div className="space-y-3">
-          {/* 🆕 CAMPO CÓDIGO */}
           <div>
             <label className="block text-sm">Código (opcional)</label>
             <input
@@ -100,7 +106,6 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
               placeholder="Ex: BEB-001"
             />
           </div>
-
           <div>
             <label className="block text-sm">Nome</label>
             <input
@@ -118,6 +123,16 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
               onChange={(e) => setDescricao(e.target.value)}
               className="w-full border rounded px-3 py-1"
               rows={2}
+            />
+          </div>
+          <div>
+            <label className="block text-sm">Tags (separadas por vírgula)</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              className="w-full border rounded px-3 py-1"
+              placeholder="Ex: vegano, apimentado"
             />
           </div>
         </div>
@@ -157,7 +172,7 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
         </div>
       )}
 
-      {/* Preços e foto */}
+      {/* Preços e opções */}
       <div className="flex gap-4">
         <div className="flex-1">
           <label className="block text-sm">Preço normal</label>
@@ -181,7 +196,16 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
           />
         </div>
       </div>
-
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={delivery}
+            onChange={(e) => setDelivery(e.target.checked)}
+          />
+          <span className="text-sm">Disponível para delivery</span>
+        </label>
+      </div>
       <div>
         <label className="block text-sm">Foto</label>
         <ImageUpload
@@ -189,7 +213,6 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
           defaultImage={fotoUrl}
         />
       </div>
-
       <div className="flex gap-2">
         <button type="submit" className="bg-orange-600 text-white px-4 py-1 rounded">
           Salvar

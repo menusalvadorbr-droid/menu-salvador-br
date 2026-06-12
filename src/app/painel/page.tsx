@@ -9,6 +9,7 @@ import { DashboardTab } from './components/DashboardTab'
 import { CardapioTab } from './components/cardapio/CardapioTab'
 import { PerfilTab } from './components/PerfilTab'
 import { ConfiguracoesTab } from './components/ConfiguracoesTab'
+import { QrCodeTab } from './components/QrCodeTab'
 import { useCardapio } from './components/cardapio/hooks/useCardapio'
 
 const TEMAS_PADRAO = ['raiz-brasileira']
@@ -250,6 +251,18 @@ export default function PainelDono() {
     }
   }
 
+  // ---- Funções de cardápio ----
+  const handleCriarItem = async (categoriaId: string, dados: any) => {
+    if (!estabelecimento) return
+    await addItem(categoriaId, {
+      ...dados,
+      disponivel: true,
+      tags: dados.tags || [],
+      promocao_ativa: false,
+      delivery_disponivel: dados.delivery_disponivel || false,
+    })
+  }
+
   const handleNovaCategoria = async () => {
     const nome = prompt('Nome da nova categoria:')
     if (!nome || !estabelecimento) return
@@ -294,6 +307,7 @@ export default function PainelDono() {
     await updateItem(itemId, { disponivel: !disponivelAtual })
   }
 
+  // ---- Layout e outras configurações ----
   const salvarLayoutCardapio = async (layout: string) => {
     setModeloVisual(layout as any)
     if (!estabelecimento) return
@@ -385,6 +399,7 @@ export default function PainelDono() {
   const navItems = [
     { key: 'dashboard', icon: '📊', label: 'Dashboard' },
     { key: 'cardapio', icon: '📋', label: 'Cardápio' },
+    { key: 'qrcode', icon: '📱', label: 'QR Code' },
     { key: 'perfil', icon: '🏢', label: 'Perfil' },
     { key: 'config', icon: '⚙️', label: 'Configurações' },
   ]
@@ -458,6 +473,17 @@ export default function PainelDono() {
               onPublicarItem={handleTogglePublicar}
               onRenomearCategoria={handleRenomearCategoria}
               onExcluirCategoria={handleExcluirCategoria}
+              onCriarItem={handleCriarItem}
+            />
+          )}
+
+          {abaAtiva === 'qrcode' && (
+            <QrCodeTab
+              shortUrl={estabelecimento?.qrcode_short_url}
+              modelosQRDisponiveis={modelosQRDisponiveis}
+              modelosQRPermitidos={modelosQRPermitidos}
+              modeloQRSelecionado={modeloQRSelecionado}
+              alterarModeloQR={alterarModeloQR}
             />
           )}
 
