@@ -466,7 +466,6 @@ export default function PainelDono() {
               onSalvarTema={alterarTema}
               onSalvarBackgroundImage={alterarFundo}
               onNovaCategoria={handleNovaCategoria}
-              onAdicionarItem={handleAdicionarItem}
               onAtualizarItem={updateItem}
               onExcluirItem={deleteItem}
               onTogglePromocao={handleTogglePromocao}

@@ -1,0 +1,26 @@
+
+> menu-salvador-br@0.1.0 build
+> next build
+
+▲ Next.js 16.2.7 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+(node:9520) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✓ Compiled successfully in 2.6s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/painel/page.tsx:469:15
+Type error: Type '{ categorias: any[]; modeloVisual: "sem-foto" | "foto-esquerda" | "foto-topo"; temaSelecionado: string; backgroundImageAtual: string; temasDisponiveis: any[]; temasPermitidos: string[]; limitePlano: number; ... 12 more ...; onCriarItem: (categoriaId: string, dados: any) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & CardapioTabProps'.
+  Property 'onAdicionarItem' does not exist on type 'IntrinsicAttributes & CardapioTabProps'. Did you mean 'onCriarItem'?
+
+  [90m467 |[0m               onSalvarBackgroundImage={alterarFundo}
+  [90m468 |[0m               onNovaCategoria={handleNovaCategoria}
+[31m[1m>[0m [90m469 |[0m               onAdicionarItem={handleAdicionarItem}
+  [90m    |[0m               [31m[1m^[0m
+  [90m470 |[0m               onAtualizarItem={updateItem}
+  [90m471 |[0m               onExcluirItem={deleteItem}
+  [90m472 |[0m               onTogglePromocao={handleTogglePromocao}
+Next.js build worker exited with code: 1 and signal: null
