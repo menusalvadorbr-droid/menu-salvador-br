@@ -7,11 +7,11 @@ interface ItensSubTabProps {
   modeloVisual: 'sem-foto' | 'foto-esquerda' | 'foto-topo'
   idiomasAtivos: string[]
   limitePlano: number
-  onUpdateItem: (itemId: string, dados: any) => void
-  onDeleteItem: (itemId: string) => void
+  onAtualizarItem: (itemId: string, dados: any) => void
+  onExcluirItem: (itemId: string) => void
   onTogglePromocao: (itemId: string, ativaAtual: boolean) => void
   onTogglePublicar: (itemId: string, disponivelAtual: boolean) => void
-  onAdicionarItem: (categoriaId: string) => void
+  onCriarItem: (categoriaId: string, dados: any) => void
   onRenomearCategoria: (catId: string, novoNome: string) => void
   onExcluirCategoria: (catId: string) => void
 }
@@ -21,11 +21,11 @@ export function ItensSubTab({
   modeloVisual,
   idiomasAtivos,
   limitePlano,
-  onUpdateItem,
-  onDeleteItem,
+  onAtualizarItem,
+  onExcluirItem,
   onTogglePromocao,
   onTogglePublicar,
-  onAdicionarItem,
+  onCriarItem,
   onRenomearCategoria,
   onExcluirCategoria,
 }: ItensSubTabProps) {
@@ -35,11 +35,11 @@ export function ItensSubTab({
       modeloVisual={modeloVisual}
       idiomasAtivos={idiomasAtivos}
       limitePlano={limitePlano}
-      onAtualizarItem={onUpdateItem}
-      onExcluirItem={onDeleteItem}
+      onAtualizarItem={onAtualizarItem}
+      onExcluirItem={onExcluirItem}
       onTogglePromocao={onTogglePromocao}
       onPublicarItem={onTogglePublicar}
-      onAdicionarItem={onAdicionarItem}
+      onCriarItem={onCriarItem}
       onRenomearCategoria={onRenomearCategoria}
       onExcluirCategoria={onExcluirCategoria}
     />
