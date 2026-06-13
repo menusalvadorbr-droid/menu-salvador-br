@@ -64,7 +64,7 @@ export function ItemEditForm({ item, onSave, onCancel, idiomasAtivos }: ItemEdit
       preco: parseFloat(preco),
       preco_promocional: precoPromocional ? parseFloat(precoPromocional) : null,
       foto_url: fotoUrl || null,
-      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      tags: tagsInput.split(',').map((t: string) => t.trim()).filter(Boolean),
       delivery_disponivel: delivery,
     }
 
