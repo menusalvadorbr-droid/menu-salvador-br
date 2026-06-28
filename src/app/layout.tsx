@@ -1,15 +1,19 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Breadcrumb from '@/components/ui/Breadcrumb'
 
 export const metadata: Metadata = {
-  title: 'menu.salvador.br – Cardápios Digitais',
-  description: 'Encontre os melhores restaurantes, bares e acarajés de Salvador com cardápio digital.',
+  title: 'Menu Salvador',
+  description: 'Diretório de bares e restaurantes em Salvador',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className="min-h-screen bg-gray-50 antialiased">{children}</body>
+      <body className="bg-gray-50">
+        <Breadcrumb />
+        {children}
+      </body>
     </html>
   )
 }
