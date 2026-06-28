@@ -122,6 +122,7 @@ export default function QrCodeTab({
           <button
             onClick={copiarLink}
             disabled={!isClient}
+            suppressHydrationWarning   // ← CORREÇÃO: evita erro de hidratação
             className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 transition disabled:opacity-50"
           >
             {copiado ? '✅ Copiado!' : '📋 Copiar link'}
@@ -129,6 +130,7 @@ export default function QrCodeTab({
           <button
             onClick={baixarQR}
             disabled={baixando || !isClient}
+            suppressHydrationWarning   // ← CORREÇÃO: evita erro de hidratação
             className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-600 transition disabled:opacity-50"
           >
             {baixando ? '⏳ Baixando...' : '⬇️ Baixar QR Code'}

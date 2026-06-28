@@ -27,13 +27,15 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   // Carregar lista de alérgenos da ANVISA
   useEffect(() => {
     const carregarAlergenos = async () => {
+      console.log('🔍 Carregando alérgenos...')
       const { data, error } = await supabase
         .from('allergens')
         .select('*')
         .order('nome', { ascending: true })
       if (error) {
-        console.error('Erro ao carregar alérgenos:', error)
+        console.error('❌ Erro ao carregar alérgenos:', error)
       } else {
+        console.log('✅ Alérgenos carregados:', data?.length || 0, 'itens')
         setAlergenosDisponiveis(data || [])
       }
     }
@@ -172,7 +174,6 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       delivery_disponivel: formData.get('delivery_disponivel') === 'on',
       foto_url: fotoUrl || null,
       ordem: 0,
-      // tags podem ser tratadas posteriormente
     }
 
     if (!dados.nome || dados.preco <= 0) {
@@ -346,12 +347,19 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           </div>
 
           {/* ===== ALÉRGENOS (ANVISA) ===== */}
-          {alergenosDisponiveis.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">⚠️ Alérgenos (ANVISA)</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">⚠️ Alérgenos (ANVISA)</label>
+            {alergenosDisponiveis.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">
+                Nenhum alérgeno cadastrado. Verifique a tabela 'allergens' no Supabase.
+              </p>
+            ) : (
               <div className="flex flex-wrap gap-2">
                 {alergenosDisponiveis.map((a) => (
-                  <label key={a.id} className="flex items-center gap-1 text-sm bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                  <label
+                    key={a.id}
+                    className="flex items-center gap-1 text-sm bg-gray-50 px-2 py-1 rounded border border-gray-200"
+                  >
                     <input
                       type="checkbox"
                       checked={alergenosSelecionados.includes(a.id)}
@@ -368,13 +376,13 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                   </label>
                 ))}
               </div>
-              {alergenosSelecionados.length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">
-                  {alergenosSelecionados.length} alérgeno(s) selecionado(s)
-                </p>
-              )}
-            </div>
-          )}
+            )}
+            {alergenosSelecionados.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                {alergenosSelecionados.length} alérgeno(s) selecionado(s)
+              </p>
+            )}
+          </div>
 
           <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
             {editandoItem ? 'Atualizar' : 'Salvar'} item
