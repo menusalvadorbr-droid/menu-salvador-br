@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Check, ZoomIn, EyeOff } from 'lucide-react'
 
@@ -240,11 +240,11 @@ export default function TemaEditor({
               <label className="block text-xs font-medium text-gray-600 mb-2">Posição da foto</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {([
-                  { value: 'left',  label: 'Esquerda' },
-                  { value: 'right', label: 'Direita'  },
-                  { value: 'top',   label: 'Acima'    },
-                  { value: 'none',  label: 'Sem foto', icon: <EyeOff className="w-3 h-3" /> },
-                ] as const).map(op => (
+                  { value: 'left', label: 'Esquerda' },
+                  { value: 'right', label: 'Direita' },
+                  { value: 'top', label: 'Acima' },
+                  { value: 'none', label: 'Sem foto', icon: <EyeOff className="w-3 h-3" /> },
+                ] as Array<{ value: CardapioConfig['foto_posicao']; label: string; icon?: ReactNode }>).map(op => (
                   <button
                     key={op.value}
                     onClick={() => updCfg({ foto_posicao: op.value })}
@@ -255,7 +255,7 @@ export default function TemaEditor({
                         : 'border-gray-200 text-gray-600 hover:border-gray-300'}
                       ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
-                    {op.icon}
+                    {op.icon ? op.icon : null}
                     {op.label}
                   </button>
                 ))}
