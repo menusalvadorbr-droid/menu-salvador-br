@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface ModulosHome {
   modulosAtivos: string[];
@@ -8,6 +8,7 @@ interface ModulosHome {
 }
 
 export function useModulosHome() {
+  const supabase = createClient();
   const [data, setData] = useState<ModulosHome>({
     modulosAtivos: [],
     backgroundImage: '',

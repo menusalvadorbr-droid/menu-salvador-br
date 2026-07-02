@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 interface GaleriaTabProps {
   estabelecimentoId: string
@@ -9,6 +9,7 @@ interface GaleriaTabProps {
 }
 
 export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabProps) {
+  const supabase = createClient()
   const [fotos, setFotos] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)

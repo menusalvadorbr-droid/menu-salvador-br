@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 interface EditarEstabelecimentoFormProps {
   estabelecimento: any
@@ -14,6 +14,7 @@ export default function EditarEstabelecimentoForm({
   podeEditar,
   userId,
 }: EditarEstabelecimentoFormProps) {
+  const supabase = createClient()
   const [nome, setNome] = useState(estabelecimento.nome || '')
   const [nomeFantasia, setNomeFantasia] = useState(estabelecimento.nome_fantasia || '')
   const [descricao, setDescricao] = useState(estabelecimento.descricao || '')
@@ -23,6 +24,8 @@ export default function EditarEstabelecimentoForm({
   const [whatsapp, setWhatsapp] = useState(estabelecimento.whatsapp || '')
   const [instagram, setInstagram] = useState(estabelecimento.instagram || '')
   const [tipoCozinha, setTipoCozinha] = useState(estabelecimento.tipo_cozinha || '')
+  // ⬇️ NOVO: estado para tipo_estabelecimento
+  const [tipoEstabelecimento, setTipoEstabelecimento] = useState(estabelecimento.tipo_estabelecimento || '')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -48,10 +51,10 @@ export default function EditarEstabelecimentoForm({
         whatsapp,
         instagram,
         tipo_cozinha: tipoCozinha,
+        tipo_estabelecimento: tipoEstabelecimento, // ⬅️ NOVO: enviando o campo
         updated_at: new Date().toISOString(),
       })
       .eq('id', estabelecimento.id)
-      .eq('owner_user_id', userId)
 
     if (error) {
       setMessage({ type: 'error', text: 'Erro ao salvar: ' + error.message })
@@ -112,12 +115,13 @@ export default function EditarEstabelecimentoForm({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bairro</label>
+            <label className="block text-sm font-medium text-gray-700">Bairro *</label>
             <input
               type="text"
               value={bairro}
               onChange={(e) => setBairro(e.target.value)}
               disabled={!podeEditar}
+              required
               className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
             />
           </div>
@@ -157,16 +161,43 @@ export default function EditarEstabelecimentoForm({
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Tipo de cozinha</label>
-          <input
-            type="text"
-            value={tipoCozinha}
-            onChange={(e) => setTipoCozinha(e.target.value)}
-            disabled={!podeEditar}
-            className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
-            placeholder="Ex: Baiana, Italiana, Japonesa"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Tipo de cozinha *</label>
+            <input
+              type="text"
+              value={tipoCozinha}
+              onChange={(e) => setTipoCozinha(e.target.value)}
+              disabled={!podeEditar}
+              required
+              className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
+              placeholder="Ex: Baiana, Italiana, Japonesa"
+            />
+          </div>
+
+          {/* ⬇️ NOVO CAMPO: tipo_estabelecimento */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Tipo de estabelecimento *</label>
+            <select
+              value={tipoEstabelecimento}
+              onChange={(e) => setTipoEstabelecimento(e.target.value)}
+              disabled={!podeEditar}
+              required
+              className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
+            >
+              <option value="">Selecione o tipo</option>
+              <option value="restaurante">🍽️ Restaurante</option>
+              <option value="bar">🍺 Bar</option>
+              <option value="lanchonete">🥪 Lanchonete</option>
+              <option value="foodtruck">🚚 Food Truck</option>
+              <option value="banca_acaraje">🫘 Banca de Acarajé</option>
+              <option value="cafeteria">☕ Cafeteria</option>
+              <option value="hamburgueria">🍔 Hamburgueria</option>
+              <option value="churrascaria">🥩 Churrascaria</option>
+              <option value="confeitaria">🍰 Confeitaria</option>
+              <option value="pizzaria">🍕 Pizzaria</option>
+            </select>
+          </div>
         </div>
 
         {message && (

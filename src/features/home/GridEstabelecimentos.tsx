@@ -34,17 +34,21 @@ export default function GridEstabelecimentos({ estabelecimentos }: GridEstabelec
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {estabelecimentos.map((est) => {
         const urlThumb = getCloudinaryUrl(est.foto_capa, 400, 300)
+        const nomeExibicao = est.nome_fantasia || est.nome
+        const href = est.cidade && est.bairro && est.tipo_estabelecimento
+          ? `/${est.cidade}/${est.bairro}/${est.tipo_estabelecimento}/${est.slug}`
+          : `/cardapio/${est.slug}`
         return (
           <Link
             key={est.id}
-            href={`/estabelecimento/${est.slug}`}
+            href={href}
             className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-orange-200"
           >
             <div className="relative h-48 bg-gradient-to-br from-orange-400 to-red-500">
               {urlThumb ? (
                 <img
                   src={urlThumb}
-                  alt={est.nome}
+                  alt={nomeExibicao}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -65,7 +69,7 @@ export default function GridEstabelecimentos({ estabelecimentos }: GridEstabelec
             </div>
             <div className="p-5">
               <h3 className="font-bold text-xl text-gray-900 mb-1 group-hover:text-orange-600 transition">
-                {est.nome}
+                {nomeExibicao}
               </h3>
               <div className="flex items-center gap-2 text-gray-600 text-sm mb-2">
                 <span>📍 {est.bairro}</span>

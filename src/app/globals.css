@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: light;
+}
+
 .menu-container {
   background-color: var(--menu-bg);
   color: var(--menu-text);

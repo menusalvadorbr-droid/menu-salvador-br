@@ -1,30 +1,18 @@
 export function getOptimizedCloudinaryUrl(
-  url: string | null,
+  url: string | null | undefined,
   width: number = 300,
   height: number = 300,
   crop: 'fill' | 'fit' | 'limit' = 'fill'
-): string {
-  if (!url) return ''
+): string | null {
+  if (!url) return null
   if (!url.includes('cloudinary.com')) return url
 
-  // Se já tiver transformações, apenas retorna
-  if (url.includes('/upload/')) {
-    const parts = url.split('/upload/')
-    if (parts.length === 2) {
-      const transformations = `w_${width},h_${height},c_${crop},q_auto,f_auto`
-      return `${parts[0]}/upload/${transformations}/${parts[1]}`
-    }
+  const parts = url.split('/upload/')
+  if (parts.length === 2) {
+    const pathParts = parts[1].split('/')
+    const fileName = pathParts[pathParts.length - 1]
+    const transformations = `c_${crop},w_${width},h_${height},q_auto,f_auto`
+    return `${parts[0]}/upload/${transformations}/${fileName}`
   }
   return url
-}
-
-export function getCloudinaryLoader({ src, width, quality }: { src: string; width: number; quality?: number }) {
-  // Usado com next/image com loader customizado
-  if (!src.includes('cloudinary.com')) return src
-  const parts = src.split('/upload/')
-  if (parts.length === 2) {
-    const q = quality || 80
-    return `${parts[0]}/upload/w_${width},q_${q},f_auto/${parts[1]}`
-  }
-  return src
 }

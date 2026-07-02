@@ -1,6 +1,11 @@
-export function gerarBreadcrumb(pathname: string) {
+export interface Breadcrumb {
+  label: string
+  href: string
+}
+
+export function gerarBreadcrumb(pathname: string): Breadcrumb[] {
   const segments = pathname.split('/').filter(Boolean)
-  const breadcrumbs = []
+  const breadcrumbs: Breadcrumb[] = []
   let acumulado = ''
 
   // Home

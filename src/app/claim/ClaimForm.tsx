@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 interface ClaimFormProps {
   estabelecimentoId: string
@@ -11,6 +11,7 @@ interface ClaimFormProps {
 }
 
 export default function ClaimForm({ estabelecimentoId, userId, estabelecimentoNome }: ClaimFormProps) {
+  const supabase = createClient()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

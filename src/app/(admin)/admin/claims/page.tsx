@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { logSupabaseError } from '@/lib/supabase/logError'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { moderarClaim } from './actions'
@@ -25,7 +26,7 @@ export default async function AdminClaimsPage() {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Erro ao buscar claims:', error)
+    logSupabaseError('Erro ao buscar claims:', error)
     return (
       <div className="p-8 max-w-4xl mx-auto">
         <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl">
@@ -37,7 +38,7 @@ export default async function AdminClaimsPage() {
   }
 
   // Busca dados relacionados manualmente
-  const claimsComDados = []
+  const claimsComDados: Array<Record<string, any>> = []
   for (const claim of claims || []) {
     const { data: estabelecimento } = await supabaseAdmin
       .from('estabelecimentos')

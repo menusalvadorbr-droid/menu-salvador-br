@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
+import { logSupabaseError } from '@/lib/supabase/logError'
 import Link from 'next/link'
 
 function optimizeCloudinaryUrl(url: string | null, width: number, height: number): string {
@@ -12,6 +13,7 @@ function optimizeCloudinaryUrl(url: string | null, width: number, height: number
 }
 
 export function PromocoesCarrossel() {
+  const supabase = createClient()
   const [itens, setItens] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -44,7 +46,7 @@ export function PromocoesCarrossel() {
         if (error) throw error
         setItens(data || [])
       } catch (error) {
-        console.error('Erro ao carregar promoções:', error)
+        logSupabaseError('Erro ao carregar promoções:', error)
       } finally {
         setLoading(false)
       }

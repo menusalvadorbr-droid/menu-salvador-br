@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { moderarEstabelecimento, excluirEstabelecimento } from './actions'
+import { AcoesEstabelecimentoAdmin } from './AcoesEstabelecimentoAdmin'
 
 export default async function AdminEstabelecimentosPage() {
   const supabase = await createClient()
@@ -102,82 +102,13 @@ export default async function AdminEstabelecimentosPage() {
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {/* Aprovar (só se pendente) */}
-                  {isPending && (
-                    <form action={async () => {
-                      'use server'
-                      await moderarEstabelecimento(est.id, 'approve')
-                    }}>
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
-                      >
-                        ✅ Aprovar
-                      </button>
-                    </form>
-                  )}
-
-                  {/* Bloquear (se não estiver bloqueado) */}
-                  {!isBlocked && (
-                    <form action={async () => {
-                      'use server'
-                      await moderarEstabelecimento(est.id, 'block')
-                    }}>
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
-                      >
-                        🚫 Bloquear
-                      </button>
-                    </form>
-                  )}
-
-                  {/* Desbloquear (se estiver bloqueado) */}
-                  {isBlocked && (
-                    <form action={async () => {
-                      'use server'
-                      await moderarEstabelecimento(est.id, 'unblock')
-                    }}>
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
-                      >
-                        🔓 Desbloquear
-                      </button>
-                    </form>
-                  )}
-
-                  {/* Desvincular (se tiver dono) */}
-                  {est.owner_user_id && (
-                    <form action={async () => {
-                      'use server'
-                      await moderarEstabelecimento(est.id, 'unlink')
-                    }}>
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
-                      >
-                        🔓 Desvincular
-                      </button>
-                    </form>
-                  )}
-
-                  {/* Excluir (sempre disponível) */}
-                  <form
-                    action={async () => {
-                      'use server'
-                      if (confirm(`Tem certeza que deseja excluir permanentemente "${est.nome_fantasia || est.nome}"? Esta ação não pode ser desfeita.`)) {
-                        await excluirEstabelecimento(est.id)
-                      }
-                    }}
-                  >
-                    <button
-                      type="submit"
-                      className="inline-flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
-                    >
-                      🗑️ Excluir
-                    </button>
-                  </form>
+                  <AcoesEstabelecimentoAdmin
+                    estabelecimentoId={est.id}
+                    nomeExibicao={est.nome_fantasia || est.nome}
+                    isPending={isPending}
+                    isBlocked={isBlocked}
+                    temDono={!!est.owner_user_id}
+                  />
 
                   {/* Ver público */}
                   <Link
