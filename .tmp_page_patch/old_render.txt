@@ -1,0 +1,96 @@
+        {/* ── CARROSSEL DE PROMOÇÕES (itens do cardápio + promoções avulsas) ── */}
+        {(itensComPromo.length > 0 || specialOffers.length > 0) && (
+          <div className="rounded-2xl mb-4 overflow-hidden shadow"
+            style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+            <div className="px-4 py-3 border-b flex items-center gap-2"
+              style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
+              <span className="text-base">🔥</span>
+              <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
+
+              {/* Cards de itens do cardápio com desconto */}
+              {itensComPromo.map((item: any) => {
+                const foto = getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
+                const pct  = item.preco && item.preco_promocional
+                  ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
+                return (
+                  <a key={`item-${item.id}`} href={`#cat-${item.categoria_id}`}
+                    className="flex-shrink-0 w-32 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
+                    style={{ backgroundColor: corF, borderColor: corBd }}>
+                    <div className="relative h-20 bg-gray-100">
+                      {foto
+                        ? <Image src={foto} alt={item.nome} fill
+                            className="object-cover" sizes="128px" unoptimized loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-2xl">🍽️</div>
+                      }
+                      {pct > 0 && (
+                        <span className="absolute top-1 left-1 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: corP }}>-{pct}%</span>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      {mostrarCodigo && item.codigo && (
+                        <span className="text-xs font-mono opacity-60 block">#{item.codigo}</span>
+                      )}
+                      <p className="text-xs font-medium leading-tight line-clamp-2"
+                        style={{ color: corT }}>{item.nome}</p>
+                      <p className="text-xs text-gray-400 line-through mt-0.5">R$ {fmt(item.preco)}</p>
+                      <p className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</p>
+                    </div>
+                  </a>
+                )
+              })}
+
+              {/* Cards de promoções avulsas (special_offers) */}
+              {specialOffers.map((o: any) => {
+                const foto = getOptimizedCloudinaryUrl(o.foto_url, 200, 200, 'fill')
+                const pct  = o.preco_de && o.preco_por
+                  ? Math.round((1 - o.preco_por / o.preco_de) * 100) : 0
+                const fimLabel = o.fim_em
+                  ? new Date(o.fim_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                  : o.hora_fim || null
+                return (
+                  <div key={`offer-${o.id}`}
+                    className="flex-shrink-0 w-36 rounded-xl overflow-hidden border hover:shadow-md transition"
+                    style={{ backgroundColor: corF, borderColor: corBd }}>
+                    <div className="relative h-20 bg-gray-100">
+                      {foto
+                        ? <Image src={foto} alt={o.nome} fill
+                            className="object-cover" sizes="144px" unoptimized loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-3xl">🏷️</div>
+                      }
+                      {pct > 0 && (
+                        <span className="absolute top-1 left-1 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: corP }}>-{pct}%</span>
+                      )}
+                      {/* badge especial para diferenciar de item normal */}
+                      <span className="absolute top-1 right-1 text-white text-xs px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: `${corP}cc` }}>✨</span>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-xs font-semibold leading-tight line-clamp-2"
+                        style={{ color: corT }}>{o.nome}</p>
+                      {o.descricao && (
+                        <p className="text-xs opacity-60 line-clamp-1 mt-0.5" style={{ color: corT }}>
+                          {o.descricao}
+                        </p>
+                      )}
+                      <div className="mt-1">
+                        {o.preco_de && (
+                          <p className="text-xs text-gray-400 line-through">R$ {fmt(o.preco_de)}</p>
+                        )}
+                        <p className="text-sm font-bold" style={{ color: corP }}>R$ {fmt(o.preco_por)}</p>
+                      </div>
+                      {fimLabel && (
+                        <p className="text-xs mt-1" style={{ color: corP }}>⏰ até {fimLabel}h</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+
+            </div>
+          </div>
+        )}
+

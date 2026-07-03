@@ -1,0 +1,152 @@
+        {/* ── CARROSSEL DE PROMOÇÕES ── */}
+        {(itensOrdenados.length > 0 || offersEnriquecidas.length > 0) && (
+          <div className="rounded-2xl mb-4 overflow-hidden shadow"
+            style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+            <div className="px-4 py-3 border-b flex items-center justify-between"
+              style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔥</span>
+                <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
+              </div>
+              {offersEnriquecidas.some(o => o.minutosRestantes !== null && o.minutosRestantes <= 30) && (
+                <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
+                  ⚠️ Encerrando em breve
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
+
+              {offersEnriquecidas.map((o: any) => {
+                const foto = getOptimizedCloudinaryUrl(o.foto_url, 300, 200, 'fill')
+                const pct  = o.preco_de && o.preco_por && o.preco_de > o.preco_por
+                  ? Math.round((1 - o.preco_por / o.preco_de) * 100) : 0
+                const mins = o.minutosRestantes as number | null
+                const critico = mins !== null && mins <= 10
+                const urgente = mins !== null && mins <= (o.alerta_minutos || 30) && mins > 10
+                const fimIso = o.fimIso
+
+                return (
+                  <div key={`offer-${o.id}`}
+                    className={`flex-shrink-0 w-48 rounded-xl overflow-hidden transition-all duration-300 ${
+                      critico ? 'shadow-lg shadow-red-200'
+                      : urgente ? 'shadow-md shadow-amber-100'
+                      : 'shadow-sm hover:shadow-md'
+                    }`}
+                    style={{
+                      backgroundColor: corF,
+                      border: critico
+                        ? '2px solid #ef4444'
+                        : urgente
+                          ? '2px solid #f59e0b'
+                          : `1px solid ${corBd}`,
+                    }}>
+
+                    <div className="relative h-28 bg-gray-100 overflow-hidden">
+                      {foto
+                        ? <Image src={foto} alt={o.nome} fill
+                            className="object-cover" sizes="192px" unoptimized loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-4xl">🏷️</div>
+                      }
+
+                      {(critico || urgente) && (
+                        <div className={`absolute inset-0 ${critico ? 'bg-red-900/20' : 'bg-amber-900/10'}`} />
+                      )}
+
+                      {pct > 0 && (
+                        <span className="absolute top-2 left-2 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow"
+                          style={{ backgroundColor: corP }}>
+                          -{pct}%
+                        </span>
+                      )}
+
+                      <span className={`absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full font-medium shadow ${
+                        critico ? 'bg-red-500 text-white animate-bounce'
+                        : urgente ? 'bg-amber-500 text-white'
+                        : 'bg-white/80 text-gray-700'
+                      }`}>
+                        {critico ? '🚨' : urgente ? '⚡' : '✨'}
+                      </span>
+
+                      {(critico || urgente) && (
+                        <div className={`absolute bottom-0 inset-x-0 py-1 px-2 text-center text-xs font-bold text-white ${
+                          critico ? 'bg-red-500' : 'bg-amber-500'
+                        }`}>
+                          {critico ? '🚨 Últimos minutos!' : '⚡ Encerrando em breve'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-3">
+                      <p className="text-sm font-bold leading-tight line-clamp-2 mb-1"
+                        style={{ color: corT }}>{o.nome}</p>
+                      {o.descricao && (
+                        <p className="text-xs line-clamp-1 mb-2 opacity-60"
+                          style={{ color: corT }}>{o.descricao}</p>
+                      )}
+                      <div className="flex items-end justify-between gap-1">
+                        <div>
+                          {o.preco_de && (
+                            <p className="text-xs text-gray-400 line-through leading-none">
+                              R$ {fmt(o.preco_de)}
+                            </p>
+                          )}
+                          <p className="text-base font-bold leading-none" style={{ color: corP }}>
+                            R$ {fmt(o.preco_por)}
+                          </p>
+                        </div>
+                        {fimIso && (
+                          <ContadorRegressivo
+                            fimIso={fimIso}
+                            alertaMinutos={o.alerta_minutos || 30}
+                            corP={corP}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {offersEnriquecidas.length > 0 && itensOrdenados.length > 0 && (
+                <div className="flex-shrink-0 w-px self-stretch my-2"
+                  style={{ backgroundColor: corBd }} />
+              )}
+
+              {itensOrdenados.map((item: any) => {
+                const foto = getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
+                const pct  = item.preco && item.preco_promocional
+                  ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
+                return (
+                  <a key={`item-${item.id}`} href={`#cat-${item.categoria_id}`}
+                    className="flex-shrink-0 w-32 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
+                    style={{ backgroundColor: corF, borderColor: corBd }}>
+                    <div className="relative h-20 bg-gray-100">
+                      {foto
+                        ? <Image src={foto} alt={item.nome} fill
+                            className="object-cover" sizes="128px" unoptimized loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-2xl">🍽️</div>
+                      }
+                      {pct > 0 && (
+                        <span className="absolute top-1 left-1 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: corP }}>-{pct}%</span>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      {mostrarCodigo && item.codigo && (
+                        <span className="text-xs font-mono opacity-60 block">#{item.codigo}</span>
+                      )}
+                      <p className="text-xs font-medium leading-tight line-clamp-2"
+                        style={{ color: corT }}>{item.nome}</p>
+                      <p className="text-xs text-gray-400 line-through mt-0.5">R$ {fmt(item.preco)}</p>
+                      <p className="text-xs font-bold" style={{ color: corP }}>
+                        R$ {fmt(item.preco_promocional)}
+                      </p>
+                    </div>
+                  </a>
+                )
+              })}
+
+            </div>
+          </div>
+        )}

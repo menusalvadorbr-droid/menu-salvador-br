@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { Metadata } from 'next'
+import ContadorRegressivo from './ContadorRegressivo'
 
 // ─────────────────────────────────────────────────────────────
 // SEO
@@ -103,6 +104,67 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     }
   }
 
+  // 5. Promoções avulsas (special_offers) — busca e filtra vigência no servidor
+  const now = new Date()
+  const diaSemana = now.getDay() // 0=dom ... 6=sab
+  const horaAtual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+
+  const { data: rawOffers } = await supabase
+    .from('special_offers')
+    .select('*')
+    .eq('estabelecimento_id', est.id)
+    .eq('ativo', true)
+
+  // Filtrar offers vigentes agora (pontual ou recorrente)
+  const specialOffers: any[] = (rawOffers || []).filter((o: any) => {
+    if (o.recorrente) {
+      const dias: number[] = o.dias_semana || []
+      if (!dias.includes(diaSemana)) return false
+      const hi = o.hora_inicio || '00:00'
+      const hf = o.hora_fim    || '23:59'
+      return horaAtual >= hi && horaAtual <= hf
+    }
+    // pontual
+    if (o.inicio_em && new Date(o.inicio_em) > now) return false
+    if (o.fim_em    && new Date(o.fim_em)    < now) return false
+    return true
+  })
+
+  // Calcular urgência de cada offer (minutos até encerrar)
+  const minutosAteEncerrar = (o: any): number | null => {
+    if (o.recorrente && o.hora_fim) {
+      const [hh, mm] = o.hora_fim.split(':').map(Number)
+      const fim = new Date(now)
+      fim.setHours(hh, mm, 0, 0)
+      return Math.floor((fim.getTime() - now.getTime()) / 60000)
+    }
+    if (o.fim_em) return Math.floor((new Date(o.fim_em).getTime() - now.getTime()) / 60000)
+    return null
+  }
+
+  // Enriquecer offers com minutos restantes
+  const offersEnriquecidas = specialOffers.map(o => ({
+    ...o,
+    minutosRestantes: minutosAteEncerrar(o),
+  }))
+
+  // Ordenar: críticos (<10min) → urgentes (<alerta_minutos) → com tempo → sem data
+  offersEnriquecidas.sort((a, b) => {
+    const ma = a.minutosRestantes
+    const mb = b.minutosRestantes
+    if (ma === null && mb === null) return 0
+    if (ma === null) return 1
+    if (mb === null) return -1
+    return ma - mb
+  })
+
+  // Ordenar itens do cardápio por maior desconto primeiro
+  const itensOrdenados = [...itensComPromo].sort((a, b) => {
+    const pa = a.preco_desconto_pct || Math.round((1 - a.preco_promocional / a.preco) * 100)
+    const pb = b.preco_desconto_pct || Math.round((1 - b.preco_promocional / b.preco) * 100)
+    return pb - pa
+  })
+
   const totalItens = Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const alergenos = (item: any): any[] =>
@@ -145,21 +207,143 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         </div>
 
         {/* ── CARROSSEL DE PROMOÇÕES ── */}
-        {itensComPromo.length > 0 && (
+        {(itensOrdenados.length > 0 || offersEnriquecidas.length > 0) && (
           <div className="rounded-2xl mb-4 overflow-hidden shadow"
             style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
-            <div className="px-4 py-3 border-b flex items-center gap-2"
+            <div className="px-4 py-3 border-b flex items-center justify-between"
               style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
-              <span className="text-base">🔥</span>
-              <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔥</span>
+                <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
+              </div>
+              {/* aviso de encerramento próximo no header */}
+              {offersEnriquecidas.some(o => o.minutosRestantes !== null && o.minutosRestantes <= 30) && (
+                <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
+                  ⚠️ Encerrando em breve
+                </span>
+              )}
             </div>
+
             <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
-              {itensComPromo.map((item: any) => {
+
+              {/* ── CARDS LARGOS: promoções avulsas (ordenadas por urgência) ── */}
+              {offersEnriquecidas.map((o: any) => {
+                const foto = getOptimizedCloudinaryUrl(o.foto_url, 300, 200, 'fill')
+                const pct  = o.preco_de && o.preco_por && o.preco_de > o.preco_por
+                  ? Math.round((1 - o.preco_por / o.preco_de) * 100) : 0
+                const mins = o.minutosRestantes as number | null
+                const critico = mins !== null && mins <= 10
+                const urgente = mins !== null && mins <= o.alerta_minutos && mins > 10
+                const temFim  = o.fim_em || (o.recorrente && o.hora_fim)
+                const fimIso  = o.fim_em ? o.fim_em
+                  : o.hora_fim ? (() => {
+                      const [hh, mm] = (o.hora_fim as string).split(':').map(Number)
+                      const d = new Date(); d.setHours(hh, mm, 0, 0)
+                      return d.toISOString()
+                    })() : null
+
+                return (
+                  <div key={`offer-${o.id}`}
+                    className={`flex-shrink-0 w-48 rounded-xl overflow-hidden transition-all duration-300 ${
+                      critico ? 'shadow-lg shadow-red-200'
+                      : urgente ? 'shadow-md shadow-amber-100'
+                      : 'shadow-sm hover:shadow-md'
+                    }`}
+                    style={{
+                      backgroundColor: corF,
+                      border: critico
+                        ? '2px solid #ef4444'
+                        : urgente
+                          ? '2px solid #f59e0b'
+                          : `1px solid ${corBd}`,
+                    }}>
+
+                    {/* foto */}
+                    <div className="relative h-28 bg-gray-100 overflow-hidden">
+                      {foto
+                        ? <Image src={foto} alt={o.nome} fill
+                            className="object-cover" sizes="192px" unoptimized loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-4xl">🏷️</div>
+                      }
+
+                      {/* overlay de urgência sobre a foto */}
+                      {(critico || urgente) && (
+                        <div className={`absolute inset-0 ${critico ? 'bg-red-900/20' : 'bg-amber-900/10'}`} />
+                      )}
+
+                      {/* badge de desconto */}
+                      {pct > 0 && (
+                        <span className="absolute top-2 left-2 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow"
+                          style={{ backgroundColor: corP }}>
+                          -{pct}%
+                        </span>
+                      )}
+
+                      {/* badge tipo especial */}
+                      <span className={`absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full font-medium shadow ${
+                        critico ? 'bg-red-500 text-white animate-bounce'
+                        : urgente ? 'bg-amber-500 text-white'
+                        : 'bg-white/80 text-gray-700'
+                      }`}>
+                        {critico ? '🚨' : urgente ? '⚡' : '✨'}
+                      </span>
+
+                      {/* faixa de encerramento na base da foto */}
+                      {(critico || urgente) && (
+                        <div className={`absolute bottom-0 inset-x-0 py-1 px-2 text-center text-xs font-bold text-white ${
+                          critico ? 'bg-red-500' : 'bg-amber-500'
+                        }`}>
+                          {critico ? '🚨 Últimos minutos!' : '⚡ Encerrando em breve'}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* conteúdo */}
+                    <div className="p-3">
+                      <p className="text-sm font-bold leading-tight line-clamp-2 mb-1"
+                        style={{ color: corT }}>{o.nome}</p>
+                      {o.descricao && (
+                        <p className="text-xs line-clamp-1 mb-2 opacity-60"
+                          style={{ color: corT }}>{o.descricao}</p>
+                      )}
+                      <div className="flex items-end justify-between gap-1">
+                        <div>
+                          {o.preco_de && (
+                            <p className="text-xs text-gray-400 line-through leading-none">
+                              R$ {fmt(o.preco_de)}
+                            </p>
+                          )}
+                          <p className="text-base font-bold leading-none" style={{ color: corP }}>
+                            R$ {fmt(o.preco_por)}
+                          </p>
+                        </div>
+                        {/* contador regressivo client-side */}
+                        {fimIso && (
+                          <ContadorRegressivo
+                            fimIso={fimIso}
+                            alertaMinutos={o.alerta_minutos || 30}
+                            corP={corP}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* separador visual se houver os dois tipos */}
+              {offersEnriquecidas.length > 0 && itensOrdenados.length > 0 && (
+                <div className="flex-shrink-0 w-px self-stretch my-2"
+                  style={{ backgroundColor: corBd }} />
+              )}
+
+              {/* ── CARDS COMPACTOS: itens do cardápio em promoção ── */}
+              {itensOrdenados.map((item: any) => {
                 const foto = getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
                 const pct  = item.preco && item.preco_promocional
                   ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
                 return (
-                  <a key={item.id} href={`#cat-${item.categoria_id}`}
+                  <a key={`item-${item.id}`} href={`#cat-${item.categoria_id}`}
                     className="flex-shrink-0 w-32 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
                     style={{ backgroundColor: corF, borderColor: corBd }}>
                     <div className="relative h-20 bg-gray-100">
@@ -180,11 +364,14 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                       <p className="text-xs font-medium leading-tight line-clamp-2"
                         style={{ color: corT }}>{item.nome}</p>
                       <p className="text-xs text-gray-400 line-through mt-0.5">R$ {fmt(item.preco)}</p>
-                      <p className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</p>
+                      <p className="text-xs font-bold" style={{ color: corP }}>
+                        R$ {fmt(item.preco_promocional)}
+                      </p>
                     </div>
                   </a>
                 )
               })}
+
             </div>
           </div>
         )}

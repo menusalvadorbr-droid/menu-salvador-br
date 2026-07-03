@@ -1,0 +1,54 @@
+  const { data: rawOffers } = await supabase
+    .from('special_offers')
+    .select('*')
+    .eq('estabelecimento_id', est.id)
+    .eq('ativo', true)
+
+  // Filtrar offers vigentes agora (pontual ou recorrente)
+  const specialOffers: any[] = (rawOffers || []).filter((o: any) => {
+    if (o.recorrente) {
+      const dias: number[] = o.dias_semana || []
+      if (!dias.includes(diaSemana)) return false
+      const hi = o.hora_inicio || '00:00'
+      const hf = o.hora_fim    || '23:59'
+      return horaAtual >= hi && horaAtual <= hf
+    }
+    // pontual
+    if (o.inicio_em && new Date(o.inicio_em) > now) return false
+    if (o.fim_em    && new Date(o.fim_em)    < now) return false
+    return true
+  })
+
+  const offersEnriquecidas = specialOffers
+    .map((o: any) => {
+      const fimIso = o.fim_em ? o.fim_em
+        : o.hora_fim ? (() => {
+            const [hh, mm] = (o.hora_fim as string).split(':').map(Number)
+            const d = new Date(); d.setHours(hh, mm, 0, 0)
+            return d.toISOString()
+          })() : null
+      const minutosRestantes = fimIso
+        ? Math.max(0, Math.ceil((new Date(fimIso).getTime() - now.getTime()) / 60000))
+        : null
+      return { ...o, fimIso, minutosRestantes }
+    })
+    .sort((a: any, b: any) => {
+      const aUrgente = a.minutosRestantes !== null && a.minutosRestantes <= (a.alerta_minutos || 30)
+      const bUrgente = b.minutosRestantes !== null && b.minutosRestantes <= (b.alerta_minutos || 30)
+      if (aUrgente !== bUrgente) return aUrgente ? -1 : 1
+      if (a.minutosRestantes !== null && b.minutosRestantes !== null) return a.minutosRestantes - b.minutosRestantes
+      if (a.fimIso && !b.fimIso) return -1
+      if (!a.fimIso && b.fimIso) return 1
+      return 0
+    })
+
+  const itensOrdenados = itensComPromo
+    .map((item: any) => ({
+      ...item,
+      desconto: item.preco && item.preco_promocional
+        ? Math.round((1 - item.preco_promocional / item.preco) * 100)
+        : 0,
+    }))
+    .sort((a: any, b: any) => (b.desconto || 0) - (a.desconto || 0))
+
+  const totalItens = Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)

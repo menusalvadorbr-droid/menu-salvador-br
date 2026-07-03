@@ -1,23 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 import { logSupabaseError } from '@/lib/supabase/logError'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { moderarClaim } from './actions'
 
 export default async function AdminClaimsPage() {
-  // Verifica autenticação e permissão (segurança extra)
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('usuarios')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-  if (profile?.role !== 'super_admin') redirect('/painel')
-
   // Busca claims pendentes usando supabaseAdmin (ignora RLS)
   const { data: claims, error } = await supabaseAdmin
     .from('restaurant_claims')
@@ -28,11 +13,9 @@ export default async function AdminClaimsPage() {
   if (error) {
     logSupabaseError('Erro ao buscar claims:', error)
     return (
-      <div className="p-8 max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl">
-          <h2 className="text-xl font-bold">Erro ao carregar reivindicações</h2>
-          <p className="text-sm mt-2">{error.message}</p>
-        </div>
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+        <h2 className="text-xl font-bold">Erro ao carregar reivindicações</h2>
+        <p className="mt-2 text-sm">{error.message}</p>
       </div>
     )
   }
@@ -60,21 +43,16 @@ export default async function AdminClaimsPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">📋 Reivindicações Pendentes</h1>
-          <p className="text-gray-500 mt-1">
-            {claimsComDados.length} solicitações aguardando análise
-          </p>
-        </div>
-        <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-700 transition">
-          ← Voltar ao admin
-        </Link>
+    <div>
+      <div>
+        <h1 className="text-2xl font-bold text-neutral-900">Reivindicações pendentes</h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          {claimsComDados.length} solicitações aguardando análise
+        </p>
       </div>
 
       {claimsComDados.length > 0 ? (
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <div className="mt-6 bg-white rounded-2xl shadow overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -155,7 +133,7 @@ export default async function AdminClaimsPage() {
           </table>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-500">
+        <div className="mt-6 bg-white rounded-2xl shadow-sm p-12 text-center text-gray-500">
           <div className="text-6xl mb-4">✅</div>
           <p className="text-lg font-medium">Nenhuma reivindicação pendente</p>
           <p className="text-sm">Todas as solicitações foram analisadas.</p>

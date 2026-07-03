@@ -1,0 +1,3 @@
+import Image from 'next/image'
+import ContadorRegressivo from './ContadorRegressivo'
+import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'

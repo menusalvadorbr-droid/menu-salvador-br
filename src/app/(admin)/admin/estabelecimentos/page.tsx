@@ -1,21 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { AcoesEstabelecimentoAdmin } from './AcoesEstabelecimentoAdmin'
 
 export default async function AdminEstabelecimentosPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('usuarios')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'super_admin') redirect('/painel')
 
   const { data: estabelecimentos } = await supabase
     .from('estabelecimentos')
@@ -38,16 +26,11 @@ export default async function AdminEstabelecimentosPage() {
   const bloqueados = estabelecimentos?.filter(e => e.status === 'blocked').length || 0
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div>
       {/* Cabeçalho */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">🏪 Estabelecimentos</h1>
-          <p className="text-sm text-gray-500">Gerencie todos os estabelecimentos da plataforma</p>
-        </div>
-        <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-700 transition flex items-center gap-1">
-          ← Voltar ao admin
-        </Link>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Estabelecimentos</h1>
+        <p className="text-sm text-gray-500">Gerencie todos os estabelecimentos da plataforma</p>
       </div>
 
       {/* Estatísticas */}
@@ -112,7 +95,7 @@ export default async function AdminEstabelecimentosPage() {
 
                   {/* Ver público */}
                   <Link
-                    href={`/${est.slug}`}
+                    href={`/${est.cidade}/${est.bairro}/${est.tipo_estabelecimento}/${est.slug}`}
                     target="_blank"
                     className="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition"
                   >
