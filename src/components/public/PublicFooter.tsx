@@ -7,7 +7,7 @@ export default function PublicFooter() {
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
           <div>
             <h2 className="text-xl font-black text-white">
-              menu<span className="text-orange-500">.salvador</span>
+              menu<span style={{ color: 'var(--brand-primary)' }}>.salvador</span>
             </h2>
             <p className="mt-2 text-sm text-neutral-400">
               O diretório de cardápios digitais de Salvador. Descubra onde comer, veja o cardápio
@@ -20,12 +20,12 @@ export default function PublicFooter() {
             </h3>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
-                <Link href="/estabelecimentos/novo" className="hover:text-orange-400">
+                <Link href="/estabelecimentos/novo" className="hover:text-[var(--brand-primary)]">
                   Cadastrar estabelecimento
                 </Link>
               </li>
               <li>
-                <Link href="/login" className="hover:text-orange-400">
+                <Link href="/login" className="hover:text-[var(--brand-primary)]">
                   Entrar no painel
                 </Link>
               </li>

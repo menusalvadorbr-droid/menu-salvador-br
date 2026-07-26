@@ -4,7 +4,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { Metadata } from 'next'
-import ContadorRegressivo from './ContadorRegressivo'
+import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
+import BotaoAdicionarCarrinho from '@/modules/pedidos/customer/BotaoAdicionarCarrinho'
 
 // ─────────────────────────────────────────────────────────────
 // SEO
@@ -40,7 +41,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   // 1. Estabelecimento
   const { data: est, error: estErr } = await supabase
     .from('estabelecimentos')
-    .select('*')
+    .select('*, bairros(nome, slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
   if (estErr || !est) notFound()
@@ -87,7 +88,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
       const catIds = categorias.map((c: any) => c.id)
       const { data: itens } = await supabase
         .from('itens_cardapio')
-        .select(`*, item_allergens(allergen:allergen_id(id, nome, icone))`)
+        .select(`*, item_allergens(allergen:allergen_id(id, nome, icone)), variacoes_item(id, nome, preco), item_grupo_complemento(ordem, grupos_complementos(id, nome, selecao_minima, selecao_maxima, opcoes_complemento(id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome))))`)
         .in('categoria_id', catIds)
         .eq('disponivel', true)
         .order('ordem')
@@ -104,67 +105,6 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     }
   }
 
-  // 5. Promoções avulsas (special_offers) — busca e filtra vigência no servidor
-  const now = new Date()
-  const diaSemana = now.getDay() // 0=dom ... 6=sab
-  const horaAtual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
-
-  const { data: rawOffers } = await supabase
-    .from('special_offers')
-    .select('*')
-    .eq('estabelecimento_id', est.id)
-    .eq('ativo', true)
-
-  // Filtrar offers vigentes agora (pontual ou recorrente)
-  const specialOffers: any[] = (rawOffers || []).filter((o: any) => {
-    if (o.recorrente) {
-      const dias: number[] = o.dias_semana || []
-      if (!dias.includes(diaSemana)) return false
-      const hi = o.hora_inicio || '00:00'
-      const hf = o.hora_fim    || '23:59'
-      return horaAtual >= hi && horaAtual <= hf
-    }
-    // pontual
-    if (o.inicio_em && new Date(o.inicio_em) > now) return false
-    if (o.fim_em    && new Date(o.fim_em)    < now) return false
-    return true
-  })
-
-  // Calcular urgência de cada offer (minutos até encerrar)
-  const minutosAteEncerrar = (o: any): number | null => {
-    if (o.recorrente && o.hora_fim) {
-      const [hh, mm] = o.hora_fim.split(':').map(Number)
-      const fim = new Date(now)
-      fim.setHours(hh, mm, 0, 0)
-      return Math.floor((fim.getTime() - now.getTime()) / 60000)
-    }
-    if (o.fim_em) return Math.floor((new Date(o.fim_em).getTime() - now.getTime()) / 60000)
-    return null
-  }
-
-  // Enriquecer offers com minutos restantes
-  const offersEnriquecidas = specialOffers.map(o => ({
-    ...o,
-    minutosRestantes: minutosAteEncerrar(o),
-  }))
-
-  // Ordenar: críticos (<10min) → urgentes (<alerta_minutos) → com tempo → sem data
-  offersEnriquecidas.sort((a, b) => {
-    const ma = a.minutosRestantes
-    const mb = b.minutosRestantes
-    if (ma === null && mb === null) return 0
-    if (ma === null) return 1
-    if (mb === null) return -1
-    return ma - mb
-  })
-
-  // Ordenar itens do cardápio por maior desconto primeiro
-  const itensOrdenados = [...itensComPromo].sort((a, b) => {
-    const pa = a.preco_desconto_pct || Math.round((1 - a.preco_promocional / a.preco) * 100)
-    const pb = b.preco_desconto_pct || Math.round((1 - b.preco_promocional / b.preco) * 100)
-    return pb - pa
-  })
-
   const totalItens = Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const alergenos = (item: any): any[] =>
@@ -180,6 +120,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const fl = fotoLayout(fotoPosicao)
 
   return (
+    <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
     <div className="min-h-screen" style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 
@@ -196,154 +137,64 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             )}
             <div>
               <h1 className="text-xl font-bold" style={{ color: corP }}>{tituloCardapio}</h1>
-              <p className="text-sm opacity-70">{est.bairro} · {est.tipo_cozinha || 'Cozinha variada'}</p>
+              <p className="text-sm opacity-70">
+                {est.bairro}
+                {' · '}
+                {(est.estabelecimento_tipos_cozinha || [])
+                  .map((v: any) => v.tipos_cozinha?.nome)
+                  .filter(Boolean)
+                  .join(', ') || 'Culinária variada'}
+              </p>
               <p className="text-xs opacity-50 mt-0.5">{totalItens} itens · {categorias.length} categorias</p>
+              {est.endereco && (
+                <p className="mt-1 text-xs opacity-60">📍 {est.endereco}</p>
+              )}
             </div>
           </div>
-          <Link href={`/${est.cidade}/${est.bairro}/${est.tipo_estabelecimento}/${est.slug}`}
+          <Link
+            href={
+              est.cidade && est.bairros?.slug && est.tipo_estabelecimento
+                ? `/${est.cidade}/${est.bairros.slug}/${est.tipo_estabelecimento}/${est.slug}`
+                : `/cardapio/${est.slug}`
+            }
             className="mt-3 inline-block text-sm hover:underline" style={{ color: corP }}>
             ← Voltar ao perfil
           </Link>
+          {!est.owner_user_id && (
+            <div
+              className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm"
+              style={{ backgroundColor: `${corP}12`, border: `1px solid ${corBd}` }}
+            >
+              <span style={{ color: corP }}>
+                <strong>Esse é o seu estabelecimento?</strong> Reivindique pra editar o cardápio.
+              </span>
+              <a
+                href={`/estabelecimentos/novo?cnpj=${est.cnpj}`}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: corP }}
+              >
+                Reivindicar
+              </a>
+            </div>
+          )}
         </div>
 
         {/* ── CARROSSEL DE PROMOÇÕES ── */}
-        {(itensOrdenados.length > 0 || offersEnriquecidas.length > 0) && (
+        {itensComPromo.length > 0 && (
           <div className="rounded-2xl mb-4 overflow-hidden shadow"
             style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
-            <div className="px-4 py-3 border-b flex items-center justify-between"
+            <div className="px-4 py-3 border-b flex items-center gap-2"
               style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
-              <div className="flex items-center gap-2">
-                <span className="text-base">🔥</span>
-                <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
-              </div>
-              {/* aviso de encerramento próximo no header */}
-              {offersEnriquecidas.some(o => o.minutosRestantes !== null && o.minutosRestantes <= 30) && (
-                <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
-                  ⚠️ Encerrando em breve
-                </span>
-              )}
+              <span className="text-base">🔥</span>
+              <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
             </div>
-
             <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
-
-              {/* ── CARDS LARGOS: promoções avulsas (ordenadas por urgência) ── */}
-              {offersEnriquecidas.map((o: any) => {
-                const foto = getOptimizedCloudinaryUrl(o.foto_url, 300, 200, 'fill')
-                const pct  = o.preco_de && o.preco_por && o.preco_de > o.preco_por
-                  ? Math.round((1 - o.preco_por / o.preco_de) * 100) : 0
-                const mins = o.minutosRestantes as number | null
-                const critico = mins !== null && mins <= 10
-                const urgente = mins !== null && mins <= o.alerta_minutos && mins > 10
-                const temFim  = o.fim_em || (o.recorrente && o.hora_fim)
-                const fimIso  = o.fim_em ? o.fim_em
-                  : o.hora_fim ? (() => {
-                      const [hh, mm] = (o.hora_fim as string).split(':').map(Number)
-                      const d = new Date(); d.setHours(hh, mm, 0, 0)
-                      return d.toISOString()
-                    })() : null
-
-                return (
-                  <div key={`offer-${o.id}`}
-                    className={`flex-shrink-0 w-48 rounded-xl overflow-hidden transition-all duration-300 ${
-                      critico ? 'shadow-lg shadow-red-200'
-                      : urgente ? 'shadow-md shadow-amber-100'
-                      : 'shadow-sm hover:shadow-md'
-                    }`}
-                    style={{
-                      backgroundColor: corF,
-                      border: critico
-                        ? '2px solid #ef4444'
-                        : urgente
-                          ? '2px solid #f59e0b'
-                          : `1px solid ${corBd}`,
-                    }}>
-
-                    {/* foto */}
-                    <div className="relative h-28 bg-gray-100 overflow-hidden">
-                      {foto
-                        ? <Image src={foto} alt={o.nome} fill
-                            className="object-cover" sizes="192px" unoptimized loading="lazy" />
-                        : <div className="w-full h-full flex items-center justify-center text-4xl">🏷️</div>
-                      }
-
-                      {/* overlay de urgência sobre a foto */}
-                      {(critico || urgente) && (
-                        <div className={`absolute inset-0 ${critico ? 'bg-red-900/20' : 'bg-amber-900/10'}`} />
-                      )}
-
-                      {/* badge de desconto */}
-                      {pct > 0 && (
-                        <span className="absolute top-2 left-2 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow"
-                          style={{ backgroundColor: corP }}>
-                          -{pct}%
-                        </span>
-                      )}
-
-                      {/* badge tipo especial */}
-                      <span className={`absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full font-medium shadow ${
-                        critico ? 'bg-red-500 text-white animate-bounce'
-                        : urgente ? 'bg-amber-500 text-white'
-                        : 'bg-white/80 text-gray-700'
-                      }`}>
-                        {critico ? '🚨' : urgente ? '⚡' : '✨'}
-                      </span>
-
-                      {/* faixa de encerramento na base da foto */}
-                      {(critico || urgente) && (
-                        <div className={`absolute bottom-0 inset-x-0 py-1 px-2 text-center text-xs font-bold text-white ${
-                          critico ? 'bg-red-500' : 'bg-amber-500'
-                        }`}>
-                          {critico ? '🚨 Últimos minutos!' : '⚡ Encerrando em breve'}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* conteúdo */}
-                    <div className="p-3">
-                      <p className="text-sm font-bold leading-tight line-clamp-2 mb-1"
-                        style={{ color: corT }}>{o.nome}</p>
-                      {o.descricao && (
-                        <p className="text-xs line-clamp-1 mb-2 opacity-60"
-                          style={{ color: corT }}>{o.descricao}</p>
-                      )}
-                      <div className="flex items-end justify-between gap-1">
-                        <div>
-                          {o.preco_de && (
-                            <p className="text-xs text-gray-400 line-through leading-none">
-                              R$ {fmt(o.preco_de)}
-                            </p>
-                          )}
-                          <p className="text-base font-bold leading-none" style={{ color: corP }}>
-                            R$ {fmt(o.preco_por)}
-                          </p>
-                        </div>
-                        {/* contador regressivo client-side */}
-                        {fimIso && (
-                          <ContadorRegressivo
-                            fimIso={fimIso}
-                            alertaMinutos={o.alerta_minutos || 30}
-                            corP={corP}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* separador visual se houver os dois tipos */}
-              {offersEnriquecidas.length > 0 && itensOrdenados.length > 0 && (
-                <div className="flex-shrink-0 w-px self-stretch my-2"
-                  style={{ backgroundColor: corBd }} />
-              )}
-
-              {/* ── CARDS COMPACTOS: itens do cardápio em promoção ── */}
-              {itensOrdenados.map((item: any) => {
+              {itensComPromo.map((item: any) => {
                 const foto = getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
                 const pct  = item.preco && item.preco_promocional
                   ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
                 return (
-                  <a key={`item-${item.id}`} href={`#cat-${item.categoria_id}`}
+                  <a key={item.id} href={`#cat-${item.categoria_id}`}
                     className="flex-shrink-0 w-32 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
                     style={{ backgroundColor: corF, borderColor: corBd }}>
                     <div className="relative h-20 bg-gray-100">
@@ -364,14 +215,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                       <p className="text-xs font-medium leading-tight line-clamp-2"
                         style={{ color: corT }}>{item.nome}</p>
                       <p className="text-xs text-gray-400 line-through mt-0.5">R$ {fmt(item.preco)}</p>
-                      <p className="text-xs font-bold" style={{ color: corP }}>
-                        R$ {fmt(item.preco_promocional)}
-                      </p>
+                      <p className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</p>
                     </div>
                   </a>
                 )
               })}
-
             </div>
           </div>
         )}
@@ -472,6 +320,53 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                       {item.descricao}
                                     </p>
                                   )}
+                                  {/* GRUPOS DE COMPLEMENTOS — só informativo por enquanto; o
+                                      carrinho ainda não suporta escolher complementos, então
+                                      não tem seleção interativa aqui, só a lista do que existe.
+                                      Fica em caixa própria (borda + fundo levemente colorido),
+                                      separada visualmente da descrição do prato. */}
+                                  {item.item_grupo_complemento && item.item_grupo_complemento.length > 0 && (
+                                    <div className="mt-2 space-y-1.5">
+                                      {[...item.item_grupo_complemento]
+                                        .sort((a: any, b: any) => a.ordem - b.ordem)
+                                        .filter((v: any) => v.grupos_complementos)
+                                        .map((v: any) => {
+                                          const g = v.grupos_complementos
+                                          const rotuloSelecao = g.selecao_minima > 0
+                                            ? (g.selecao_minima === g.selecao_maxima
+                                                ? `escolha ${g.selecao_minima} · obrigatório`
+                                                : `escolha ${g.selecao_minima} a ${g.selecao_maxima} · obrigatório`)
+                                            : `opcional · até ${g.selecao_maxima}`
+                                          return (
+                                            <div key={g.id} className="rounded-lg px-2.5 py-1.5"
+                                              style={{ backgroundColor: `${corP}0d`, border: `1px solid ${corBd}` }}>
+                                              <p className="text-[11px] font-semibold" style={{ color: corT }}>
+                                                {g.nome}
+                                                <span className="font-normal opacity-60"> — {rotuloSelecao}</span>
+                                              </p>
+                                              <div className="flex flex-wrap gap-1 mt-1">
+                                                {(g.opcoes_complemento || [])
+                                                  .sort((a: any, b: any) => a.ordem - b.ordem)
+                                                  .map((o: any) => {
+                                                    const nomeOpcao = o.itens_cardapio?.nome || '(item removido)'
+                                                    // exibir_preco = false força esconder o valor mesmo que
+                                                    // preco_adicional seja > 0 — decisão do dono por opção.
+                                                    const label = o.exibir_preco === false || !(o.preco_adicional > 0)
+                                                      ? nomeOpcao
+                                                      : `${nomeOpcao} (+R$ ${fmt(o.preco_adicional)})`
+                                                    return (
+                                                      <span key={o.id} className="text-[11px] px-1.5 py-0.5 rounded-full"
+                                                        style={{ backgroundColor: corS, border: `1px solid ${corBd}`, color: corT }}>
+                                                        {label}
+                                                      </span>
+                                                    )
+                                                  })}
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                    </div>
+                                  )}
                                   {/* ALÉRGENOS */}
                                   {mostrarAlergenos && algArr.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">
@@ -490,19 +385,46 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
                                 {/* PREÇO */}
                                 <div className="text-right flex-shrink-0">
-                                  {promoOk ? (
-                                    <>
-                                      <div className="text-xs text-gray-400 line-through">
-                                        R$ {fmt(item.preco)}
-                                      </div>
-                                      <div className="text-base font-bold" style={{ color: corP }}>
-                                        R$ {fmt(item.preco_promocional)}
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <div className="text-base font-bold" style={{ color: corP }}>
-                                      R$ {fmt(item.preco)}
+                                  {item.variacoes_item && item.variacoes_item.length > 0 ? (
+                                    // Item com tamanhos/variações — mostra a lista de opções.
+                                    // O carrinho ainda não sabe pedir "qual tamanho", então por
+                                    // enquanto não mostramos o botão de adicionar aqui — fica
+                                    // como próximo passo natural quando o carrinho ganhar suporte
+                                    // a variações.
+                                    <div className="space-y-0.5">
+                                      {[...item.variacoes_item]
+                                        .sort((a: any, b: any) => a.preco - b.preco)
+                                        .map((v: any) => (
+                                          <div key={v.id} className="flex items-baseline justify-end gap-2 text-xs">
+                                            <span className="opacity-60" style={{ color: corT }}>{v.nome}</span>
+                                            <span className="font-bold text-sm" style={{ color: corP }}>R$ {fmt(v.preco)}</span>
+                                          </div>
+                                        ))}
                                     </div>
+                                  ) : (
+                                    <>
+                                      {promoOk ? (
+                                        <>
+                                          <div className="text-xs text-gray-400 line-through">
+                                            R$ {fmt(item.preco)}
+                                          </div>
+                                          <div className="text-base font-bold" style={{ color: corP }}>
+                                            R$ {fmt(item.preco_promocional)}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="text-base font-bold" style={{ color: corP }}>
+                                          R$ {fmt(item.preco)}
+                                        </div>
+                                      )}
+                                      <BotaoAdicionarCarrinho
+                                        id={item.id}
+                                        nome={item.nome}
+                                        preco={item.preco}
+                                        precoPromocional={promoOk ? item.preco_promocional : null}
+                                        corDestaque={corP}
+                                      />
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -524,5 +446,6 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         </p>
       </div>
     </div>
+    </CarrinhoProvider>
   )
 }

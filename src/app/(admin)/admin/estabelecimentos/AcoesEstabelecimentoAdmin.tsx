@@ -21,12 +21,16 @@ export function AcoesEstabelecimentoAdmin({
   const [isTransitioning, startTransition] = useTransition()
 
   const executar = (acao: 'approve' | 'block' | 'unblock' | 'unlink') => {
+    if (acao === 'block' && !confirm(`Bloquear "${nomeExibicao}"? O estabelecimento vai sair do ar imediatamente.`)) {
+      return
+    }
+
     startTransition(async () => {
       try {
         await moderarEstabelecimento(estabelecimentoId, acao)
       } catch (err) {
         console.error('Erro ao moderar:', err)
-        alert('Erro ao executar ação.')
+        alert(err instanceof Error ? err.message : 'Erro ao executar ação.')
       }
     })
   }
@@ -40,7 +44,7 @@ export function AcoesEstabelecimentoAdmin({
         await excluirEstabelecimento(estabelecimentoId)
       } catch (err) {
         console.error('Erro ao excluir:', err)
-        alert('Erro ao excluir estabelecimento.')
+        alert(err instanceof Error ? err.message : 'Erro ao excluir estabelecimento.')
       }
     })
   }

@@ -20,7 +20,7 @@ export default async function SecaoBairros({ cidadeId }: { cidadeId: string }) {
           <Link
             key={b.id}
             href={`/cidade/bairro/${b.id}`}
-            className="block overflow-hidden rounded-xl border border-neutral-100 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-orange-200"
+            className="block overflow-hidden rounded-xl border border-neutral-100 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-[var(--brand-primary)]/40"
           >
             <h3 className="text-lg font-semibold text-neutral-800">{b.nome}</h3>
             {b.imagem_capa && (

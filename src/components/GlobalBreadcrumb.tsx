@@ -62,21 +62,27 @@ function useNomesReais(segments: string[]) {
         if (data) novosNomes[2] = data.nome_fantasia || data.nome
       }
 
-      // /cidade/[id]  (perfil de cidade)
-      if (segments[0] === 'cidade' && segments[1] && segments[1] !== 'bairro') {
-        const { data } = await supabase.from('cidades').select('nome').eq('id', segments[1]).maybeSingle()
-        if (data) novosNomes[1] = data.nome
-      }
-
-      // /cidade/bairro/[id]
-      if (segments[0] === 'cidade' && segments[1] === 'bairro' && segments[2]) {
-        const { data } = await supabase.from('bairros').select('nome').eq('id', segments[2]).maybeSingle()
-        if (data) novosNomes[2] = data.nome
+      // Bairro por slug — aparece na posição 0 (/bairro) ou 1
+      // (/cidade/bairro[/tipo[/slug]]), conforme o padrão de rota pública.
+      // Tenta as duas posições; se não for bairro (é cidade, tipo ou
+      // slug de estabelecimento), a consulta simplesmente não acha nada
+      // e cai no texto derivado do slug normalmente.
+      if (segments.length <= 4 && !PREFIXOS_SISTEMA.includes(segments[0])) {
+        for (const posicao of [0, 1]) {
+          if (segments[posicao] && novosNomes[posicao] === undefined) {
+            const { data } = await supabase
+              .from('bairros')
+              .select('nome')
+              .eq('slug', segments[posicao])
+              .maybeSingle()
+            if (data) novosNomes[posicao] = data.nome
+          }
+        }
       }
 
       // /culinaria/[slug]
       if (segments[0] === 'culinaria' && segments[1]) {
-        const { data } = await supabase.from('culinarias').select('nome').eq('slug', segments[1]).maybeSingle()
+        const { data } = await supabase.from('tipos_cozinha').select('nome').eq('slug', segments[1]).maybeSingle()
         if (data) novosNomes[1] = data.nome
       }
 

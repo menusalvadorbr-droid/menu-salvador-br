@@ -9,7 +9,7 @@ export async function alterarRole(usuarioId: string, novoRole: string) {
   if (!user) throw new Error('Não autenticado')
 
   const { data: profile } = await supabase
-    .from('usuarios')
+    .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single()
@@ -20,8 +20,23 @@ export async function alterarRole(usuarioId: string, novoRole: string) {
     throw new Error('Você não pode remover sua própria permissão de super_admin por aqui.')
   }
 
-  const { error } = await supabase.from('usuarios').update({ role: novoRole }).eq('id', usuarioId)
+  const { data: usuarioAnterior } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', usuarioId)
+    .single()
+
+  const { error } = await supabase.from('profiles').update({ role: novoRole }).eq('id', usuarioId)
   if (error) throw new Error(error.message)
+
+  await supabase.from('audit_logs').insert({
+    usuario_id: user.id,
+    action: 'usuario_role_alterada',
+    target_type: 'profiles',
+    target_id: usuarioId,
+    old_data: { role: usuarioAnterior?.role },
+    new_data: { role: novoRole },
+  })
 
   revalidatePath('/admin/usuarios')
 }

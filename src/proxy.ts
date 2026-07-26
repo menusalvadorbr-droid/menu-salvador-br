@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 const PROTECTED_PREFIXES = ['/painel']
 const ADMIN_PREFIXES = ['/admin']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -59,7 +59,7 @@ export async function middleware(request: NextRequest) {
   // Rotas administrativas (apenas super_admin)
   if (isAdminRoute) {
     const { data: profile } = await supabase
-      .from('usuarios')
+      .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()

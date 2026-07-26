@@ -32,38 +32,54 @@ export function isEstabelecimentoAberto(horarios: Horario[]): {
   const diaSemana = agora.getDay(); // 0-6
   const horaAtual = agora.getHours() * 60 + agora.getMinutes(); // minutos desde meia-noite
 
-  // Busca o horário para o dia atual
-  const horarioHoje = horarios.find((h) => h.dia_semana === diaSemana);
+  // Um dia pode ter mais de um período (ex: almoço 11:00–15:00 e jantar
+  // 18:00–22:00 — o editor de horários permite até 3 por dia). Antes o
+  // código pegava só o primeiro período que batesse com o dia de hoje
+  // (.find), então bastava cadastrar 2+ períodos pra um deles "esconder"
+  // os outros e o status de aberto/fechado sair errado dependendo da
+  // hora. Agora consideramos todos os períodos do dia.
+  const periodosHoje = horarios.filter((h) => h.dia_semana === diaSemana);
 
-  // Se não há horário cadastrado para hoje ou está marcado como fechado
-  if (!horarioHoje || horarioHoje.fechado) {
+  if (periodosHoje.length === 0 || periodosHoje.every((h) => h.fechado)) {
     return { aberto: false, texto: 'Fechado', exibir: true };
   }
 
-  // Converte horário de abertura para minutos
-  const [hA, mA] = (horarioHoje.horario_abertura?.substring(0, 5) || '08:00')
-    .split(':')
-    .map(Number);
-  const aberturaMinutos = hA * 60 + mA;
+  const paraMinutos = (horario: string | null | undefined, padrao: string) => {
+    const [h, m] = (horario?.substring(0, 5) || padrao).split(':').map(Number);
+    return h * 60 + m;
+  };
 
-  // Converte horário de fechamento para minutos
-  const [hF, mF] = (horarioHoje.horario_fechamento?.substring(0, 5) || '18:00')
-    .split(':')
-    .map(Number);
-  const fechamentoMinutos = hF * 60 + mF;
+  // Períodos abertos hoje, com abertura/fechamento já convertidos pra
+  // minutos, ordenados por horário de abertura — pra podermos achar o
+  // próximo horário de abertura caso esteja fechado agora.
+  const periodos = periodosHoje
+    .filter((h) => !h.fechado)
+    .map((h) => ({
+      aberturaMinutos: paraMinutos(h.horario_abertura, '08:00'),
+      fechamentoMinutos: paraMinutos(h.horario_fechamento, '18:00'),
+      horarioAberturaTexto: h.horario_abertura?.substring(0, 5) || '08:00',
+    }))
+    .sort((a, b) => a.aberturaMinutos - b.aberturaMinutos);
 
-  // Verifica se está dentro do horário de funcionamento
-  if (horaAtual >= aberturaMinutos && horaAtual <= fechamentoMinutos) {
+  // Está aberto se a hora atual cair dentro de QUALQUER um dos períodos
+  const periodoAtual = periodos.find(
+    (p) => horaAtual >= p.aberturaMinutos && horaAtual <= p.fechamentoMinutos
+  );
+  if (periodoAtual) {
     return { aberto: true, texto: 'Aberto agora', exibir: true };
-  } else if (horaAtual < aberturaMinutos) {
-    // Ainda fechado, mas mostra o horário de abertura
+  }
+
+  // Fechado agora — se ainda vai abrir hoje (existe período com abertura
+  // à frente do horário atual), mostra esse próximo horário
+  const proximoPeriodo = periodos.find((p) => horaAtual < p.aberturaMinutos);
+  if (proximoPeriodo) {
     return {
       aberto: false,
-      texto: `Abre às ${horarioHoje.horario_abertura?.substring(0, 5)}`,
+      texto: `Abre às ${proximoPeriodo.horarioAberturaTexto}`,
       exibir: true,
     };
-  } else {
-    // Já fechou
-    return { aberto: false, texto: 'Fechado', exibir: true };
   }
+
+  // Já passou de todos os períodos de hoje
+  return { aberto: false, texto: 'Fechado', exibir: true };
 }

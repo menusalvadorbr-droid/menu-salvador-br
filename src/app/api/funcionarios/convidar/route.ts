@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
-const CARGOS_VALIDOS = ['gerente', 'caixa', 'garcom', 'cozinha'] as const
+const CARGOS_VALIDOS = ['gerente', 'caixa', 'garcom', 'cozinha', 'contador'] as const
 type Cargo = (typeof CARGOS_VALIDOS)[number]
 
 /**
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     const { data: perfilSolicitante } = await supabase
-      .from('usuarios')
+      .from('profiles')
       .select('role')
       .eq('id', solicitante.id)
       .single()
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     //    com um filtro razoável (funciona bem para bases pequenas/médias;
     //    para escala maior, prefira a tabela 'usuarios' como índice).
     const { data: existingByTable } = await supabaseAdmin
-      .from('usuarios')
+      .from('profiles')
       .select('id, email')
       .eq('email', email)
       .maybeSingle()
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
 
       // 4. Espelhar o usuário na tabela 'usuarios' (perfil da aplicação).
       const { error: insertUsuarioError } = await supabaseAdmin
-        .from('usuarios')
+        .from('profiles')
         .insert({
           id: userId,
           email,

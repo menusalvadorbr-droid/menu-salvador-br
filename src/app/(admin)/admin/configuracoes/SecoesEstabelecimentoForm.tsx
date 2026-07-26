@@ -1,58 +1,62 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { alternarSecao, reordenarSecao } from './actions'
+import { salvarSecoes } from './actions'
 
 export interface SecaoConfig {
-  id: string
   chave: string
   label: string
   ativa: boolean
   ordem: number
 }
 
+const SECOES_PADRAO: SecaoConfig[] = [
+  { chave: 'capa', label: 'Capa', ativa: true, ordem: 0 },
+  { chave: 'sobre', label: 'Sobre', ativa: true, ordem: 1 },
+  { chave: 'cardapio_destaque', label: 'Cardápio em destaque', ativa: true, ordem: 2 },
+  { chave: 'galeria', label: 'Galeria de fotos', ativa: true, ordem: 3 },
+  { chave: 'horarios', label: 'Horários de funcionamento', ativa: true, ordem: 4 },
+  { chave: 'localizacao', label: 'Localização', ativa: true, ordem: 5 },
+  { chave: 'comodidades', label: 'Comodidades (pet, estacionamento, acessibilidade)', ativa: true, ordem: 6 },
+  { chave: 'avaliacoes_google', label: 'Avaliações do Google', ativa: false, ordem: 7 },
+  { chave: 'contato', label: 'Contato / redes sociais', ativa: true, ordem: 8 },
+  { chave: 'promocoes', label: 'Promoções ativas', ativa: true, ordem: 9 },
+]
+
 export default function SecoesEstabelecimentoForm({ secoesIniciais }: { secoesIniciais: SecaoConfig[] }) {
   const [secoes, setSecoes] = useState(
-    [...secoesIniciais].sort((a, b) => a.ordem - b.ordem)
+    [...(secoesIniciais.length > 0 ? secoesIniciais : SECOES_PADRAO)].sort((a, b) => a.ordem - b.ordem)
   )
   const [isPending, startTransition] = useTransition()
+  const [salvo, setSalvo] = useState(false)
 
-  function toggle(secao: SecaoConfig) {
-    setSecoes((prev) => prev.map((s) => (s.id === secao.id ? { ...s, ativa: !s.ativa } : s)))
+  function persistir(novaLista: SecaoConfig[]) {
+    const comOrdemAtualizada = novaLista.map((s, i) => ({ ...s, ordem: i }))
+    setSecoes(comOrdemAtualizada)
     startTransition(async () => {
-      await alternarSecao(secao.id, !secao.ativa)
+      await salvarSecoes(comOrdemAtualizada)
+      setSalvo(true)
+      setTimeout(() => setSalvo(false), 2000)
     })
+  }
+
+  function toggle(chave: string) {
+    persistir(secoes.map((s) => (s.chave === chave ? { ...s, ativa: !s.ativa } : s)))
   }
 
   function mover(index: number, direcao: -1 | 1) {
     const alvo = index + direcao
     if (alvo < 0 || alvo >= secoes.length) return
-
     const novaLista = [...secoes]
     ;[novaLista[index], novaLista[alvo]] = [novaLista[alvo], novaLista[index]]
-    setSecoes(novaLista)
-
-    startTransition(async () => {
-      await Promise.all(
-        novaLista.map((s, i) => reordenarSecao(s.id, i))
-      )
-    })
-  }
-
-  if (secoes.length === 0) {
-    return (
-      <p className="text-sm text-neutral-400">
-        Nenhuma seção cadastrada ainda. É preciso popular a tabela{' '}
-        <code className="rounded bg-neutral-100 px-1">secoes_estabelecimento_config</code>.
-      </p>
-    )
+    persistir(novaLista)
   }
 
   return (
     <div className="flex flex-col gap-2">
       {secoes.map((secao, i) => (
         <div
-          key={secao.id}
+          key={secao.chave}
           className="flex items-center gap-3 rounded-xl border border-neutral-200 px-3 py-2"
         >
           <div className="flex flex-col">
@@ -82,7 +86,7 @@ export default function SecoesEstabelecimentoForm({ secoesIniciais }: { secoesIn
 
           <button
             type="button"
-            onClick={() => toggle(secao)}
+            onClick={() => toggle(secao.chave)}
             disabled={isPending}
             className={`relative h-5 w-9 flex-shrink-0 rounded-full transition ${
               secao.ativa ? 'bg-green-500' : 'bg-neutral-300'
@@ -98,6 +102,7 @@ export default function SecoesEstabelecimentoForm({ secoesIniciais }: { secoesIn
           </button>
         </div>
       ))}
+      {salvo && <span className="text-xs text-green-600">Salvo ✓</span>}
     </div>
   )
 }

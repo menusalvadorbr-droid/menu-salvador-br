@@ -25,12 +25,12 @@ export default async function AdminClaimsPage() {
   for (const claim of claims || []) {
     const { data: estabelecimento } = await supabaseAdmin
       .from('estabelecimentos')
-      .select('id, nome, slug')
+      .select('id, nome, slug, galeria_fotos')
       .eq('id', claim.estabelecimento_id)
       .single()
 
     const { data: usuario } = await supabaseAdmin
-      .from('usuarios')
+      .from('profiles')
       .select('id, email, nome')
       .eq('id', claim.usuario_id)
       .single()
@@ -63,6 +63,15 @@ export default async function AdminClaimsPage() {
                   Solicitante
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Responsável / CPF
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Contato
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Galeria (onboarding)
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Data
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -88,10 +97,41 @@ export default async function AdminClaimsPage() {
                     <div className="text-xs text-gray-500">
                       {claim.usuarios?.email || ''}
                     </div>
-                    {claim.proof_data && (
+                    {claim.mensagem && (
                       <div className="text-xs text-gray-400 mt-1">
-                        📎 {claim.proof_data.nome || 'Comprovante enviado'}
+                        💬 {claim.mensagem}
                       </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-900">{claim.nome_responsavel || '—'}</div>
+                    <div className="text-xs text-gray-500 font-mono">
+                      {claim.cpf_responsavel
+                        ? claim.cpf_responsavel.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                        : '—'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {claim.telefone_contato && <div>📞 {claim.telefone_contato}</div>}
+                    {claim.whatsapp_contato && <div>💬 {claim.whatsapp_contato}</div>}
+                    {!claim.telefone_contato && !claim.whatsapp_contato && '—'}
+                  </td>
+                  <td className="px-6 py-4">
+                    {claim.estabelecimentos?.galeria_fotos && claim.estabelecimentos.galeria_fotos.length > 0 ? (
+                      <div className="flex gap-1">
+                        {claim.estabelecimentos.galeria_fotos.slice(0, 4).map((url: string, i: number) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`Foto ${i + 1} da galeria de ${claim.estabelecimentos?.nome || 'estabelecimento'}`}
+                              className="w-10 h-10 rounded object-cover border border-gray-200 hover:opacity-80"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">Ainda não preencheu</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">

@@ -1,16 +1,8 @@
-// src/features/delivery/SacolaDrawer.tsx
+// src/modules/pedidos/customer/SacolaDrawer.tsx
 'use client'
 
 import { useEffect } from 'react'
-
-interface ItemSacola {
-  id: string
-  nome: string
-  preco: number
-  preco_promocional?: number
-  quantidade: number
-  observacao?: string
-}
+import type { ItemPedido as ItemSacola } from '../types'
 
 interface SacolaDrawerProps {
   aberto: boolean

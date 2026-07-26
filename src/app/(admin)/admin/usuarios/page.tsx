@@ -6,7 +6,7 @@ export default async function AdminUsuariosPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: usuarios } = await supabase
-    .from('usuarios')
+    .from('profiles')
     .select('id, nome, email, role')
     .order('nome', { ascending: true })
 

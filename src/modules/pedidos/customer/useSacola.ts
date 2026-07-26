@@ -1,15 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-
-interface ItemSacola {
-  id: string
-  nome: string
-  preco: number
-  preco_promocional?: number
-  quantidade: number
-  observacao?: string
-}
+import type { ItemPedido as ItemSacola } from '../types'
 
 export function useSacola() {
   const [itens, setItens] = useState<ItemSacola[]>([])

@@ -2,6 +2,15 @@
 
 :root {
   color-scheme: light;
+
+  /* Cores de marca da plataforma (fora do cardápio de cada estabelecimento).
+     Valor real vem de platform_settings.paleta_plataforma, injetado pelo
+     src/app/(public)/layout.tsx. Os valores aqui são só fallback, caso essa
+     variável não tenha sido injetada por algum motivo (ex: página fora do
+     grupo (public)). Use bg-[var(--brand-primary)] / text-[var(--brand-primary)]
+     em vez de bg-orange-600 em qualquer página pública nova. */
+  --brand-primary: #EA580C;
+  --brand-secondary: #DC2626;
 }
 
 .menu-container {

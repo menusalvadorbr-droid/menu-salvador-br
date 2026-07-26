@@ -1,25 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
 import SectionHeading from '@/components/public/SectionHeading'
 
-export default async function SecaoCulinarias({ bairroId }: { bairroId: string }) {
+export default async function SecaoCulinarias() {
   const supabase = await createClient()
-  const { data: culinarias } = await supabase.from('culinarias').select('*').order('nome')
+  const { data: tiposCozinha } = await supabase
+    .from('tipos_cozinha')
+    .select('*')
+    .eq('ativo', true)
+    .order('ordem')
 
-  if (!culinarias?.length) return null
+  if (!tiposCozinha?.length) return null
 
   return (
     <section className="space-y-4">
       <SectionHeading title="Culinárias 🍽️" />
       <div className="flex gap-3 overflow-x-auto py-2">
-        {culinarias.map((c) => (
+        {tiposCozinha.map((t) => (
           <a
-            key={c.id}
-            href={`/culinaria/${c.slug}`}
-            className="flex items-center gap-2 whitespace-nowrap rounded-xl border border-neutral-100 bg-white px-4 py-2 shadow-sm transition hover:bg-orange-50 hover:border-orange-200"
+            key={t.id}
+            href={`/culinaria/${t.slug}`}
+            className="flex items-center gap-2 whitespace-nowrap rounded-xl border border-neutral-100 bg-white px-4 py-2 shadow-sm transition hover:bg-[var(--brand-primary)]/5 hover:border-[var(--brand-primary)]/40"
           >
-            {c.emoji && <span className="text-xl">{c.emoji}</span>}
-            {c.icon_svg && <img src={c.icon_svg} alt={c.nome} className="h-6 w-6 object-contain" />}
-            <span className="text-sm font-medium">{c.nome}</span>
+            {t.icone && <span className="text-xl">{t.icone}</span>}
+            <span className="text-sm font-medium">{t.nome}</span>
           </a>
         ))}
       </div>

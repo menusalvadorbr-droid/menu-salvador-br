@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import SeletorCulinariaTags from './components/SeletorCulinariaTags'
 
 interface EditarEstabelecimentoFormProps {
   estabelecimento: any
@@ -19,15 +20,47 @@ export default function EditarEstabelecimentoForm({
   const [nomeFantasia, setNomeFantasia] = useState(estabelecimento.nome_fantasia || '')
   const [descricao, setDescricao] = useState(estabelecimento.descricao || '')
   const [endereco, setEndereco] = useState(estabelecimento.endereco || '')
-  const [bairro, setBairro] = useState(estabelecimento.bairro || '')
+  const [bairroId, setBairroId] = useState(estabelecimento.bairro_id || '')
+  const [bairros, setBairros] = useState<{ id: string; nome: string }[]>([])
   const [telefone, setTelefone] = useState(estabelecimento.telefone || '')
   const [whatsapp, setWhatsapp] = useState(estabelecimento.whatsapp || '')
   const [instagram, setInstagram] = useState(estabelecimento.instagram || '')
-  const [tipoCozinha, setTipoCozinha] = useState(estabelecimento.tipo_cozinha || '')
   // ⬇️ NOVO: estado para tipo_estabelecimento
   const [tipoEstabelecimento, setTipoEstabelecimento] = useState(estabelecimento.tipo_estabelecimento || '')
+  const [tiposEstabelecimento, setTiposEstabelecimento] = useState<{ slug: string; nome: string; icone: string | null }[]>([])
+  const [tiposCozinha, setTiposCozinha] = useState<{ id: number; nome: string; icone: string | null }[]>([])
+  const [culinariasSelecionadas, setCulinariasSelecionadas] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('bairros')
+      .select('id, nome')
+      .order('nome')
+      .then(({ data }) => setBairros(data || []))
+
+    // Lista gerenciável em /admin/tipos — antes era fixa no código.
+    supabase
+      .from('tipos_estabelecimento')
+      .select('slug, nome, icone')
+      .eq('ativo', true)
+      .order('ordem')
+      .then(({ data }) => setTiposEstabelecimento(data || []))
+
+    supabase
+      .from('tipos_cozinha')
+      .select('id, nome, icone')
+      .eq('ativo', true)
+      .order('ordem')
+      .then(({ data }) => setTiposCozinha(data || []))
+
+    supabase
+      .from('estabelecimento_tipos_cozinha')
+      .select('tipo_cozinha_id')
+      .eq('estabelecimento_id', estabelecimento.id)
+      .then(({ data }) => setCulinariasSelecionadas((data || []).map((c) => c.tipo_cozinha_id)))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +72,8 @@ export default function EditarEstabelecimentoForm({
     setLoading(true)
     setMessage(null)
 
+    const nomeBairroEscolhido = bairros.find((b) => b.id === bairroId)?.nome || null
+
     const { error } = await supabase
       .from('estabelecimentos')
       .update({
@@ -46,11 +81,11 @@ export default function EditarEstabelecimentoForm({
         nome_fantasia: nomeFantasia,
         descricao,
         endereco,
-        bairro,
+        bairro_id: bairroId || null,
+        bairro: nomeBairroEscolhido, // mantido em sincronia só pra exibição — a fonte de verdade é bairro_id
         telefone,
         whatsapp,
         instagram,
-        tipo_cozinha: tipoCozinha,
         tipo_estabelecimento: tipoEstabelecimento, // ⬅️ NOVO: enviando o campo
         updated_at: new Date().toISOString(),
       })
@@ -58,9 +93,36 @@ export default function EditarEstabelecimentoForm({
 
     if (error) {
       setMessage({ type: 'error', text: 'Erro ao salvar: ' + error.message })
-    } else {
-      setMessage({ type: 'success', text: '✅ Informações atualizadas com sucesso!' })
+      setLoading(false)
+      return
     }
+
+    // Grava as culinárias junto — antes isso salvava sozinho a cada
+    // clique, sem checar erro nenhum (se a RLS bloqueasse, parecia
+    // salvo e voltava ao atualizar a página, sem aviso nenhum).
+    const { error: erroDeleteCulinaria } = await supabase
+      .from('estabelecimento_tipos_cozinha')
+      .delete()
+      .eq('estabelecimento_id', estabelecimento.id)
+
+    if (erroDeleteCulinaria) {
+      setMessage({ type: 'error', text: 'Informações salvas, mas houve erro ao salvar a culinária: ' + erroDeleteCulinaria.message })
+      setLoading(false)
+      return
+    }
+
+    if (culinariasSelecionadas.length > 0) {
+      const { error: erroInsertCulinaria } = await supabase.from('estabelecimento_tipos_cozinha').insert(
+        culinariasSelecionadas.map((id) => ({ estabelecimento_id: estabelecimento.id, tipo_cozinha_id: id }))
+      )
+      if (erroInsertCulinaria) {
+        setMessage({ type: 'error', text: 'Informações salvas, mas houve erro ao salvar a culinária: ' + erroInsertCulinaria.message })
+        setLoading(false)
+        return
+      }
+    }
+
+    setMessage({ type: 'success', text: '✅ Informações atualizadas com sucesso!' })
     setLoading(false)
   }
 
@@ -116,14 +178,21 @@ export default function EditarEstabelecimentoForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Bairro *</label>
-            <input
-              type="text"
-              value={bairro}
-              onChange={(e) => setBairro(e.target.value)}
+            <select
+              value={bairroId}
+              onChange={(e) => setBairroId(e.target.value)}
               disabled={!podeEditar}
               required
-              className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
-            />
+              className="w-full border rounded-lg px-4 py-2 bg-white text-gray-900 disabled:bg-gray-100"
+            >
+              <option value="">Selecione um bairro...</option>
+              {bairros.map((b) => (
+                <option key={b.id} value={b.id}>{b.nome}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              Não achou seu bairro na lista? Peça pro admin da plataforma cadastrar.
+            </p>
           </div>
         </div>
 
@@ -161,43 +230,36 @@ export default function EditarEstabelecimentoForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Tipo de cozinha *</label>
-            <input
-              type="text"
-              value={tipoCozinha}
-              onChange={(e) => setTipoCozinha(e.target.value)}
-              disabled={!podeEditar}
-              required
-              className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
-              placeholder="Ex: Baiana, Italiana, Japonesa"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Tipo de estabelecimento *</label>
+          <select
+            value={tipoEstabelecimento}
+            onChange={(e) => setTipoEstabelecimento(e.target.value)}
+            disabled={!podeEditar}
+            required
+            className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
+          >
+            <option value="">Selecione o tipo</option>
+            {tiposEstabelecimento.map((t) => (
+              <option key={t.slug} value={t.slug}>{t.icone ? `${t.icone} ` : ''}{t.nome}</option>
+            ))}
+            {/* Se o estabelecimento já usa um tipo que não está (mais) na
+                lista ativa, mantém ele selecionável pra não sumir do
+                formulário sem querer. */}
+            {tipoEstabelecimento && !tiposEstabelecimento.some((t) => t.slug === tipoEstabelecimento) && (
+              <option value={tipoEstabelecimento}>{tipoEstabelecimento} (inativo)</option>
+            )}
+          </select>
+        </div>
 
-          {/* ⬇️ NOVO CAMPO: tipo_estabelecimento */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Tipo de estabelecimento *</label>
-            <select
-              value={tipoEstabelecimento}
-              onChange={(e) => setTipoEstabelecimento(e.target.value)}
-              disabled={!podeEditar}
-              required
-              className="w-full border rounded-lg px-4 py-2 disabled:bg-gray-100"
-            >
-              <option value="">Selecione o tipo</option>
-              <option value="restaurante">🍽️ Restaurante</option>
-              <option value="bar">🍺 Bar</option>
-              <option value="lanchonete">🥪 Lanchonete</option>
-              <option value="foodtruck">🚚 Food Truck</option>
-              <option value="banca_acaraje">🫘 Banca de Acarajé</option>
-              <option value="cafeteria">☕ Cafeteria</option>
-              <option value="hamburgueria">🍔 Hamburgueria</option>
-              <option value="churrascaria">🥩 Churrascaria</option>
-              <option value="confeitaria">🍰 Confeitaria</option>
-              <option value="pizzaria">🍕 Pizzaria</option>
-            </select>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Culinária (até 3)</label>
+          <SeletorCulinariaTags
+            todos={tiposCozinha}
+            selecionados={culinariasSelecionadas}
+            onChange={setCulinariasSelecionadas}
+            disabled={!podeEditar}
+          />
         </div>
 
         {message && (

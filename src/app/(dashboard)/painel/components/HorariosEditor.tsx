@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
 
@@ -13,7 +13,11 @@ const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb
 const MAX_PERIODOS = 3
 
 export default function HorariosEditor({ estabelecimentoId, readOnly = false }: HorariosEditorProps) {
-  const supabase = createClient()
+  // FIX: cliente estabilizado com useRef — antes era recriado a cada
+  // render, podendo causar comportamento inconsistente (ex: assinaturas
+  // ou chamadas em andamento perdendo referência) em re-renders frequentes.
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
   const [horarios, setHorarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -85,9 +89,24 @@ export default function HorariosEditor({ estabelecimentoId, readOnly = false }: 
     setHorarios(horarios.filter(h => h.id !== id))
   }
 
+  function arredondarPara5Minutos(horaTexto: string): string {
+    const [h, m] = horaTexto.split(':').map(Number)
+    if (Number.isNaN(h) || Number.isNaN(m)) return horaTexto
+
+    let totalMinutos = h * 60 + Math.round(m / 5) * 5
+    totalMinutos = ((totalMinutos % 1440) + 1440) % 1440 // nunca deixa passar de 23:55 pra o dia seguinte
+
+    const horaArredondada = Math.floor(totalMinutos / 60)
+    const minutoArredondado = totalMinutos % 60
+    return `${String(horaArredondada).padStart(2, '0')}:${String(minutoArredondado).padStart(2, '0')}`
+  }
+
   function atualizarPeriodo(id: string, campo: string, valor: any) {
     if (readOnly) return
-    setHorarios(horarios.map(h => (h.id === id ? { ...h, [campo]: valor } : h)))
+    const valorFinal = campo === 'horario_abertura' || campo === 'horario_fechamento'
+      ? arredondarPara5Minutos(valor)
+      : valor
+    setHorarios(horarios.map(h => (h.id === id ? { ...h, [campo]: valorFinal } : h)))
   }
 
   function somarHoras(hora: string, horas: number): string {
@@ -105,11 +124,15 @@ export default function HorariosEditor({ estabelecimentoId, readOnly = false }: 
     await supabase.from('horarios_funcionamento').delete().eq('estabelecimento_id', estabelecimentoId)
 
     // Insere novos
+    // Sempre normaliza pra HH:MM antes de gravar — o valor no estado pode
+    // estar como "HH:MM" (campo que o usuário editou agora) ou "HH:MM:SS"
+    // (campo carregado direto do banco e nunca tocado). Sem essa
+    // normalização, o segundo caso vira "HH:MM:SS:00" ao somar ':00'.
     const registros = horarios.map(h => ({
       estabelecimento_id: estabelecimentoId,
       dia_semana: h.dia_semana,
-      horario_abertura: h.horario_abertura + ':00',
-      horario_fechamento: h.horario_fechamento + ':00',
+      horario_abertura: h.horario_abertura?.substring(0, 5) + ':00',
+      horario_fechamento: h.horario_fechamento?.substring(0, 5) + ':00',
       fechado: h.fechado || false,
     }))
 
@@ -172,6 +195,7 @@ export default function HorariosEditor({ estabelecimentoId, readOnly = false }: 
                     <div key={h.id} className="flex items-center gap-3">
                       <input
                         type="time"
+                        step="300"
                         value={h.horario_abertura?.substring(0, 5) || '08:00'}
                         onChange={(e) => atualizarPeriodo(h.id, 'horario_abertura', e.target.value)}
                         disabled={readOnly}
@@ -180,6 +204,7 @@ export default function HorariosEditor({ estabelecimentoId, readOnly = false }: 
                       <span className="text-gray-400">—</span>
                       <input
                         type="time"
+                        step="300"
                         value={h.horario_fechamento?.substring(0, 5) || '18:00'}
                         onChange={(e) => atualizarPeriodo(h.id, 'horario_fechamento', e.target.value)}
                         disabled={readOnly}

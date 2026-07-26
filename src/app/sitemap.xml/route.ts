@@ -5,15 +5,10 @@ export async function GET() {
   const supabase = await createClient();
   const baseUrl = "https://menu-salvador.com";
 
-  // Carrega todas as culinárias
-  const { data: culinarias } = await supabase
-    .from("culinarias")
+  // Carrega tipos de culinária
+  const { data: tiposCozinha } = await supabase
+    .from("tipos_cozinha")
     .select("slug");
-
-  // Carrega cidades
-  const { data: cidades } = await supabase
-    .from("cidades")
-    .select("id");
 
   // Carrega bairros
   const { data: bairros } = await supabase
@@ -30,14 +25,9 @@ export async function GET() {
   // Página inicial
   urls.push(`${baseUrl}`);
 
-  // Culinárias
-  culinarias?.forEach((c) => {
-    urls.push(`${baseUrl}/culinaria/${c.slug}`);
-  });
-
-  // Cidades
-  cidades?.forEach((c) => {
-    urls.push(`${baseUrl}/cidade/${c.id}`);
+  // Tipos de culinária
+  tiposCozinha?.forEach((t) => {
+    urls.push(`${baseUrl}/culinaria/${t.slug}`);
   });
 
   // Bairros

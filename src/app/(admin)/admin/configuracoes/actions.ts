@@ -1,48 +1,76 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { checarSuperAdmin } from '@/lib/auth/checarSuperAdmin'
 import { revalidatePath } from 'next/cache'
 
-async function checarSuperAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado')
-
-  const { data: profile } = await supabase
-    .from('usuarios')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'super_admin') throw new Error('Permissão negada')
-  return supabase
-}
-
-export async function alternarSecao(id: string, ativa: boolean) {
-  const supabase = await checarSuperAdmin()
+export async function salvarSecoes(secoes: Array<{ chave: string; label: string; ativa: boolean; ordem: number }>) {
+  const { supabase, userId } = await checarSuperAdmin()
   const { error } = await supabase
-    .from('secoes_estabelecimento_config')
-    .update({ ativa })
-    .eq('id', id)
+    .from('platform_settings')
+    .upsert({
+      key: 'secoes_estabelecimento',
+      value: secoes,
+      description: 'Seções exibidas na página pública do estabelecimento',
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' })
   if (error) throw new Error(error.message)
-  revalidatePath('/admin/configuracoes')
-}
 
-export async function reordenarSecao(id: string, novaOrdem: number) {
-  const supabase = await checarSuperAdmin()
-  const { error } = await supabase
-    .from('secoes_estabelecimento_config')
-    .update({ ordem: novaOrdem })
-    .eq('id', id)
-  if (error) throw new Error(error.message)
+  await supabase.from('audit_logs').insert({
+    usuario_id: userId,
+    action: 'secoes_estabelecimento_atualizadas',
+    target_type: 'platform_settings',
+    new_data: { secoes },
+  })
+
   revalidatePath('/admin/configuracoes')
 }
 
 export async function salvarPaleta(corPrimaria: string, corSecundaria: string) {
-  const supabase = await checarSuperAdmin()
+  const { supabase, userId } = await checarSuperAdmin()
   const { error } = await supabase
-    .from('configuracoes_plataforma')
-    .upsert({ id: 1, cor_primaria: corPrimaria, cor_secundaria: corSecundaria })
+    .from('platform_settings')
+    .upsert({
+      key: 'paleta_plataforma',
+      value: { cor_primaria: corPrimaria, cor_secundaria: corSecundaria },
+      description: 'Cores de marca usadas fora do cardápio de cada estabelecimento',
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' })
   if (error) throw new Error(error.message)
+
+  await supabase.from('audit_logs').insert({
+    usuario_id: userId,
+    action: 'paleta_plataforma_atualizada',
+    target_type: 'platform_settings',
+    new_data: { cor_primaria: corPrimaria, cor_secundaria: corSecundaria },
+  })
+
   revalidatePath('/admin/configuracoes')
+}
+
+export async function salvarConfiguracoesHome(config: {
+  hero_ativado: boolean
+  promocoes_ativado: boolean
+  grid_estabelecimentos_ativado: boolean
+  filtros_ativado: boolean
+  botao_flutuante_ativado: boolean
+}) {
+  const { supabase, userId } = await checarSuperAdmin()
+  const { error } = await supabase
+    .from('configuracoes_home')
+    .upsert({ id: true, ...config }, { onConflict: 'id' })
+  if (error) throw new Error(error.message)
+
+  await supabase.from('audit_logs').insert({
+    usuario_id: userId,
+    action: 'configuracoes_home_atualizadas',
+    target_type: 'configuracoes_home',
+    new_data: config,
+  })
+
+  // A home é a própria raiz do site — precisa revalidar "/", não
+  // "/admin/configuracoes", senão a mudança só aparece pro visitante
+  // depois que o cache expirar sozinho.
+  revalidatePath('/')
 }

@@ -5,9 +5,12 @@ import Link from 'next/link'
 const NAV_GERAL = [
   { href: '/admin', label: 'Visão geral', icone: '📊' },
   { href: '/admin/estabelecimentos', label: 'Estabelecimentos', icone: '🏪' },
+  { href: '/admin/estabelecimentos/importar', label: 'Importar em lote', icone: '📥' },
   { href: '/admin/claims', label: 'Reivindicações', icone: '📋' },
+  { href: '/admin/contestacoes', label: 'Contestações', icone: '⚖️' },
   { href: '/admin/planos', label: 'Planos', icone: '💰' },
   { href: '/admin/temas', label: 'Temas', icone: '🎨' },
+  { href: '/admin/tipos', label: 'Tipos e bairros', icone: '🏷️' },
 ]
 
 const NAV_PLATAFORMA = [
@@ -28,7 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect('/login?redirect=/admin')
 
   const { data: profile } = await supabase
-    .from('usuarios')
+    .from('profiles')
     .select('role, nome')
     .eq('id', user.id)
     .single()

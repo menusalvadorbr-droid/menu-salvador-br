@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface GaleriaTabProps {
@@ -9,23 +9,72 @@ interface GaleriaTabProps {
 }
 
 export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabProps) {
-  const supabase = createClient()
+  // FIX: cliente estabilizado com useRef — antes era recriado a cada
+  // render, o que pode causar comportamento inconsistente em componentes
+  // que re-renderizam bastante (ex: durante upload/loading state).
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
+
   const [fotos, setFotos] = useState<string[]>([])
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   useEffect(() => {
     carregarGaleria()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estabelecimentoId])
 
   async function carregarGaleria() {
     const { data } = await supabase
       .from('estabelecimentos')
-      .select('galeria_fotos')
+      .select('galeria_fotos, logo_url')
       .eq('id', estabelecimentoId)
       .single()
     setFotos(data?.galeria_fotos || [])
+    setLogoUrl(data?.logo_url || null)
     setLoading(false)
+  }
+
+  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    if (readOnly || !e.target.files?.length) return
+    const file = e.target.files[0]
+    setUploadingLogo(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message || data.error || 'Erro no upload')
+      if (!data.secure_url) throw new Error('URL não retornada pelo Cloudinary')
+
+      const { error } = await supabase
+        .from('estabelecimentos')
+        .update({ logo_url: data.secure_url })
+        .eq('id', estabelecimentoId)
+      if (error) throw new Error(error.message)
+      setLogoUrl(data.secure_url)
+    } catch (err: any) {
+      alert('Erro ao enviar logo: ' + err.message)
+    }
+    setUploadingLogo(false)
+    e.target.value = ''
+  }
+
+  async function removerLogo() {
+    if (readOnly) return
+    const { error } = await supabase
+      .from('estabelecimentos')
+      .update({ logo_url: null })
+      .eq('id', estabelecimentoId)
+    if (error) {
+      alert('Erro ao remover logo: ' + error.message)
+      return
+    }
+    setLogoUrl(null)
   }
 
   async function uploadFoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -33,17 +82,23 @@ export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabPr
     const file = e.target.files[0]
     setUploading(true)
 
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'menu-salvador')
-
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      // FIX: upload via /api/upload (server-side) em vez de subir direto
+      // pro Cloudinary do browser. O jeito antigo dependia de
+      // NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET e NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+      // — variáveis públicas que exigem o preset ser "unsigned" (sem
+      // controle de quem pode subir o quê) e quebravam em produção quando
+      // essas variáveis não estavam configuradas no ambiente do browser.
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error?.message)
+      if (!res.ok) throw new Error(data.error?.message || data.error || 'Erro no upload')
+      if (!data.secure_url) throw new Error('URL não retornada pelo Cloudinary')
 
       const novaUrl = data.secure_url
       const novasFotos = [...fotos, novaUrl]
@@ -67,6 +122,33 @@ export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabPr
 
   return (
     <div>
+      <h3 className="text-lg font-semibold mb-2">🏷️ Logo</h3>
+      <p className="text-xs text-gray-400 mb-3">
+        Aparece ao lado do nome na página pública e no meio do QR Code. Ideal: imagem quadrada.
+      </p>
+      <div className="flex items-center gap-4 mb-8">
+        <div className="h-20 w-20 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-2xl">🏪</span>
+          )}
+        </div>
+        {!readOnly && (
+          <div className="flex flex-col gap-2">
+            <label className="bg-orange-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-orange-700 inline-block text-sm w-fit">
+              {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : '+ Adicionar logo'}
+              <input type="file" accept="image/*" onChange={uploadLogo} className="hidden" disabled={uploadingLogo} />
+            </label>
+            {logoUrl && (
+              <button onClick={removerLogo} className="text-xs text-red-500 hover:text-red-700 text-left">
+                Remover logo
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       <h3 className="text-lg font-semibold mb-4">🖼️ Galeria</h3>
 
       {!readOnly && (

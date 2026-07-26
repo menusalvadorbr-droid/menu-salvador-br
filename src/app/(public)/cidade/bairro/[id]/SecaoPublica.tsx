@@ -25,7 +25,7 @@ export default function SecaoPublicaBairro({
       return <SecaoPropaganda bairroId={bairroId} />
 
     case 'culinarias':
-      return <SecaoCulinarias bairroId={bairroId} />
+      return <SecaoCulinarias />
 
     default:
       return null

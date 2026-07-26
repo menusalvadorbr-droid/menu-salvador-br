@@ -23,6 +23,7 @@ const CARGOS = [
   { value: 'caixa', label: 'Caixa', icon: '💰' },
   { value: 'garcom', label: 'Garçom', icon: '🍽️' },
   { value: 'cozinha', label: 'Cozinha', icon: '👨‍🍳' },
+  { value: 'contador', label: 'Contador', icon: '🧾' },
 ]
 
 export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabProps) {
@@ -48,7 +49,7 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
         cargo,
         ativo,
         user_id,
-        usuarios:user_id (email, nome)
+        profiles:user_id (email, nome)
       `)
       .eq('estabelecimento_id', estabelecimentoId)
 
@@ -62,8 +63,8 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
     const formatted = data?.map((f: any) => ({
       id: f.id,
       user_id: f.user_id,
-      email: f.usuarios?.email || 'Sem email',
-      nome: f.usuarios?.nome || 'Sem nome',
+      email: f.profiles?.email || 'Sem email',
+      nome: f.profiles?.nome || 'Sem nome',
       cargo: f.cargo,
       ativo: f.ativo,
     })) || []

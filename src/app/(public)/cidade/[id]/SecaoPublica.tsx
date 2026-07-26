@@ -23,7 +23,7 @@ export default function SecaoPublicaCidade({
       return <SecaoBairros cidadeId={cidadeId} />
 
     case 'culinarias':
-      return <SecaoCulinarias cidadeId={cidadeId} />
+      return <SecaoCulinarias />
 
     case 'propaganda':
       return <SecaoPropaganda cidadeId={cidadeId} />

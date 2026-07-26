@@ -15,6 +15,28 @@ interface Categoria {
   ordem: number
 }
 
+interface VariacaoItem {
+  id?: string
+  nome: string
+  preco: string
+}
+
+interface OpcaoComplemento {
+  id?: string
+  itemId: string
+  itemNome?: string // só pra exibição, vem do join ao carregar
+  precoAdicional: string
+  exibirPreco: boolean // controla se o preço aparece no cardápio público, independente do valor
+}
+
+interface GrupoComplemento {
+  id?: string
+  nome: string
+  selecaoMinima: string
+  selecaoMaxima: string
+  opcoes: OpcaoComplemento[]
+}
+
 interface ItemCardapio {
   id: string
   nome: string
@@ -31,6 +53,7 @@ interface ItemCardapio {
   promo_fim: string | null
   delivery_disponivel: boolean
   ordem: number
+  variacoes?: { id: string; nome: string; preco: number }[]
 }
 
 interface Alergeno {
@@ -78,6 +101,19 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [alergenos, setAlergenos]   = useState<Alergeno[]>([])
   const [loading, setLoading]       = useState(true)
   const [erro, setErro]             = useState<string | null>(null)
+  // Fase 1 do módulo cardápio: variações de tamanho/preço (pizzaria,
+  // marmita) — funcionalidade opt-in por estabelecimento, não altera
+  // nada pra quem não ativar.
+  const [variacoesAtivado, setVariacoesAtivado] = useState(false)
+  const [variacoes, setVariacoes] = useState<VariacaoItem[]>([])
+  // Fase 2 do módulo cardápio: grupos de complementos (marmita, adicionais)
+  // — REUTILIZÁVEIS: um grupo pertence ao estabelecimento inteiro, os
+  // itens só escolhem quais grupos usar (item_grupo_complemento).
+  const [complementosAtivado, setComplementosAtivado] = useState(false)
+  const [gruposEstabelecimento, setGruposEstabelecimento] = useState<GrupoComplemento[]>([])
+  const [gruposVinculadosIds, setGruposVinculadosIds] = useState<string[]>([])
+  const [grupoEditandoIndex, setGrupoEditandoIndex] = useState<number | null>(null)
+  const [salvandoGrupo, setSalvandoGrupo] = useState(false)
 
   // UI – nova categoria
   const [novaCategoria, setNovaCategoria]       = useState('')
@@ -191,12 +227,67 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
 
         if (itemsErr) {
           logSupabaseError('Erro ao buscar itens', itemsErr)
+          setItens([])
         } else {
-          setItens((items as ItemCardapio[]) || [])
+          const itemIds = (items || []).map((i: ItemCardapio) => i.id)
+          let variacoesPorItem: Record<string, { id: string; nome: string; preco: number }[]> = {}
+
+          if (itemIds.length > 0) {
+            const { data: todasVariacoes } = await supabase
+              .from('variacoes_item')
+              .select('id, item_id, nome, preco')
+              .in('item_id', itemIds)
+              .order('ordem', { ascending: true })
+
+            for (const v of todasVariacoes || []) {
+              if (!variacoesPorItem[v.item_id]) variacoesPorItem[v.item_id] = []
+              variacoesPorItem[v.item_id].push({ id: v.id, nome: v.nome, preco: v.preco })
+            }
+          }
+
+          setItens(
+            ((items as ItemCardapio[]) || []).map((i) => ({ ...i, variacoes: variacoesPorItem[i.id] || [] }))
+          )
         }
       } else {
         setItens([])
       }
+
+      // 3b. Estabelecimento ativou variações de tamanho/preço e/ou grupos de complementos?
+      const { data: estConfig } = await supabase
+        .from('estabelecimentos')
+        .select('cardapio_variacoes_ativado, cardapio_complementos_ativado')
+        .eq('id', estabelecimentoId)
+        .maybeSingle()
+      setVariacoesAtivado(!!estConfig?.cardapio_variacoes_ativado)
+      setComplementosAtivado(!!estConfig?.cardapio_complementos_ativado)
+
+      // 3c. Grupos de complementos reutilizáveis do estabelecimento (ex:
+      // "Guarnições" — a mesma lista de 21 opções compartilhada por todas
+      // as proteínas, em vez de recriada item por item).
+      const { data: gruposData } = await supabase
+        .from('grupos_complementos')
+        .select('id, nome, selecao_minima, selecao_maxima, ordem, opcoes_complemento(id, item_id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome))')
+        .eq('estabelecimento_id', estabelecimentoId)
+        .order('ordem', { ascending: true })
+
+      setGruposEstabelecimento(
+        (gruposData || []).map((g: any) => ({
+          id: g.id,
+          nome: g.nome,
+          selecaoMinima: String(g.selecao_minima ?? 0),
+          selecaoMaxima: String(g.selecao_maxima ?? 1),
+          opcoes: (g.opcoes_complemento || [])
+            .sort((a: any, b: any) => a.ordem - b.ordem)
+            .map((o: any) => ({
+              id: o.id,
+              itemId: o.item_id,
+              itemNome: o.itens_cardapio?.nome || '',
+              precoAdicional: String(o.preco_adicional ?? 0).replace('.', ','),
+              exibirPreco: o.exibir_preco ?? true,
+            })),
+        }))
+      )
 
       // 4. Alergenos
       const { data: algs } = await supabase
@@ -276,9 +367,22 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .select('allergen_id')
         .eq('item_id', item.id)
       setAlergenosSel(data?.map((a: any) => a.allergen_id) || [])
+      setVariacoes(
+        (item.variacoes || []).map((v) => ({ id: v.id, nome: v.nome, preco: v.preco.toString().replace('.', ',') }))
+      )
+
+      const { data: vinculos } = await supabase
+        .from('item_grupo_complemento')
+        .select('grupo_id')
+        .eq('item_id', item.id)
+
+      setGruposVinculadosIds((vinculos || []).map((v: any) => v.grupo_id))
     } else {
       setAlergenosSel([])
+      setVariacoes([])
+      setGruposVinculadosIds([])
     }
+    setGrupoEditandoIndex(null)
     setModalAberto(true)
   }
 
@@ -338,14 +442,14 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           .from('itens_cardapio')
           .update(dados)
           .eq('id', itemEditando.id)
-        if (error) throw error
+        if (error) throw new Error(error.message)
       } else {
         const { data, error } = await supabase
           .from('itens_cardapio')
           .insert(dados)
           .select('id')
           .single()
-        if (error) throw error
+        if (error) throw new Error(error.message)
         itemId = data.id
       }
 
@@ -356,6 +460,45 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           await supabase.from('item_allergens').insert(
             alergenosSel.map(aid => ({ item_id: itemId, allergen_id: aid }))
           )
+        }
+      }
+
+      // variações de tamanho/preço (fase 1 do módulo cardápio)
+      if (itemId) {
+        await supabase.from('variacoes_item').delete().eq('item_id', itemId)
+        const variacoesValidas = variacoes
+          .filter((v) => v.nome.trim() && v.preco.trim())
+          .map((v, i) => ({
+            item_id: itemId,
+            nome: v.nome.trim(),
+            preco: parseFloat(v.preco.replace(',', '.')) || 0,
+            ordem: i,
+          }))
+        if (variacoesValidas.length > 0) {
+          const { error: variacoesError } = await supabase.from('variacoes_item').insert(variacoesValidas)
+          if (variacoesError) {
+            // Não interrompe o salvamento do item por causa disso — o item
+            // já foi salvo com sucesso, só avisa que as variações falharam.
+            logSupabaseError('Erro ao salvar variações', variacoesError)
+            setErro('Item salvo, mas houve erro ao salvar as variações de tamanho: ' + variacoesError.message)
+          }
+        }
+      }
+
+      // grupos de complementos (fase 2) — só grava os VÍNCULOS deste item
+      // com grupos que já existem no estabelecimento; criar/editar o
+      // conteúdo de um grupo é uma ação à parte (salvarGrupoEstabelecimento),
+      // porque o grupo é compartilhado entre vários itens.
+      if (itemId) {
+        await supabase.from('item_grupo_complemento').delete().eq('item_id', itemId)
+        if (gruposVinculadosIds.length > 0) {
+          const { error: vinculoError } = await supabase.from('item_grupo_complemento').insert(
+            gruposVinculadosIds.map((grupoId, i) => ({ item_id: itemId, grupo_id: grupoId, ordem: i }))
+          )
+          if (vinculoError) {
+            logSupabaseError('Erro ao vincular grupos de complementos', vinculoError)
+            setErro('Item salvo, mas houve erro ao vincular os grupos de complementos: ' + vinculoError.message)
+          }
         }
       }
 
@@ -402,6 +545,176 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     setAlergenosSel(prev =>
       prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
     )
+  }
+
+  // ── VARIAÇÕES DE TAMANHO/PREÇO (fase 1) ──
+  function adicionarVariacao() {
+    setVariacoes((prev) => [...prev, { nome: '', preco: '' }])
+  }
+
+  function atualizarVariacao(index: number, campo: 'nome' | 'preco', valor: string) {
+    setVariacoes((prev) => prev.map((v, i) => (i === index ? { ...v, [campo]: valor } : v)))
+  }
+
+  function removerVariacao(index: number) {
+    setVariacoes((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // ── GRUPOS DE COMPLEMENTOS REUTILIZÁVEIS (fase 2) ──
+
+  // Liga/desliga o grupo pra ESTE item (só estado local — grava de
+  // verdade quando o item é salvo, igual alérgenos/variações).
+  function toggleVinculoGrupo(grupoId: string) {
+    setGruposVinculadosIds((prev) =>
+      prev.includes(grupoId) ? prev.filter((id) => id !== grupoId) : [...prev, grupoId]
+    )
+  }
+
+  // Abre um grupo em branco pra criar (ainda não existe no banco).
+  function iniciarNovoGrupo() {
+    setGruposEstabelecimento((prev) => [...prev, { nome: '', selecaoMinima: '0', selecaoMaxima: '1', opcoes: [] }])
+    setGrupoEditandoIndex(gruposEstabelecimento.length)
+  }
+
+  function atualizarCampoGrupoEditando(campo: 'nome' | 'selecaoMinima' | 'selecaoMaxima', valor: string) {
+    if (grupoEditandoIndex === null) return
+    setGruposEstabelecimento((prev) =>
+      prev.map((g, i) => (i === grupoEditandoIndex ? { ...g, [campo]: valor } : g))
+    )
+  }
+
+  function adicionarOpcaoNoGrupoEditando() {
+    if (grupoEditandoIndex === null) return
+    setGruposEstabelecimento((prev) =>
+      prev.map((g, i) => (i === grupoEditandoIndex ? { ...g, opcoes: [...g.opcoes, { itemId: '', precoAdicional: '', exibirPreco: true }] } : g))
+    )
+  }
+
+  function atualizarOpcaoNoGrupoEditando(opcaoIndex: number, campo: 'itemId' | 'precoAdicional', valor: string) {
+    if (grupoEditandoIndex === null) return
+    setGruposEstabelecimento((prev) =>
+      prev.map((g, i) =>
+        i === grupoEditandoIndex
+          ? { ...g, opcoes: g.opcoes.map((o, j) => (j === opcaoIndex ? { ...o, [campo]: valor } : o)) }
+          : g
+      )
+    )
+  }
+
+  function removerOpcaoNoGrupoEditando(opcaoIndex: number) {
+    if (grupoEditandoIndex === null) return
+    setGruposEstabelecimento((prev) =>
+      prev.map((g, i) => (i === grupoEditandoIndex ? { ...g, opcoes: g.opcoes.filter((_, j) => j !== opcaoIndex) } : g))
+    )
+  }
+
+  // Grava de verdade no banco — afeta todos os itens que usam esse grupo,
+  // por isso é uma ação separada do salvamento do item.
+  async function salvarGrupoEstabelecimento(index: number) {
+    const g = gruposEstabelecimento[index]
+    if (!g.nome.trim()) { setErro('Nome do grupo é obrigatório.'); return }
+
+    setSalvandoGrupo(true)
+    setErro(null)
+
+    try {
+      let grupoId = g.id
+
+      if (grupoId) {
+        const { error } = await supabase
+          .from('grupos_complementos')
+          .update({
+            nome: g.nome.trim(),
+            selecao_minima: parseInt(g.selecaoMinima) || 0,
+            selecao_maxima: parseInt(g.selecaoMaxima) || 1,
+          })
+          .eq('id', grupoId)
+        if (error) throw new Error(error.message)
+      } else {
+        const { data, error } = await supabase
+          .from('grupos_complementos')
+          .insert({
+            estabelecimento_id: estabelecimentoId,
+            nome: g.nome.trim(),
+            selecao_minima: parseInt(g.selecaoMinima) || 0,
+            selecao_maxima: parseInt(g.selecaoMaxima) || 1,
+            ordem: gruposEstabelecimento.length,
+          })
+          .select('id')
+          .single()
+        if (error) throw new Error(error.message)
+        grupoId = data.id
+        // Grupo novo: já deixa vinculado a este item, senão o dono cria e
+        // some da tela sem perceber que precisa marcar o checkbox.
+        setGruposVinculadosIds((prev) => [...prev, grupoId!])
+      }
+
+      // Opções: apaga tudo e reinsere (mesmo padrão de sempre)
+      await supabase.from('opcoes_complemento').delete().eq('grupo_id', grupoId)
+      const opcoesValidas = g.opcoes
+        .filter((o) => o.itemId)
+        .map((o, j) => ({
+          grupo_id: grupoId,
+          item_id: o.itemId,
+          preco_adicional: parseFloat((o.precoAdicional || '0').replace(',', '.')) || 0,
+          exibir_preco: o.exibirPreco,
+          ordem: j,
+        }))
+      if (opcoesValidas.length > 0) {
+        const { error: opcoesError } = await supabase.from('opcoes_complemento').insert(opcoesValidas)
+        if (opcoesError) throw new Error(opcoesError.message)
+      }
+
+      setGrupoEditandoIndex(null)
+
+      // Recarrega a lista de grupos do estabelecimento com os dados reais
+      const { data: gruposData } = await supabase
+        .from('grupos_complementos')
+        .select('id, nome, selecao_minima, selecao_maxima, ordem, opcoes_complemento(id, item_id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome))')
+        .eq('estabelecimento_id', estabelecimentoId)
+        .order('ordem', { ascending: true })
+
+      setGruposEstabelecimento(
+        (gruposData || []).map((gr: any) => ({
+          id: gr.id,
+          nome: gr.nome,
+          selecaoMinima: String(gr.selecao_minima ?? 0),
+          selecaoMaxima: String(gr.selecao_maxima ?? 1),
+          opcoes: (gr.opcoes_complemento || [])
+            .sort((a: any, b: any) => a.ordem - b.ordem)
+            .map((o: any) => ({
+              id: o.id,
+              itemId: o.item_id,
+              itemNome: o.itens_cardapio?.nome || '',
+              precoAdicional: String(o.preco_adicional ?? 0).replace('.', ','),
+              exibirPreco: o.exibir_preco ?? true,
+            })),
+        }))
+      )
+    } catch (err: any) {
+      logSupabaseError('Erro ao salvar grupo de complemento', err)
+      setErro('Erro ao salvar grupo: ' + err.message)
+    } finally {
+      setSalvandoGrupo(false)
+    }
+  }
+
+  // Exclui o grupo de vez do estabelecimento — some de TODOS os itens
+  // que o usavam, por isso pede confirmação bem explícita.
+  async function excluirGrupoEstabelecimento(index: number) {
+    const g = gruposEstabelecimento[index]
+    if (!g.id) {
+      // Ainda nem foi salvo — só remove da tela.
+      setGruposEstabelecimento((prev) => prev.filter((_, i) => i !== index))
+      setGrupoEditandoIndex(null)
+      return
+    }
+    if (!confirm(`Excluir o grupo "${g.nome}"? Isso remove ele de TODOS os itens que o usam, não só deste.`)) return
+
+    await supabase.from('grupos_complementos').delete().eq('id', g.id)
+    setGruposEstabelecimento((prev) => prev.filter((_, i) => i !== index))
+    setGruposVinculadosIds((prev) => prev.filter((id) => id !== g.id))
+    setGrupoEditandoIndex(null)
   }
 
   // ─────────────────────────────────────────
@@ -540,6 +853,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           item={itemEditando}
           categorias={categorias}
           alergenos={alergenos}
+          itensDisponiveis={itens}
           fNome={fNome} setFNome={setFNome}
           fDesc={fDesc} setFDesc={setFDesc}
           fPreco={fPreco} setFPreco={setFPreco}
@@ -559,6 +873,25 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           fPromoTipo={fPromoTipo} setFPromoTipo={setFPromoTipo}
           fPromoInicio={fPromoInicio} setFPromoInicio={setFPromoInicio}
           fPromoFim={fPromoFim} setFPromoFim={setFPromoFim}
+          variacoesAtivado={variacoesAtivado}
+          variacoes={variacoes}
+          adicionarVariacao={adicionarVariacao}
+          atualizarVariacao={atualizarVariacao}
+          removerVariacao={removerVariacao}
+          complementosAtivado={complementosAtivado}
+          gruposEstabelecimento={gruposEstabelecimento}
+          gruposVinculadosIds={gruposVinculadosIds}
+          toggleVinculoGrupo={toggleVinculoGrupo}
+          grupoEditandoIndex={grupoEditandoIndex}
+          setGrupoEditandoIndex={setGrupoEditandoIndex}
+          iniciarNovoGrupo={iniciarNovoGrupo}
+          atualizarCampoGrupoEditando={atualizarCampoGrupoEditando}
+          adicionarOpcaoNoGrupoEditando={adicionarOpcaoNoGrupoEditando}
+          atualizarOpcaoNoGrupoEditando={atualizarOpcaoNoGrupoEditando}
+          removerOpcaoNoGrupoEditando={removerOpcaoNoGrupoEditando}
+          salvarGrupoEstabelecimento={salvarGrupoEstabelecimento}
+          excluirGrupoEstabelecimento={excluirGrupoEstabelecimento}
+          salvandoGrupo={salvandoGrupo}
         />
       )}
     </div>
@@ -614,7 +947,15 @@ function ItemRow({ item, readOnly, onEditar, onToggleDisponivel, onTogglePromo, 
 
       {/* preço */}
       <div className="text-right flex-shrink-0 min-w-[64px]">
-        {promoAtiva && item.preco_promocional ? (
+        {item.variacoes && item.variacoes.length > 0 ? (
+          <>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide">A partir de</div>
+            <div className="text-sm font-bold text-gray-800">
+              R$ {Math.min(...item.variacoes.map((v) => v.preco)).toFixed(2)}
+            </div>
+            <div className="text-[10px] text-gray-400">{item.variacoes.length} tamanho{item.variacoes.length > 1 ? 's' : ''}</div>
+          </>
+        ) : promoAtiva && item.preco_promocional ? (
           <>
             <div className="text-xs text-gray-400 line-through">
               R$ {item.preco?.toFixed(2)}
@@ -686,6 +1027,11 @@ function ModalItem({
   fPromoTipo, setFPromoTipo,
   fPromoInicio, setFPromoInicio,
   fPromoFim, setFPromoFim,
+  variacoesAtivado, variacoes, adicionarVariacao, atualizarVariacao, removerVariacao,
+  complementosAtivado, gruposEstabelecimento, gruposVinculadosIds, toggleVinculoGrupo,
+  grupoEditandoIndex, setGrupoEditandoIndex, iniciarNovoGrupo, atualizarCampoGrupoEditando,
+  adicionarOpcaoNoGrupoEditando, atualizarOpcaoNoGrupoEditando, removerOpcaoNoGrupoEditando,
+  salvarGrupoEstabelecimento, excluirGrupoEstabelecimento, salvandoGrupo, itensDisponiveis,
 }: any) {
   // calcula preview do preço promocional em tempo real
   const precoBase = parseFloat((fPreco || '0').replace(',', '.')) || 0
@@ -799,6 +1145,9 @@ function ModalItem({
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Preço <span className="text-red-400">*</span>
+              {variacoesAtivado && variacoes.length > 0 && (
+                <span className="text-gray-400 font-normal ml-1">(usado como "a partir de" na listagem)</span>
+              )}
             </label>
             <div className="relative w-40">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">
@@ -812,6 +1161,210 @@ function ModalItem({
               />
             </div>
           </div>
+
+          {/* VARIAÇÕES DE TAMANHO/PREÇO (fase 1 do módulo cardápio) */}
+          {variacoesAtivado && (
+            <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+              <label className="block text-xs font-medium text-gray-600">
+                Tamanhos/variações <span className="text-gray-400 font-normal">(opcional — ex: Pequena, Média, Grande)</span>
+              </label>
+              {variacoes.map((v: { nome: string; preco: string }, i: number) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    value={v.nome}
+                    onChange={(e) => atualizarVariacao(i, 'nome', e.target.value)}
+                    placeholder="Nome (ex: Grande)"
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                  />
+                  <div className="relative w-28">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">R$</span>
+                    <input
+                      value={v.preco}
+                      onChange={(e) => atualizarVariacao(i, 'preco', e.target.value)}
+                      placeholder="0,00"
+                      className="w-full border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removerVariacao(i)}
+                    className="text-gray-400 hover:text-red-500 transition px-1"
+                    title="Remover"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={adicionarVariacao}
+                className="text-xs font-medium text-orange-600 hover:underline"
+              >
+                + Adicionar tamanho
+              </button>
+            </div>
+          )}
+
+          {/* GRUPOS DE COMPLEMENTOS (fase 2 do módulo cardápio) */}
+          {complementosAtivado && (
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-600">
+                Grupos de complementos <span className="text-gray-400 font-normal">(ex: Guarnições — compartilhado entre vários itens)</span>
+              </label>
+
+              {gruposEstabelecimento.map((g: GrupoComplemento, gi: number) => {
+                const vinculado = g.id ? gruposVinculadosIds.includes(g.id) : false
+                const editando = grupoEditandoIndex === gi
+
+                return (
+                  <div key={g.id || `novo-${gi}`} className="rounded-xl border border-gray-200 bg-gray-50">
+                    <div className="flex items-center gap-2 p-2.5">
+                      {g.id && (
+                        <input
+                          type="checkbox"
+                          checked={vinculado}
+                          onChange={() => toggleVinculoGrupo(g.id!)}
+                          className="w-4 h-4 accent-orange-500"
+                          title="Usar este grupo neste item"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-800">{g.nome || '(sem nome)'}</span>
+                        <span className="text-xs text-gray-400 ml-2">
+                          {g.opcoes.length} opç{g.opcoes.length === 1 ? 'ão' : 'ões'} · {parseInt(g.selecaoMinima) > 0 ? 'obrigatório' : 'opcional'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setGrupoEditandoIndex(editando ? null : gi)}
+                        className="text-xs font-medium text-orange-600 hover:underline px-1"
+                      >
+                        {editando ? 'Fechar' : 'Editar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => excluirGrupoEstabelecimento(gi)}
+                        className="text-gray-400 hover:text-red-500 transition px-1"
+                        title="Excluir grupo (afeta todos os itens que usam)"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+
+                    {editando && (
+                      <div className="p-3 pt-0 space-y-2 border-t border-gray-200">
+                        <p className="text-xs text-amber-600 -mb-1">
+                          ⚠️ Editar aqui afeta todos os itens que usam este grupo, não só este.
+                        </p>
+                        <input
+                          value={g.nome}
+                          onChange={(e) => atualizarCampoGrupoEditando('nome', e.target.value)}
+                          placeholder="Nome do grupo (ex: Guarnições)"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                        />
+                        <div className="flex gap-3 items-center text-xs text-gray-500">
+                          <label className="flex items-center gap-1.5">
+                            Mín. escolhas
+                            <input
+                              type="number"
+                              min={0}
+                              value={g.selecaoMinima}
+                              onChange={(e) => atualizarCampoGrupoEditando('selecaoMinima', e.target.value)}
+                              className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                            />
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            Máx. escolhas
+                            <input
+                              type="number"
+                              min={1}
+                              value={g.selecaoMaxima}
+                              onChange={(e) => atualizarCampoGrupoEditando('selecaoMaxima', e.target.value)}
+                              className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="space-y-1.5 pl-2 border-l-2 border-gray-200">
+                          {g.opcoes.map((o: OpcaoComplemento, oi: number) => (
+                            <div key={oi} className="flex gap-2 items-center">
+                              <select
+                                value={o.itemId}
+                                onChange={(e) => atualizarOpcaoNoGrupoEditando(oi, 'itemId', e.target.value)}
+                                className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                              >
+                                <option value="">Selecione um item do cardápio…</option>
+                                {itensDisponiveis
+                                  .filter((it: ItemCardapio) => it.id !== item?.id)
+                                  .map((it: ItemCardapio) => (
+                                    <option key={it.id} value={it.id}>{it.nome}</option>
+                                  ))}
+                              </select>
+                              <div className="relative w-24">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">+R$</span>
+                                <input
+                                  value={o.precoAdicional}
+                                  onChange={(e) => atualizarOpcaoNoGrupoEditando(oi, 'precoAdicional', e.target.value)}
+                                  placeholder="0,00"
+                                  className="w-full border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                                />
+                              </div>
+                              <label className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap" title="Se desmarcado, o preço não aparece no cardápio público, mesmo que tenha um valor definido">
+                                <input
+                                  type="checkbox"
+                                  checked={o.exibirPreco}
+                                  onChange={() => undefined}
+                                  className="rounded"
+                                />
+                                Mostrar preço
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => removerOpcaoNoGrupoEditando(oi)}
+                                className="text-gray-400 hover:text-red-500 transition px-1"
+                                title="Remover opção"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={adicionarOpcaoNoGrupoEditando}
+                            className="text-xs font-medium text-orange-600 hover:underline"
+                          >
+                            + Adicionar opção
+                          </button>
+                          {itensDisponiveis.length === 0 && (
+                            <p className="text-xs text-amber-600">
+                              Cadastre os itens (ex: as guarnições) no cardápio primeiro pra poder escolhê-los aqui.
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => salvarGrupoEstabelecimento(gi)}
+                          disabled={salvandoGrupo}
+                          className="text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-1.5 disabled:opacity-50"
+                        >
+                          {salvandoGrupo ? 'Salvando…' : g.id ? 'Salvar alterações do grupo' : 'Criar grupo'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              <button
+                type="button"
+                onClick={iniciarNovoGrupo}
+                className="text-xs font-medium text-orange-600 hover:underline"
+              >
+                + Criar grupo de complementos
+              </button>
+            </div>
+          )}
 
           {/* ALERGENOS */}
           <div>

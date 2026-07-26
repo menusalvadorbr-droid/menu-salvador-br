@@ -1,13 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function LoginPage() {
+// Só aceita caminhos internos (começando com "/", sem "//" — que o
+// navegador trataria como protocolo-relativo pra outro domínio). Evita
+// que um link malicioso tipo /login?redirect=https://site-falso.com
+// mande a pessoa pra fora do site depois de logar.
+function redirectSeguro(valor: string | null): string {
+  if (!valor) return '/painel'
+  if (!valor.startsWith('/') || valor.startsWith('//')) return '/painel'
+  return valor
+}
+
+function LoginForm() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const destino = redirectSeguro(searchParams.get('redirect'))
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -16,9 +29,10 @@ export default function LoginPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        router.push('/painel')
+        router.push(destino)
       }
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -39,7 +53,7 @@ export default function LoginPage() {
 
     router.refresh()
     setTimeout(() => {
-      router.push('/painel')
+      router.push(destino)
     }, 200)
   }
 
@@ -81,5 +95,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
