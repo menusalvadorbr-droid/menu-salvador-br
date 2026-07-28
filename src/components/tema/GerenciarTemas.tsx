@@ -25,7 +25,7 @@ export default function GerenciarTemas() {
     slug: '',
     descricao: '',
     preview_image_url: '',
-    config: JSON.stringify({ cor_primaria: '#f97316', cor_secundaria: '#ffffff', layout: 'grade', fonte: 'sans-serif' }, null, 2),
+    config: JSON.stringify({ cor_primaria: '#f97316', cor_secundaria: '#ffffff', fonte: 'sans-serif' }, null, 2),
     tipo: 'free',
     ativo: true,
   })
@@ -88,7 +88,7 @@ export default function GerenciarTemas() {
       slug: '',
       descricao: '',
       preview_image_url: '',
-      config: JSON.stringify({ cor_primaria: '#f97316', cor_secundaria: '#ffffff', layout: 'grade', fonte: 'sans-serif' }, null, 2),
+      config: JSON.stringify({ cor_primaria: '#f97316', cor_secundaria: '#ffffff', fonte: 'sans-serif' }, null, 2),
       tipo: 'free',
       ativo: true,
     })

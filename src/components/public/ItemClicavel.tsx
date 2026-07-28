@@ -103,7 +103,7 @@ export default function ItemClicavel({
             </div>
 
             {fotoGrande && (
-              <div className="relative h-48 w-full bg-gray-100">
+              <div className="relative h-64 w-full bg-gray-100">
                 <Image src={fotoGrande} alt={nome} fill className="object-cover" sizes="512px" unoptimized />
               </div>
             )}

@@ -10,6 +10,7 @@ import { TraducaoProvider, Texto, SeletorIdioma, type TraducaoRow } from '@/comp
 import SpecialOfferCard from '@/components/public/SpecialOfferCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import ItemClicavel, { PararPropagacaoClique } from '@/components/public/ItemClicavel'
+import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
 
 // Fora do componente (Server Component roda uma vez por request, mas o
 // lint de pureza não sabe disso e trata new Date()/Date.now() escritos
@@ -124,10 +125,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const alergenos = (item: any): any[] =>
     (item.item_allergens || []).map((r: any) => r.allergen).filter(Boolean)
 
-  // Layout do cardápio — campo `layout` de temas.config, hoje só usado pelo
-  // Modelo Catálogo (grid de cards). Qualquer tema sem esse campo (todos os
-  // que já existem) cai no fallback 'lista', comportamento de sempre.
-  const layoutCardapio: 'lista' | 'catalogo' = temaConfig.layout === 'catalogo' ? 'catalogo' : 'lista'
+  // Formato do cardápio — campo independente do tema (estabelecimentos.
+  // cardapio_formato), escolhido em Configurações → Tema. Desacoplado de
+  // temas.config: um estabelecimento pode trocar de tema sem perder o
+  // formato escolhido, e vice-versa.
+  const layoutCardapio: 'lista' | 'catalogo' = est.cardapio_formato === 'catalogo' ? 'catalogo' : 'lista'
 
   // "Clique expande" — opt-in via Configurações → Recursos do cardápio,
   // independente de tema (funciona tanto na Lista quanto no Catálogo).
@@ -309,19 +311,15 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
         {/* ── NAVEGAÇÃO POR CATEGORIA ── */}
         {categorias.length > 1 && (
-          <div className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-4 flex gap-2 overflow-x-auto scrollbar-none backdrop-blur-md border-b"
-            style={{ backgroundColor: `${corF}ee`, borderColor: corBd }}>
-            {categorias.map((cat: any) => {
-              if (!(itensPorCat[cat.id]?.length)) return null
-              return (
-                <a key={cat.id} href={`#cat-${cat.id}`}
-                  className="flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition"
-                  style={{ backgroundColor: `${corP}15`, color: corP }}>
-                  <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
-                </a>
-              )
-            })}
-          </div>
+          <NavegacaoCategorias
+            categorias={categorias.reduce((acc: { id: string; nome: string }[], cat: any) => {
+              if (itensPorCat[cat.id]?.length) acc.push({ id: cat.id, nome: cat.nome })
+              return acc
+            }, [])}
+            corP={corP}
+            corF={corF}
+            corBd={corBd}
+          />
         )}
 
         {/* ── CATEGORIAS E ITENS ── */}
@@ -337,7 +335,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
               const itens = itensPorCat[cat.id] || []
               if (!itens.length) return null
               return (
-                <div key={cat.id} id={`cat-${cat.id}`} className="scroll-mt-20">
+                <div key={cat.id} id={`cat-${cat.id}`} className="scroll-mt-32">
                   <h2 className="mb-3 text-base font-semibold" style={{ color: corP }}>
                     <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
                     <span className="ml-2 text-sm font-normal opacity-60">({itens.length})</span>
@@ -428,7 +426,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
               if (!itens.length) return null
               return (
                 <div key={cat.id} id={`cat-${cat.id}`}
-                  className="scroll-mt-20 rounded-2xl overflow-hidden shadow"
+                  className="scroll-mt-32 rounded-2xl overflow-hidden shadow"
                   style={{ backgroundColor: corS }}>
 
                   {/* Cabeçalho da categoria */}

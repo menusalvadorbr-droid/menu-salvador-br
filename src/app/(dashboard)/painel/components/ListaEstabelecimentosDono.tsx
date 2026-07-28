@@ -20,6 +20,9 @@ interface Estabelecimento {
   foto_capa: string | null
   ativo: boolean | null
   bairro: string | null
+  cidade: string | null
+  tipo_estabelecimento: string | null
+  bairros?: { slug: string } | null
   estabelecimento_tipos_cozinha?: { tipos_cozinha: { nome: string } | null }[] | null
 }
 
@@ -90,6 +93,17 @@ function culinariasDe(est: Estabelecimento) {
     .map((v) => v.tipos_cozinha?.nome)
     .filter(Boolean)
     .join(', ')
+}
+
+// Mesmo padrão de GridEstabelecimentos/EstablishmentCard: URL de 4 segmentos
+// só quando dá pra montar ela inteira, senão cai pra /cardapio/slug — link de
+// 1 segmento sozinho (/slug) não é rota reconhecida (a rota coringa interpreta
+// como página de cidade e dá 404).
+function linkPublico(est: Estabelecimento) {
+  const bairroSlug = est.bairros?.slug
+  return est.cidade && bairroSlug && est.tipo_estabelecimento
+    ? `/${est.cidade}/${bairroSlug}/${est.tipo_estabelecimento}/${est.slug}`
+    : `/cardapio/${est.slug}`
 }
 
 function CardEstabelecimento({
@@ -164,7 +178,7 @@ function CardEstabelecimento({
               <ExcluirEstabelecimentoButton estabelecimentoId={est.id} nomeExibicao={nomeExibicao} />
 
               <Link
-                href={`/${est.slug}`}
+                href={linkPublico(est)}
                 target="_blank"
                 className="rounded-lg bg-neutral-100 p-2 text-neutral-600 transition hover:bg-neutral-200"
                 title="Ver página pública"
@@ -239,7 +253,7 @@ function LinhaEstabelecimento({
         <ExcluirEstabelecimentoButton estabelecimentoId={est.id} nomeExibicao={nomeExibicao} />
 
         <Link
-          href={`/${est.slug}`}
+          href={linkPublico(est)}
           target="_blank"
           className="rounded-lg bg-neutral-100 p-1.5 text-neutral-600 transition hover:bg-neutral-200"
           title="Ver página pública"

@@ -64,7 +64,7 @@ export default async function PainelPage() {
   //    de vez).
   const { data: estabelecimentos, error } = await supabase
     .from('estabelecimentos')
-    .select('id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
+    .select('id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, cidade, tipo_estabelecimento, bairros(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
     .eq('owner_user_id', user.id)
     .neq('status', 'excluido')
     .order('created_at', { ascending: false })
