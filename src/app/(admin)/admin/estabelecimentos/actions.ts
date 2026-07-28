@@ -12,9 +12,10 @@ const ACAO_PARA_LOG: Record<string, string> = {
   block: 'estabelecimento_bloqueado',
   unblock: 'estabelecimento_desbloqueado',
   unlink: 'estabelecimento_desvinculado',
+  restore: 'estabelecimento_restaurado',
 }
 
-export async function moderarEstabelecimento(id: string, acao: 'approve' | 'block' | 'unblock' | 'unlink') {
+export async function moderarEstabelecimento(id: string, acao: 'approve' | 'block' | 'unblock' | 'unlink' | 'restore') {
   const { supabase, userId } = await checarSuperAdmin()
 
   let updateData: any = {}
@@ -31,6 +32,12 @@ export async function moderarEstabelecimento(id: string, acao: 'approve' | 'bloc
       break
     case 'unlink':
       updateData = { owner_user_id: null }
+      break
+    case 'restore':
+      // Estabelecimento que o próprio dono marcou como excluído
+      // (painel/actions.ts) — volta a ficar visível pro dono e ao público,
+      // mantendo o mesmo owner_user_id de antes (não foi desvinculado).
+      updateData = { status: 'active', ativo: true }
       break
   }
 

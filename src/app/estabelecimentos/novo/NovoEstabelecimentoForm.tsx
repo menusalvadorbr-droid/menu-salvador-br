@@ -245,8 +245,6 @@ export default function NovoEstabelecimentoForm({
         slugFinal = `${baseSlug}-${tentativa + 1}`
       }
 
-      const enderecoPartes = [logradouro, numero].filter(Boolean)
-
       const { data: novoEstabelecimento, error: insertError } = await supabase
         .from('estabelecimentos')
         .insert({
@@ -260,7 +258,8 @@ export default function NovoEstabelecimentoForm({
           atividade_economica: dadosCnpj?.atividadeEconomica || null,
           cnae_codigo: dadosCnpj?.cnaeCodigo || null,
           tipo_logradouro: tipoLogradouro || null,
-          endereco: enderecoPartes.length > 0 ? enderecoPartes.join(', ') : null,
+          endereco: logradouro.trim() || null,
+          numero: numero || null,
           complemento: complemento || null,
           bairro_id: bairroId || null,
           cep: cep || null,

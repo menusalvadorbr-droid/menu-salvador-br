@@ -62,6 +62,14 @@ interface Alergeno {
   icone: string
 }
 
+// Idiomas fixos suportados — tradução manual, sem lista aberta.
+const IDIOMAS_SUPORTADOS = ['en', 'fr', 'es'] as const
+type Idioma = (typeof IDIOMAS_SUPORTADOS)[number]
+const IDIOMA_LABEL: Record<Idioma, string> = { en: 'Inglês (EN)', fr: 'Francês (FR)', es: 'Espanhol (ES)' }
+
+type TraducoesCampos = Partial<Record<Idioma, { nome: string; descricao: string }>>
+type TraducoesNome = Partial<Record<Idioma, { nome: string }>>
+
 interface CardapioTabProps {
   estabelecimentoId: string
   readOnly?: boolean
@@ -110,6 +118,15 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   // — REUTILIZÁVEIS: um grupo pertence ao estabelecimento inteiro, os
   // itens só escolhem quais grupos usar (item_grupo_complemento).
   const [complementosAtivado, setComplementosAtivado] = useState(false)
+  // Tradução manual do cardápio (EN/FR/ES) — opt-in por estabelecimento via
+  // Configurações → Idiomas. Sem idioma ativo, nada disso aparece.
+  const [idiomasAtivos, setIdiomasAtivos] = useState<Idioma[]>([])
+  const [catEditandoTraducoes, setCatEditandoTraducoes] = useState<string | null>(null)
+  const [traducoesCategoria, setTraducoesCategoria] = useState<TraducoesNome>({})
+  const [salvandoTraducoesCategoria, setSalvandoTraducoesCategoria] = useState(false)
+  const [catEditandoNome, setCatEditandoNome] = useState<string | null>(null)
+  const [nomeCategoriaEdicao, setNomeCategoriaEdicao] = useState('')
+  const [salvandoNomeCategoria, setSalvandoNomeCategoria] = useState(false)
   const [gruposEstabelecimento, setGruposEstabelecimento] = useState<GrupoComplemento[]>([])
   const [gruposVinculadosIds, setGruposVinculadosIds] = useState<string[]>([])
   const [grupoEditandoIndex, setGrupoEditandoIndex] = useState<number | null>(null)
@@ -141,12 +158,17 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [fPromoTipo, setFPromoTipo]     = useState<'pct'|'fixed'>('pct')
   const [fPromoInicio, setFPromoInicio] = useState('')
   const [fPromoFim, setFPromoFim]       = useState('')
+  const [traducoesItem, setTraducoesItem] = useState<TraducoesCampos>({})
 
   // ── CARREGAR ──────────────────────────────
-  const carregar = useCallback(async () => {
-    setLoading(true)
-    setErro(null)
-
+  // Corpo real da busca, sem mexer em loading/erro no início — os dois já
+  // nascem nos valores certos (true/null) no useState, então resetá-los nessa
+  // função seria um setState síncrono redundante logo na primeira execução
+  // (a que dispara no efeito de montagem, mais abaixo). O carregar() (função
+  // seguinte) é quem reseta loading/erro, para as chamadas manuais depois de
+  // criar/editar/excluir, onde a tela já pode estar com loading=false ou um
+  // erro antigo na tela.
+  const carregarDados = useCallback(async () => {
     try {
       // 1. Buscar menu ativo (sem tentar criar — deixar o servidor criar se necessário)
       let mid: string | null = null
@@ -230,7 +252,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           setItens([])
         } else {
           const itemIds = (items || []).map((i: ItemCardapio) => i.id)
-          let variacoesPorItem: Record<string, { id: string; nome: string; preco: number }[]> = {}
+          const variacoesPorItem: Record<string, { id: string; nome: string; preco: number }[]> = {}
 
           if (itemIds.length > 0) {
             const { data: todasVariacoes } = await supabase
@@ -256,11 +278,16 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       // 3b. Estabelecimento ativou variações de tamanho/preço e/ou grupos de complementos?
       const { data: estConfig } = await supabase
         .from('estabelecimentos')
-        .select('cardapio_variacoes_ativado, cardapio_complementos_ativado')
+        .select('cardapio_variacoes_ativado, cardapio_complementos_ativado, idiomas_ativos')
         .eq('id', estabelecimentoId)
         .maybeSingle()
       setVariacoesAtivado(!!estConfig?.cardapio_variacoes_ativado)
       setComplementosAtivado(!!estConfig?.cardapio_complementos_ativado)
+      setIdiomasAtivos(
+        ((estConfig?.idiomas_ativos || []) as string[]).filter((i): i is Idioma =>
+          IDIOMAS_SUPORTADOS.includes(i as Idioma)
+        )
+      )
 
       // 3c. Grupos de complementos reutilizáveis do estabelecimento (ex:
       // "Guarnições" — a mesma lista de 21 opções compartilhada por todas
@@ -303,7 +330,17 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     }
   }, [estabelecimentoId, supabase])
 
-  useEffect(() => { carregar() }, [carregar])
+  // Wrapper usado pelas ações manuais (criar/editar/excluir categoria ou
+  // item, grupos de complementos etc.) — essas sim precisam resetar loading
+  // e erro de verdade, porque nesse ponto a tela já pode estar com
+  // loading=false ou com um erro antigo ainda visível.
+  const carregar = useCallback(async () => {
+    setLoading(true)
+    setErro(null)
+    await carregarDados()
+  }, [carregarDados])
+
+  useEffect(() => { carregarDados() }, [carregarDados])
 
   // ── CRIAR CATEGORIA ──────────────────────
   async function criarCategoria() {
@@ -339,6 +376,89 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     if (!confirm('Remover esta categoria e todos os seus itens?')) return
     await supabase.from('categorias').delete().eq('id', id)
     carregar()
+  }
+
+  // ── RENOMEAR CATEGORIA (nome em português, inline) ──
+  function iniciarEdicaoNomeCategoria(cat: Categoria) {
+    setCatEditandoNome(cat.id)
+    setNomeCategoriaEdicao(cat.nome)
+  }
+
+  async function salvarNomeCategoria(id: string) {
+    const nome = nomeCategoriaEdicao.trim()
+    if (!nome) return
+    setSalvandoNomeCategoria(true)
+    const { error } = await supabase.from('categorias').update({ nome }).eq('id', id)
+    if (error) {
+      logSupabaseError('Erro ao renomear categoria', error)
+      setErro('Erro ao renomear categoria: ' + error.message)
+    } else {
+      setCatEditandoNome(null)
+      await carregar()
+    }
+    setSalvandoNomeCategoria(false)
+  }
+
+  // ── TRADUÇÕES DA CATEGORIA (painel inline) ──
+  async function abrirTraducoesCategoria(categoriaId: string) {
+    if (catEditandoTraducoes === categoriaId) {
+      setCatEditandoTraducoes(null)
+      return
+    }
+    const vazio: TraducoesNome = {}
+    for (const idi of idiomasAtivos) vazio[idi] = { nome: '' }
+
+    const { data } = await supabase
+      .from('traducoes')
+      .select('idioma, valor')
+      .eq('tipo_registro', 'categoria')
+      .eq('registro_id', categoriaId)
+      .eq('campo', 'nome')
+
+    for (const t of data || []) {
+      if (IDIOMAS_SUPORTADOS.includes(t.idioma as Idioma)) {
+        vazio[t.idioma as Idioma] = { nome: t.valor }
+      }
+    }
+
+    setTraducoesCategoria(vazio)
+    setCatEditandoTraducoes(categoriaId)
+  }
+
+  function atualizarTraducaoCategoria(idioma: Idioma, valor: string) {
+    setTraducoesCategoria((prev) => ({ ...prev, [idioma]: { nome: valor } }))
+  }
+
+  async function salvarTraducoesCategoria(categoriaId: string) {
+    setSalvandoTraducoesCategoria(true)
+    try {
+      await supabase.from('traducoes').delete().eq('tipo_registro', 'categoria').eq('registro_id', categoriaId)
+
+      const linhas = idiomasAtivos
+        .map((idi) => ({ idioma: idi, nome: (traducoesCategoria[idi]?.nome || '').trim() }))
+        .filter((l) => l.nome)
+        .map((l) => ({
+          estabelecimento_id: estabelecimentoId,
+          tipo_registro: 'categoria',
+          registro_id: categoriaId,
+          idioma: l.idioma,
+          campo: 'nome',
+          valor: l.nome,
+        }))
+
+      if (linhas.length > 0) {
+        const { error } = await supabase.from('traducoes').upsert(linhas, {
+          onConflict: 'tipo_registro,registro_id,idioma,campo',
+        })
+        if (error) throw new Error(error.message)
+      }
+      setCatEditandoTraducoes(null)
+    } catch (err: any) {
+      logSupabaseError('Erro ao salvar traduções da categoria', err)
+      setErro('Erro ao salvar traduções: ' + err.message)
+    } finally {
+      setSalvandoTraducoesCategoria(false)
+    }
   }
 
   // ── ABRIR MODAL ──────────────────────────
@@ -377,13 +497,41 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .eq('item_id', item.id)
 
       setGruposVinculadosIds((vinculos || []).map((v: any) => v.grupo_id))
+
+      const traducoesIniciais: TraducoesCampos = {}
+      for (const idi of idiomasAtivos) traducoesIniciais[idi] = { nome: '', descricao: '' }
+      if (idiomasAtivos.length > 0) {
+        const { data: trads } = await supabase
+          .from('traducoes')
+          .select('idioma, campo, valor')
+          .eq('tipo_registro', 'item')
+          .eq('registro_id', item.id)
+        for (const t of trads || []) {
+          if (!IDIOMAS_SUPORTADOS.includes(t.idioma as Idioma)) continue
+          const idi = t.idioma as Idioma
+          if (!traducoesIniciais[idi]) traducoesIniciais[idi] = { nome: '', descricao: '' }
+          const campo: 'nome' | 'descricao' | null = t.campo === 'nome' || t.campo === 'descricao' ? t.campo : null
+          if (campo) traducoesIniciais[idi]![campo] = t.valor
+        }
+      }
+      setTraducoesItem(traducoesIniciais)
     } else {
       setAlergenosSel([])
       setVariacoes([])
       setGruposVinculadosIds([])
+      const vazio: TraducoesCampos = {}
+      for (const idi of idiomasAtivos) vazio[idi] = { nome: '', descricao: '' }
+      setTraducoesItem(vazio)
     }
     setGrupoEditandoIndex(null)
     setModalAberto(true)
+  }
+
+  function atualizarTraducaoItem(idioma: Idioma, campo: 'nome' | 'descricao', valor: string) {
+    setTraducoesItem((prev) => ({
+      ...prev,
+      [idioma]: { nome: prev[idioma]?.nome || '', descricao: prev[idioma]?.descricao || '', [campo]: valor },
+    }))
   }
 
   function fecharModal() {
@@ -498,6 +646,34 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           if (vinculoError) {
             logSupabaseError('Erro ao vincular grupos de complementos', vinculoError)
             setErro('Item salvo, mas houve erro ao vincular os grupos de complementos: ' + vinculoError.message)
+          }
+        }
+      }
+
+      // traduções (EN/FR/ES) — mesmo padrão de sempre: apaga tudo e reinsere
+      // só o que está preenchido.
+      if (itemId && idiomasAtivos.length > 0) {
+        await supabase.from('traducoes').delete().eq('tipo_registro', 'item').eq('registro_id', itemId)
+
+        const linhasTraducao = idiomasAtivos.flatMap((idi) => {
+          const t = traducoesItem[idi] || { nome: '', descricao: '' }
+          const linhas: { estabelecimento_id: string; tipo_registro: string; registro_id: string; idioma: string; campo: string; valor: string }[] = []
+          if (t.nome.trim()) {
+            linhas.push({ estabelecimento_id: estabelecimentoId, tipo_registro: 'item', registro_id: itemId!, idioma: idi, campo: 'nome', valor: t.nome.trim() })
+          }
+          if (t.descricao.trim()) {
+            linhas.push({ estabelecimento_id: estabelecimentoId, tipo_registro: 'item', registro_id: itemId!, idioma: idi, campo: 'descricao', valor: t.descricao.trim() })
+          }
+          return linhas
+        })
+
+        if (linhasTraducao.length > 0) {
+          const { error: erroTraducoes } = await supabase.from('traducoes').upsert(linhasTraducao, {
+            onConflict: 'tipo_registro,registro_id,idioma,campo',
+          })
+          if (erroTraducoes) {
+            logSupabaseError('Erro ao salvar traduções', erroTraducoes)
+            setErro('Item salvo, mas houve erro ao salvar as traduções: ' + erroTraducoes.message)
           }
         }
       }
@@ -797,35 +973,108 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           return (
             <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               {/* cabeçalho */}
-              <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-b border-gray-200">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-800">{cat.nome}</span>
+              <div className="bg-gray-50 px-4 py-3 flex items-center justify-between gap-3 border-b border-gray-200">
+                {/* esquerda: nome + ações sobre a categoria em si */}
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  {catEditandoNome === cat.id ? (
+                    <>
+                      <input
+                        value={nomeCategoriaEdicao}
+                        onChange={(e) => setNomeCategoriaEdicao(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && salvarNomeCategoria(cat.id)}
+                        autoFocus
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                      />
+                      <button
+                        onClick={() => salvarNomeCategoria(cat.id)}
+                        disabled={salvandoNomeCategoria || !nomeCategoriaEdicao.trim()}
+                        className="text-xs font-semibold text-orange-600 hover:underline disabled:opacity-50"
+                      >
+                        {salvandoNomeCategoria ? 'salvando…' : 'salvar'}
+                      </button>
+                      <button
+                        onClick={() => setCatEditandoNome(null)}
+                        className="text-xs text-gray-500 hover:underline"
+                      >
+                        cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <span className="font-semibold text-gray-800">{cat.nome}</span>
+                  )}
                   <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
                     {catItens.length} {catItens.length === 1 ? 'item' : 'itens'}
                   </span>
+                  {!readOnly && catEditandoNome !== cat.id && (
+                    <div className="flex items-center gap-3 text-xs">
+                      <button
+                        onClick={() => iniciarEdicaoNomeCategoria(cat)}
+                        className="text-gray-500 hover:underline font-medium"
+                        title="Renomear categoria"
+                      >
+                        ✏️ editar nome
+                      </button>
+                      {idiomasAtivos.length > 0 && (
+                        <button
+                          onClick={() => abrirTraducoesCategoria(cat.id)}
+                          className="text-gray-500 hover:underline font-medium"
+                        >
+                          🌐 Traduções
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deletarCategoria(cat.id)}
+                        className="text-red-400 hover:text-red-600 hover:underline"
+                      >
+                        remover categoria
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {/* direita: ação separada — adicionar algo dentro da categoria */}
                 {!readOnly && (
-                  <div className="flex gap-3 text-xs">
-                    <button
-                      onClick={() => { setFCatId(cat.id); abrirModal() }}
-                      className="text-orange-600 hover:underline font-medium"
-                    >
-                      + item
-                    </button>
-                    <button
-                      onClick={() => deletarCategoria(cat.id)}
-                      className="text-red-400 hover:text-red-600 hover:underline"
-                    >
-                      remover categoria
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => { setFCatId(cat.id); abrirModal() }}
+                    className="shrink-0 text-orange-600 hover:underline font-medium text-xs"
+                  >
+                    + item
+                  </button>
                 )}
               </div>
+
+              {/* painel inline de traduções da categoria */}
+              {catEditandoTraducoes === cat.id && (
+                <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                  <p className="text-xs font-medium text-gray-600 mb-2">🌐 Traduções — {cat.nome}</p>
+                  <BlocoTraducoes
+                    idiomasAtivos={idiomasAtivos}
+                    campos={['nome']}
+                    valores={traducoesCategoria}
+                    onChange={(idi, _campo, valor) => atualizarTraducaoCategoria(idi, valor)}
+                  />
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => salvarTraducoesCategoria(cat.id)}
+                      disabled={salvandoTraducoesCategoria}
+                      className="text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-1.5 disabled:opacity-50"
+                    >
+                      {salvandoTraducoesCategoria ? 'Salvando…' : 'Salvar traduções'}
+                    </button>
+                    <button
+                      onClick={() => setCatEditandoTraducoes(null)}
+                      className="text-xs text-gray-500 hover:underline px-1"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* itens */}
               {catItens.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-gray-400 text-center">
-                  Nenhum item — clique em "+ item" para adicionar
+                  Nenhum item — clique em &quot;+ item&quot; para adicionar
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -892,6 +1141,9 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           salvarGrupoEstabelecimento={salvarGrupoEstabelecimento}
           excluirGrupoEstabelecimento={excluirGrupoEstabelecimento}
           salvandoGrupo={salvandoGrupo}
+          idiomasAtivos={idiomasAtivos}
+          traducoesItem={traducoesItem}
+          atualizarTraducaoItem={atualizarTraducaoItem}
         />
       )}
     </div>
@@ -1012,6 +1264,46 @@ function Acao({ onClick, title, emoji, destaque, perigo }: {
 }
 
 // ─────────────────────────────────────────────
+// BLOCO DE TRADUÇÕES — reutilizado no item (nome + descrição) e na
+// categoria (só nome, já que categoria não tem descrição em português).
+// ─────────────────────────────────────────────
+function BlocoTraducoes({
+  idiomasAtivos, campos, valores, onChange,
+}: {
+  idiomasAtivos: Idioma[]
+  campos: ('nome' | 'descricao')[]
+  valores: TraducoesCampos | TraducoesNome
+  onChange: (idioma: Idioma, campo: 'nome' | 'descricao', valor: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      {idiomasAtivos.map((idi) => (
+        <div key={idi} className="rounded-lg border border-gray-200 p-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-600">{IDIOMA_LABEL[idi]}</p>
+          {campos.includes('nome') && (
+            <input
+              value={(valores as TraducoesCampos)[idi]?.nome || ''}
+              onChange={(e) => onChange(idi, 'nome', e.target.value)}
+              placeholder="Nome traduzido"
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+            />
+          )}
+          {campos.includes('descricao') && (
+            <textarea
+              value={(valores as TraducoesCampos)[idi]?.descricao || ''}
+              onChange={(e) => onChange(idi, 'descricao', e.target.value)}
+              placeholder="Descrição traduzida"
+              rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
 // MODAL DE EDIÇÃO
 // ─────────────────────────────────────────────
 function ModalItem({
@@ -1032,7 +1324,9 @@ function ModalItem({
   grupoEditandoIndex, setGrupoEditandoIndex, iniciarNovoGrupo, atualizarCampoGrupoEditando,
   adicionarOpcaoNoGrupoEditando, atualizarOpcaoNoGrupoEditando, removerOpcaoNoGrupoEditando,
   salvarGrupoEstabelecimento, excluirGrupoEstabelecimento, salvandoGrupo, itensDisponiveis,
+  idiomasAtivos, traducoesItem, atualizarTraducaoItem,
 }: any) {
+  const [mostrarTraducoes, setMostrarTraducoes] = useState(false)
   // calcula preview do preço promocional em tempo real
   const precoBase = parseFloat((fPreco || '0').replace(',', '.')) || 0
   const descNum   = parseFloat((fPromoDesc || '0').replace(',', '.')) || 0
@@ -1146,7 +1440,7 @@ function ModalItem({
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Preço <span className="text-red-400">*</span>
               {variacoesAtivado && variacoes.length > 0 && (
-                <span className="text-gray-400 font-normal ml-1">(usado como "a partir de" na listagem)</span>
+                <span className="text-gray-400 font-normal ml-1">(usado como &quot;a partir de&quot; na listagem)</span>
               )}
             </label>
             <div className="relative w-40">
@@ -1399,6 +1693,30 @@ function ModalItem({
               </p>
             )}
           </div>
+
+          {/* TRADUÇÕES (EN/FR/ES) — só aparece com algum idioma ativado em Configurações → Idiomas */}
+          {idiomasAtivos.length > 0 && (
+            <div className="rounded-xl border border-gray-200 p-3">
+              <button
+                type="button"
+                onClick={() => setMostrarTraducoes((v) => !v)}
+                className="flex w-full items-center justify-between text-xs font-medium text-gray-600"
+              >
+                🌐 Traduções
+                <span className="text-gray-400">{mostrarTraducoes ? '▲' : '▼'}</span>
+              </button>
+              {mostrarTraducoes && (
+                <div className="mt-3">
+                  <BlocoTraducoes
+                    idiomasAtivos={idiomasAtivos}
+                    campos={['nome', 'descricao']}
+                    valores={traducoesItem}
+                    onChange={atualizarTraducaoItem}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* TOGGLES DE STATUS */}
           <div className="flex flex-wrap gap-5 pt-2 border-t border-gray-100">

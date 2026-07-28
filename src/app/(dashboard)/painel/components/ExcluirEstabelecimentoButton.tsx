@@ -23,7 +23,13 @@ export function ExcluirEstabelecimentoButton({ estabelecimentoId, nomeExibicao }
     startTransition(async () => {
       try {
         await excluirEstabelecimento(formData)
-      } catch (err) {
+      } catch (err: any) {
+        // redirect() na action lança um sinal interno do Next (NEXT_REDIRECT)
+        // pra navegar — não é um erro de verdade, precisa deixar passar,
+        // senão a exclusão funciona mas mostra "erro" mesmo assim. Mesmo
+        // padrão já usado em NovoEstabelecimentoForm.tsx e
+        // NovoEstabelecimentoAdminForm.tsx.
+        if (err?.digest?.startsWith?.('NEXT_REDIRECT')) throw err
         console.error('Erro ao excluir:', err)
         alert('Erro ao excluir estabelecimento.')
       }

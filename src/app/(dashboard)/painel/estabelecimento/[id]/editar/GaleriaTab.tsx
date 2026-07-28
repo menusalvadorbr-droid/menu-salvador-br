@@ -17,9 +17,11 @@ export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabPr
 
   const [fotos, setFotos] = useState<string[]>([])
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [fotoCapa, setFotoCapa] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingCapa, setUploadingCapa] = useState(false)
 
   useEffect(() => {
     carregarGaleria()
@@ -29,11 +31,12 @@ export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabPr
   async function carregarGaleria() {
     const { data } = await supabase
       .from('estabelecimentos')
-      .select('galeria_fotos, logo_url')
+      .select('galeria_fotos, logo_url, foto_capa')
       .eq('id', estabelecimentoId)
       .single()
     setFotos(data?.galeria_fotos || [])
     setLogoUrl(data?.logo_url || null)
+    setFotoCapa(data?.foto_capa || null)
     setLoading(false)
   }
 
@@ -75,6 +78,46 @@ export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabPr
       return
     }
     setLogoUrl(null)
+  }
+
+  async function uploadCapa(e: React.ChangeEvent<HTMLInputElement>) {
+    if (readOnly || !e.target.files?.length) return
+    const file = e.target.files[0]
+    setUploadingCapa(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message || data.error || 'Erro no upload')
+      if (!data.secure_url) throw new Error('URL não retornada pelo Cloudinary')
+
+      const { error } = await supabase
+        .from('estabelecimentos')
+        .update({ foto_capa: data.secure_url })
+        .eq('id', estabelecimentoId)
+      if (error) throw new Error(error.message)
+      setFotoCapa(data.secure_url)
+    } catch (err: any) {
+      alert('Erro ao enviar foto de capa: ' + err.message)
+    }
+    setUploadingCapa(false)
+    e.target.value = ''
+  }
+
+  async function removerCapa() {
+    if (readOnly) return
+    const { error } = await supabase
+      .from('estabelecimentos')
+      .update({ foto_capa: null })
+      .eq('id', estabelecimentoId)
+    if (error) {
+      alert('Erro ao remover foto de capa: ' + error.message)
+      return
+    }
+    setFotoCapa(null)
   }
 
   async function uploadFoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -143,6 +186,34 @@ export default function GaleriaTab({ estabelecimentoId, readOnly }: GaleriaTabPr
             {logoUrl && (
               <button onClick={removerLogo} className="text-xs text-red-500 hover:text-red-700 text-left">
                 Remover logo
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <h3 className="text-lg font-semibold mb-2">🖼️ Foto de capa</h3>
+      <p className="text-xs text-gray-400 mb-3">
+        Imagem de destaque no topo da página pública do estabelecimento. Ideal: formato paisagem (retangular),
+        bem diferente do logo.
+      </p>
+      <div className="flex flex-col gap-3 mb-8">
+        <div className="aspect-[21/9] w-full max-w-xl rounded-xl border border-gray-200 overflow-hidden flex items-center justify-center bg-gray-50">
+          {fotoCapa ? (
+            <img src={fotoCapa} alt="Foto de capa" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-sm text-gray-400">Nenhuma foto de capa</span>
+          )}
+        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-3">
+            <label className="bg-orange-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-orange-700 inline-block text-sm w-fit">
+              {uploadingCapa ? 'Enviando...' : fotoCapa ? 'Trocar foto de capa' : '+ Adicionar foto de capa'}
+              <input type="file" accept="image/*" onChange={uploadCapa} className="hidden" disabled={uploadingCapa} />
+            </label>
+            {fotoCapa && (
+              <button onClick={removerCapa} className="text-xs text-red-500 hover:text-red-700">
+                Remover foto de capa
               </button>
             )}
           </div>

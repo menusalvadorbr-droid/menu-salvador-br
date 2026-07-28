@@ -5,6 +5,8 @@ import HorariosEditor from '@/app/(dashboard)/painel/components/HorariosEditor'
 import ComodidadesTab from './ComodidadesTab'
 import GoogleReviewsTab from './GoogleReviewsTab'
 import CardapioRecursosTab from './CardapioRecursosTab'
+import GaleriaTab from '../GaleriaTab'
+import IdiomasTab from './IdiomasTab'
 
 interface ConfiguracoesTabProps {
   estabelecimento: {
@@ -19,6 +21,7 @@ interface ConfiguracoesTabProps {
 
 const SECOES = [
   { id: 'horarios', label: '🕒 Horários' },
+  { id: 'galeria', label: '🖼️ Galeria' },
   { id: 'comodidades', label: '✨ Comodidades' },
   { id: 'avaliacoes', label: '⭐ Avaliações Google' },
   { id: 'idiomas', label: '🌐 Idiomas' },
@@ -50,6 +53,9 @@ export default function ConfiguracoesTab({ estabelecimento, readOnly }: Configur
         {secaoAtiva === 'horarios' && (
           <HorariosEditor estabelecimentoId={estabelecimento.id} readOnly={readOnly} />
         )}
+        {secaoAtiva === 'galeria' && (
+          <GaleriaTab estabelecimentoId={estabelecimento.id} readOnly={readOnly} />
+        )}
         {secaoAtiva === 'comodidades' && (
           <ComodidadesTab estabelecimento={estabelecimento} />
         )}
@@ -60,13 +66,7 @@ export default function ConfiguracoesTab({ estabelecimento, readOnly }: Configur
           />
         )}
         {secaoAtiva === 'idiomas' && (
-          <div>
-            <h3 className="text-lg font-semibold mb-1">🌐 Idiomas</h3>
-            <p className="text-sm text-gray-400">
-              Ainda não existe — planejado pra oferecer o cardápio público em mais de um idioma. Por enquanto o
-              cardápio só é exibido em português.
-            </p>
-          </div>
+          <IdiomasTab estabelecimento={estabelecimento} />
         )}
         {secaoAtiva === 'cardapio-recursos' && (
           <CardapioRecursosTab estabelecimento={estabelecimento} readOnly={readOnly} />

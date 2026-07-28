@@ -6,6 +6,10 @@ import { redirect } from 'next/navigation'
 
 interface EnviarClaimInput {
   estabelecimentoId: string
+  nomeResponsavel?: string
+  cpfResponsavel?: string
+  telefoneContato?: string
+  whatsappContato?: string
 }
 
 export async function enviarClaim(input: EnviarClaimInput) {
@@ -22,14 +26,14 @@ export async function enviarClaim(input: EnviarClaimInput) {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile?.cpf) {
+  if (!profile?.cpf && !input.cpfResponsavel) {
     throw new Error('Complete seu perfil (CPF e contato) antes de reivindicar.')
   }
 
-  const nomeResponsavel = profile.nome || user.user_metadata?.full_name || ''
-  const cpfResponsavel = profile.cpf
-  const telefoneContato = profile.telefone || ''
-  const whatsappContato = profile.whatsapp || ''
+  const nomeResponsavel = input.nomeResponsavel || profile?.nome || user.user_metadata?.full_name || ''
+  const cpfResponsavel = input.cpfResponsavel || profile?.cpf || ''
+  const telefoneContato = input.telefoneContato || profile?.telefone || ''
+  const whatsappContato = input.whatsappContato || profile?.whatsapp || ''
 
   // ── Garante que o estabelecimento existe e ainda não tem dono ──
   // (checagem no servidor — nunca confiar só na tela que já escondia o

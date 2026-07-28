@@ -14,6 +14,7 @@ import BotaoFlutuante from '@/features/home/BotaoFlutuante'
 import PropagandaCard from '@/components/public/PropagandaCard'
 import SecaoAvaliacoesGoogle from '@/components/public/SecaoAvaliacoesGoogle'
 import { getPromocoesAtivas } from '@/features/home/getPromocoesAtivas'
+import { TraducaoProvider, Texto, SeletorIdioma, type TraducaoRow } from '@/components/public/TraducaoCardapio'
 import type { Metadata } from 'next'
 
 // ============================================================
@@ -566,7 +567,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
   const statusAberto = isEstabelecimentoAberto(horarios || [])
 
   const enderecoCompleto = est.endereco
-    ? `${[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')}, ${est.bairro}, ${est.cidade || 'Salvador'}, BA`
+    ? `${[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')}${est.numero ? ', ' + est.numero : ''}, ${est.bairro}, ${est.cidade || 'Salvador'}, BA`
     : `${est.bairro}, ${est.cidade || 'Salvador'}, BA`
 
   // O admin pode preencher um link de Google Maps manualmente — ele tem
@@ -584,6 +585,16 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
     ? `https://maps.google.com/maps?q=${est.latitude},${est.longitude}&z=16&output=embed`
     : `https://maps.google.com/maps?q=${encodeURIComponent(enderecoCompleto)}&output=embed`
 
+  // Link "abrir no Google Maps" (fora do iframe) — quando o admin preenche
+  // um link comum de "Compartilhar local" (não incorporável), ele não serve
+  // pro iframe, mas ainda tem prevalência aqui: sem isso, esse tipo de link
+  // ficava sem nenhum efeito na página pública, mesmo preenchido.
+  const linkAbrirMapa =
+    linkCustomizado ||
+    (est.latitude && est.longitude
+      ? `https://maps.google.com/maps?q=${est.latitude},${est.longitude}&z=16`
+      : `https://maps.google.com/maps?q=${encodeURIComponent(enderecoCompleto)}`)
+
   const nomeExibicao = est.nome_fantasia || est.nome
   const cidade = est.cidade || 'Salvador'
   const bairro = est.bairro
@@ -598,21 +609,41 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
   const temComodidade =
     est.aceita_pets || est.estacionamento || (est.acessibilidade && est.acessibilidade.length > 0)
 
+  // Tradução manual do cardápio (EN/FR/ES) — mesmo mecanismo do
+  // cardapio/[slug]/page.tsx; aqui só a seção de Promoções mostra nome de
+  // item (sem descrição, sem categoria).
+  const idiomasAtivos: string[] = est.idiomas_ativos || []
+  let traducoes: TraducaoRow[] = []
+  if (idiomasAtivos.length > 0) {
+    const { data: trads } = await supabase
+      .from('traducoes')
+      .select('tipo_registro, registro_id, idioma, campo, valor')
+      .eq('estabelecimento_id', est.id)
+    traducoes = trads || []
+  }
+
   return (
+    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes}>
     <div className="pb-16">
       <div className="mx-auto max-w-5xl px-4 pt-6">
-        {/* Hero – primeira foto da galeria. Controlado pelo toggle
-            "Capa" em /admin/configuracoes → Seções da página do
-            estabelecimento (antes o toggle existia mas não tinha
-            nenhum efeito aqui). */}
-        {secaoAtiva('capa') && galeriaFotos.length > 0 && (
+        {/* Hero – foto de capa dedicada (mesma fonte de verdade usada no
+            cardápio simples e nas listagens). Cai pra primeira foto da
+            galeria se o estabelecimento ainda não subiu uma capa própria.
+            Controlado pelo toggle "Capa" em /admin/configuracoes → Seções
+            da página do estabelecimento. */}
+        {secaoAtiva('capa') && (est.foto_capa || galeriaFotos.length > 0) && (
           <div className="relative mb-6 h-64 w-full overflow-hidden rounded-2xl md:h-80">
-            <Image src={galeriaFotos[0]} alt={nomeExibicao} fill sizes="(max-width: 768px) 100vw, 1024px" className="object-cover" />
+            <Image src={est.foto_capa || galeriaFotos[0]} alt={nomeExibicao} fill sizes="(max-width: 768px) 100vw, 1024px" className="object-cover" />
           </div>
         )}
 
         {/* Card principal */}
         <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
+          {idiomasAtivos.length > 0 && (
+            <div className="mb-2 flex justify-end">
+              <SeletorIdioma idiomasAtivos={idiomasAtivos} />
+            </div>
+          )}
           <div className="flex items-start gap-4">
             {est.logo_url && (
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-neutral-200">
@@ -674,7 +705,9 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                       <div className="space-y-3">
                         <h3 className="text-sm font-semibold text-neutral-700">Endereço</h3>
                         <p className="text-sm text-neutral-700">
-                          {[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ') || 'Endereço não informado'}
+                          {[[est.tipo_logradouro, est.endereco].filter(Boolean).join(' '), est.numero]
+                            .filter(Boolean)
+                            .join(', ') || 'Endereço não informado'}
                         </p>
                         <p className="text-xs text-neutral-500">{bairro} - {cidade}, BA</p>
                       </div>
@@ -748,7 +781,17 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                 case 'localizacao':
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">📍 Localização</h2>
+                      <div className="mb-2 flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-neutral-800">📍 Localização</h2>
+                        <a
+                          href={linkAbrirMapa}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-orange-600 hover:underline"
+                        >
+                          Abrir no Google Maps
+                        </a>
+                      </div>
                       <div className="h-56 w-full overflow-hidden rounded-xl border border-neutral-200">
                         <iframe
                           src={mapUrl}
@@ -816,7 +859,9 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                               </div>
                             )}
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-neutral-900">{item.nome}</p>
+                              <p className="truncate text-sm font-medium text-neutral-900">
+                                <Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto>
+                              </p>
                               <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>
                                 R$ {(item.preco_promocional ?? item.preco)?.toFixed(2)}
                               </p>
@@ -838,5 +883,6 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
         </div>
       </div>
     </div>
+    </TraducaoProvider>
   )
 }

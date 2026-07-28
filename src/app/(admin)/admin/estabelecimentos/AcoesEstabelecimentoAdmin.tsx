@@ -8,6 +8,7 @@ interface Props {
   nomeExibicao: string
   isPending: boolean
   isBlocked: boolean
+  isExcluido: boolean
   temDono: boolean
 }
 
@@ -16,12 +17,16 @@ export function AcoesEstabelecimentoAdmin({
   nomeExibicao,
   isPending,
   isBlocked,
+  isExcluido,
   temDono,
 }: Props) {
   const [isTransitioning, startTransition] = useTransition()
 
-  const executar = (acao: 'approve' | 'block' | 'unblock' | 'unlink') => {
+  const executar = (acao: 'approve' | 'block' | 'unblock' | 'unlink' | 'restore') => {
     if (acao === 'block' && !confirm(`Bloquear "${nomeExibicao}"? O estabelecimento vai sair do ar imediatamente.`)) {
+      return
+    }
+    if (acao === 'restore' && !confirm(`Restaurar "${nomeExibicao}"? Volta a ficar ativo e visível pro dono e ao público.`)) {
       return
     }
 
@@ -51,6 +56,17 @@ export function AcoesEstabelecimentoAdmin({
 
   return (
     <>
+      {isExcluido && (
+        <button
+          type="button"
+          disabled={isTransitioning}
+          onClick={() => executar('restore')}
+          className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
+        >
+          ♻️ Restaurar
+        </button>
+      )}
+
       {isPending && (
         <button
           type="button"
@@ -62,7 +78,9 @@ export function AcoesEstabelecimentoAdmin({
         </button>
       )}
 
-      {!isBlocked && (
+      {/* Bloquear/desbloquear não fazem sentido pra um estabelecimento que
+          o próprio dono já excluiu — a única ação de "reverter" ali é Restaurar. */}
+      {!isBlocked && !isExcluido && (
         <button
           type="button"
           disabled={isTransitioning}

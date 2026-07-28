@@ -13,8 +13,15 @@ export async function criarTipoEstabelecimento(nome: string, icone: string) {
   const { supabase, userId } = await checarSuperAdmin()
   const slug = gerarSlug(nome)
 
-  const { error } = await supabase.from('tipos_estabelecimento').insert({ nome: nome.trim(), slug, icone: icone.trim() || null })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase
+    .from('tipos_estabelecimento')
+    .insert({ nome: nome.trim(), slug, icone: icone.trim() || null })
+    .select('id')
+    .single()
+  if (error) {
+    if (error.code === '23505') throw new Error('Já existe um tipo com esse nome.')
+    throw new Error(error.message)
+  }
 
   await supabase.from('audit_logs').insert({
     usuario_id: userId,
@@ -24,6 +31,7 @@ export async function criarTipoEstabelecimento(nome: string, icone: string) {
   })
 
   revalidatePath('/admin/tipos')
+  return { id: data.id }
 }
 
 export async function toggleTipoEstabelecimento(id: number, ativo: boolean) {
@@ -85,8 +93,15 @@ export async function criarTipoCozinha(nome: string, icone: string) {
   const { supabase, userId } = await checarSuperAdmin()
   const slug = gerarSlug(nome)
 
-  const { error } = await supabase.from('tipos_cozinha').insert({ nome: nome.trim(), slug, icone: icone.trim() || null })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase
+    .from('tipos_cozinha')
+    .insert({ nome: nome.trim(), slug, icone: icone.trim() || null })
+    .select('id')
+    .single()
+  if (error) {
+    if (error.code === '23505') throw new Error('Já existe um tipo com esse nome.')
+    throw new Error(error.message)
+  }
 
   await supabase.from('audit_logs').insert({
     usuario_id: userId,
@@ -96,6 +111,7 @@ export async function criarTipoCozinha(nome: string, icone: string) {
   })
 
   revalidatePath('/admin/tipos')
+  return { id: data.id }
 }
 
 export async function toggleTipoCozinha(id: number, ativo: boolean) {

@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation'
 import TabsContainer from '@/app/(dashboard)/painel/components/TabsContainer'
 import CardapioTab from '../editar/CardapioTab'
 import QrCodeTab from '../editar/QrCodeTab'
-import GaleriaTab from '../editar/GaleriaTab'
 import PromocoesTab from '../editar/PromocoesTab'
 import EditarEstabelecimentoForm from '../editar/EditarEstabelecimentoForm'
 import { TemaEditor } from '@/components/tema'
@@ -32,6 +31,7 @@ export default function GerenciarEstabelecimentoPage({
   const [loading, setLoading] = useState(true)
   const [cargo, setCargo] = useState<string | null>(null) // null = é o dono
   const [acessoNegado, setAcessoNegado] = useState(false)
+  const [contaAberta, setContaAberta] = useState(false)
 
   useEffect(() => {
     async function carregar() {
@@ -135,21 +135,6 @@ export default function GerenciarEstabelecimentoPage({
   const emAnalise = estabelecimento.status === 'em_analise'
 
  const tabs = [
-  ...(ehDonoOuGerente
-    ? [
-        {
-          id: 'informacoes',
-          label: '📋 Informações',
-          content: (
-            <EditarEstabelecimentoForm
-              estabelecimento={estabelecimento}
-              podeEditar={podeEditar}
-              userId={usuarioLogadoId}
-            />
-          ),
-        },
-      ]
-    : []),
   {
     id: 'cardapio',
     label: '🍽️ Cardápio',
@@ -157,11 +142,6 @@ export default function GerenciarEstabelecimentoPage({
   },
   ...(ehDonoOuGerente
     ? [
-        {
-          id: 'galeria',
-          label: '🖼️ Galeria',
-          content: <GaleriaTab estabelecimentoId={estabelecimento.id} readOnly={!podeEditar} />,
-        },
         {
           id: 'promocoes',
           label: '⭐ Promoções',
@@ -222,9 +202,19 @@ export default function GerenciarEstabelecimentoPage({
             >
               ← Voltar ao painel
             </button>
-            <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
-              {estabelecimento.nome_fantasia || estabelecimento.nome}
-            </h1>
+            {ehDonoOuGerente ? (
+              <button
+                onClick={() => setContaAberta(true)}
+                className="text-left text-2xl font-bold tracking-tight text-neutral-900 transition hover:text-orange-600"
+                title="Ver e editar dados da conta"
+              >
+                {estabelecimento.nome_fantasia || estabelecimento.nome}
+              </button>
+            ) : (
+              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+                {estabelecimento.nome_fantasia || estabelecimento.nome}
+              </h1>
+            )}
           </div>
           <div className="flex gap-2">
             <Link
@@ -254,8 +244,37 @@ export default function GerenciarEstabelecimentoPage({
           </div>
         </div>
 
-        <TabsContainer tabs={tabs} defaultTab={ehDonoOuGerente ? 'informacoes' : 'cardapio'} />
+        <TabsContainer tabs={tabs} defaultTab="cardapio" />
       </div>
+
+      {contaAberta && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setContaAberta(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
+              <h2 className="font-semibold text-gray-900">Conta</h2>
+              <button
+                onClick={() => setContaAberta(false)}
+                className="text-xl leading-none text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6">
+              <EditarEstabelecimentoForm
+                estabelecimento={estabelecimento}
+                podeEditar={podeEditar}
+                userId={usuarioLogadoId}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

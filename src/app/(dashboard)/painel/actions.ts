@@ -75,15 +75,23 @@ export async function toggleOcultar(formData: FormData) {
 }
 
 // ============================================================
-// SERVER ACTION: EXCLUIR (soft delete)
+// SERVER ACTION: EXCLUIR (soft delete — vira fila de exclusão do admin)
 // ============================================================
 export async function excluirEstabelecimento(formData: FormData) {
   const id = formData.get('id') as string
   const supabase = await createClient()
-  await supabase
+  // status='excluido' (precisa estar liberado em estabelecimentos_status_check
+  // — ver SQL correspondente) tira o estabelecimento do painel do dono e o
+  // deixa numa fila própria em /admin/estabelecimentos, onde o super_admin
+  // decide entre restaurar (moderarEstabelecimento 'restore') ou excluir de
+  // vez (DELETE de verdade, já implementado em admin/estabelecimentos/actions.ts).
+  // ativo:false também, pra continuar coerente com toggleOcultar/isAtivo em
+  // todo o resto do app, que checam esse campo.
+  const { error } = await supabase
     .from('estabelecimentos')
-    .update({ status: 'inactive', ativo: false })
+    .update({ status: 'excluido', ativo: false })
     .eq('id', id)
+  if (error) throw new Error(error.message)
   redirect('/painel')
 }
 

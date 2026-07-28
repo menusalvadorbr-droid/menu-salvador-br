@@ -17,7 +17,7 @@ interface TiposManagerProps {
   descricao: string
   placeholderNome: string
   itensIniciais: TipoItem[]
-  onCriar: (nome: string, icone: string) => Promise<void>
+  onCriar: (nome: string, icone: string) => Promise<{ id: number }>
   onToggle: (id: number, ativo: boolean) => Promise<void>
   onEditar: (id: number, nome: string, icone: string) => Promise<void>
   onExcluir: (id: number) => Promise<void>
@@ -49,11 +49,11 @@ export default function TiposManager({
     setEnviando(true)
     setErro(null)
     try {
-      await onCriar(novoNome.trim(), novoIcone.trim())
+      const criado = await onCriar(novoNome.trim(), novoIcone.trim())
       setItens((prev) => [
         ...prev,
         {
-          id: Date.now(),
+          id: criado.id,
           nome: novoNome.trim(),
           slug: novoNome.trim().toLowerCase(),
           icone: novoIcone.trim() || null,

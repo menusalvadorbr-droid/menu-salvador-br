@@ -8,6 +8,7 @@ interface AtualizarEstabelecimentoAdminInput {
   estabelecimentoId: string
   nomeFantasia: string
   endereco: string
+  numero: string
   cep: string
   bairroId: string | null
   bairroNome: string
@@ -19,6 +20,8 @@ interface AtualizarEstabelecimentoAdminInput {
   tipoEstabelecimento: string
   tipoLogradouro: string
   linkGoogleMaps: string
+  latitude: string
+  longitude: string
 }
 
 export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecimentoAdminInput) {
@@ -28,9 +31,19 @@ export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecime
   if (!slugNormalizado) throw new Error('Slug inválido.')
   if (!input.nomeFantasia?.trim()) throw new Error('Nome fantasia é obrigatório.')
 
+  // Latitude/longitude são opcionais, mas se preenchidas precisam ser
+  // números de verdade — senão a "prevalência sobre o endereço" no mapa
+  // da página pública quebraria silenciosamente com NaN.
+  const latitudeTrim = input.latitude.trim()
+  const longitudeTrim = input.longitude.trim()
+  const latitude = latitudeTrim ? Number(latitudeTrim.replace(',', '.')) : null
+  const longitude = longitudeTrim ? Number(longitudeTrim.replace(',', '.')) : null
+  if (latitudeTrim && Number.isNaN(latitude)) throw new Error('Latitude inválida.')
+  if (longitudeTrim && Number.isNaN(longitude)) throw new Error('Longitude inválida.')
+
   const { data: anterior } = await supabase
     .from('estabelecimentos')
-    .select('nome_fantasia, endereco, cep, bairro, bairro_id, cidade, slug, telefone, whatsapp, instagram, tipo_estabelecimento, tipo_cozinha, tipo_logradouro, link_google_maps')
+    .select('nome_fantasia, endereco, numero, cep, bairro, bairro_id, cidade, slug, telefone, whatsapp, instagram, tipo_estabelecimento, tipo_cozinha, tipo_logradouro, link_google_maps, latitude, longitude')
     .eq('id', input.estabelecimentoId)
     .single()
 
@@ -54,6 +67,7 @@ export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecime
     .update({
       nome_fantasia: input.nomeFantasia.trim(),
       endereco: input.endereco || null,
+      numero: input.numero || null,
       cep: input.cep || null,
       // Guarda os dois: bairro_id (usado pra montar a URL bonita
       // cidade/bairro/tipo/slug) e bairro em texto (usado em várias
@@ -68,6 +82,8 @@ export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecime
       tipo_estabelecimento: input.tipoEstabelecimento || null,
       tipo_logradouro: input.tipoLogradouro || null,
       link_google_maps: input.linkGoogleMaps || null,
+      latitude,
+      longitude,
     })
     .eq('id', input.estabelecimentoId)
     .select('id')

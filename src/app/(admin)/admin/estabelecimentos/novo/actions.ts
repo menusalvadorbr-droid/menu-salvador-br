@@ -14,6 +14,7 @@ interface CriarEstabelecimentoAdminInput {
   cnaeCodigo: string | null
   tipoLogradouro: string | null
   endereco: string | null
+  numero: string | null
   cep: string | null
   cidade: string | null
   dataAbertura: string | null
@@ -70,6 +71,7 @@ export async function criarEstabelecimentoAdmin(input: CriarEstabelecimentoAdmin
       cnae_codigo: input.cnaeCodigo,
       tipo_logradouro: input.tipoLogradouro,
       endereco: input.endereco,
+      numero: input.numero,
       cep: input.cep,
       cidade: input.cidade || 'Salvador',
       data_abertura: input.dataAbertura,

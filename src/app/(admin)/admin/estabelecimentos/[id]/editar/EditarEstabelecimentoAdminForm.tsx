@@ -18,6 +18,7 @@ interface EditarEstabelecimentoAdminFormProps {
     nome_fantasia: string | null
     nome: string
     endereco: string | null
+    numero: string | null
     cep: string | null
     bairro: string | null
     bairro_id: string | null
@@ -28,6 +29,8 @@ interface EditarEstabelecimentoAdminFormProps {
     tipo_estabelecimento: string | null
     tipo_logradouro: string | null
     link_google_maps: string | null
+    latitude: number | null
+    longitude: number | null
   }
   bairros: Bairro[]
   tiposEstabelecimento: { slug: string; nome: string; icone: string | null }[]
@@ -38,6 +41,7 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
 
   const [nomeFantasia, setNomeFantasia] = useState(estabelecimento.nome_fantasia || estabelecimento.nome || '')
   const [endereco, setEndereco] = useState(estabelecimento.endereco || '')
+  const [numero, setNumero] = useState(estabelecimento.numero || '')
   const [cep, setCep] = useState(estabelecimento.cep || '')
   const [bairroId, setBairroId] = useState(estabelecimento.bairro_id || '')
   const [cidade, setCidade] = useState(estabelecimento.cidade || 'Salvador')
@@ -48,6 +52,8 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
   const [tipoEstabelecimento, setTipoEstabelecimento] = useState(estabelecimento.tipo_estabelecimento || '')
   const [tipoLogradouro, setTipoLogradouro] = useState(estabelecimento.tipo_logradouro || '')
   const [linkGoogleMaps, setLinkGoogleMaps] = useState(estabelecimento.link_google_maps || '')
+  const [latitude, setLatitude] = useState(estabelecimento.latitude != null ? String(estabelecimento.latitude) : '')
+  const [longitude, setLongitude] = useState(estabelecimento.longitude != null ? String(estabelecimento.longitude) : '')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +61,7 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
 
   const bairroSelecionado = bairros.find((b) => b.id === bairroId)
   const enderecoCompleto = [
-    [tipoLogradouro, endereco].filter(Boolean).join(' '),
+    [[tipoLogradouro, endereco].filter(Boolean).join(' '), numero].filter(Boolean).join(', '),
     bairroSelecionado?.nome,
     cidade && `${cidade}, BA`,
   ]
@@ -76,6 +82,7 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
         estabelecimentoId: estabelecimento.id,
         nomeFantasia,
         endereco,
+        numero,
         cep,
         bairroId: bairroId || null,
         bairroNome: bairroSelecionado?.nome || '',
@@ -87,6 +94,8 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
         tipoEstabelecimento,
         tipoLogradouro,
         linkGoogleMaps,
+        latitude,
+        longitude,
       })
       setSlug(resultado.slug)
       setSucesso(true)
@@ -142,15 +151,26 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
               className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Rua e número</label>
-            <input
-              type="text"
-              value={endereco}
-              onChange={(e) => setEndereco(e.target.value)}
-              placeholder='Ex: "das Flores, 123"'
-              className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            />
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-1">Logradouro</label>
+              <input
+                type="text"
+                value={endereco}
+                onChange={(e) => setEndereco(e.target.value)}
+                placeholder='Ex: "das Flores"'
+                className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">Número</label>
+              <input
+                type="text"
+                value={numero}
+                onChange={(e) => setNumero(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Bairro</label>
@@ -201,6 +221,35 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
           </a>
         )}
 
+        <div className="mt-3 grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Latitude (opcional)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              placeholder="-12.9777"
+              className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Longitude (opcional)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              placeholder="-38.5016"
+              className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+          <p className="col-span-2 text-xs text-neutral-400">
+            Só afeta o mapa incorporado da página pública (não muda o endereço nem a página de resultados). Preenchidas,
+            as coordenadas têm prevalência sobre o endereço no mapa.
+          </p>
+        </div>
+
         <div className="mt-3">
           <label className="block text-sm font-medium text-neutral-700 mb-1">Link do Google Maps (opcional)</label>
           <input
@@ -211,10 +260,11 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
           <p className="text-xs text-neutral-400 mt-1">
-            Preenchido, esse link tem prevalência sobre o endereço no mapa da página de perfil pública. Pra o mapa
-            incorporado funcionar de verdade (não só o botão de abrir), use o link de <strong>Google Maps → Compartilhar
-            → Incorporar um mapa</strong> (a URL de dentro do <code>src</code> do iframe, contém "/maps/embed"). Um
-            link comum de "Compartilhar local" só funciona como botão de abrir, não incorpora.
+            Ordem de prevalência no mapa da página pública: endereço (padrão) → coordenadas acima, se preenchidas →
+            este link, se preenchido (prevalece sobre os dois). Pra o mapa incorporado funcionar de verdade com este
+            link (não só o botão de abrir), use o link de <strong>Google Maps → Compartilhar → Incorporar um
+            mapa</strong> (a URL de dentro do <code>src</code> do iframe, contém "/maps/embed"). Um link comum de
+            "Compartilhar local" só funciona como botão de abrir, não incorpora.
           </p>
         </div>
       </div>

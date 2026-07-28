@@ -6,6 +6,20 @@ import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import BotaoAdicionarCarrinho from '@/modules/pedidos/customer/BotaoAdicionarCarrinho'
+import { TraducaoProvider, Texto, SeletorIdioma, type TraducaoRow } from '@/components/public/TraducaoCardapio'
+import SpecialOfferCard from '@/components/public/SpecialOfferCard'
+import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
+import ItemClicavel, { PararPropagacaoClique } from '@/components/public/ItemClicavel'
+
+// Fora do componente (Server Component roda uma vez por request, mas o
+// lint de pureza não sabe disso e trata new Date()/Date.now() escritos
+// direto no corpo do componente como impuro) — mesmo motivo de
+// calcularEstadoOferta já viver em módulo separado.
+function algumaOfertaEncerrandoEmBreve(ofertas: { estado: EstadoOferta }[]): boolean {
+  return ofertas.some(
+    ({ estado }) => estado.tipo === 'ativo' && (new Date(estado.fimIso).getTime() - Date.now()) / 60000 <= 30
+  )
+}
 
 // ─────────────────────────────────────────────────────────────
 // SEO
@@ -110,6 +124,15 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const alergenos = (item: any): any[] =>
     (item.item_allergens || []).map((r: any) => r.allergen).filter(Boolean)
 
+  // Layout do cardápio — campo `layout` de temas.config, hoje só usado pelo
+  // Modelo Catálogo (grid de cards). Qualquer tema sem esse campo (todos os
+  // que já existem) cai no fallback 'lista', comportamento de sempre.
+  const layoutCardapio: 'lista' | 'catalogo' = temaConfig.layout === 'catalogo' ? 'catalogo' : 'lista'
+
+  // "Clique expande" — opt-in via Configurações → Recursos do cardápio,
+  // independente de tema (funciona tanto na Lista quanto no Catálogo).
+  const cliqueExpandeAtivado = !!est.cardapio_clique_expande_ativado
+
   // Helper: classes e tamanhos da foto conforme posição
   function fotoLayout(pos: string) {
     if (pos === 'right') return { flex: 'flex-row-reverse', sz: 'w-24 h-24', sizes: '96px' }
@@ -119,14 +142,56 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   }
   const fl = fotoLayout(fotoPosicao)
 
+  // Tradução manual do cardápio (EN/FR/ES) — só busca se algum idioma
+  // estiver ativado em Configurações → Idiomas.
+  const idiomasAtivos: string[] = est.idiomas_ativos || []
+  let traducoes: TraducaoRow[] = []
+  if (idiomasAtivos.length > 0) {
+    const { data: trads } = await supabase
+      .from('traducoes')
+      .select('tipo_registro, registro_id, idioma, campo, valor')
+      .eq('estabelecimento_id', est.id)
+    traducoes = trads || []
+  }
+
+  // Promoções com contador (special_offers) — combos/ofertas por tempo
+  // limitado que não são itens do cardápio, feature independente das
+  // promoções de item, opt-in via Configurações → Recursos do cardápio.
+  const ofertasVisiveis: { offer: SpecialOfferRow; estado: EstadoOferta }[] = []
+  if (est.promocoes_contador_ativado) {
+    const { data: ofertasData } = await supabase
+      .from('special_offers')
+      .select('*')
+      .eq('estabelecimento_id', est.id)
+      .eq('ativo', true)
+    for (const offer of (ofertasData as SpecialOfferRow[]) || []) {
+      const estado = calcularEstadoOferta(offer)
+      if (estado.tipo !== 'fora') ofertasVisiveis.push({ offer, estado })
+    }
+    // Mais urgentes primeiro (quem termina mais cedo primeiro — pra uma
+    // oferta "ativo" isso já É a urgência), ofertas só anunciadas (sem
+    // horário ativo agora, logo sem "termina em" de verdade) por último.
+    ofertasVisiveis.sort((a, b) => {
+      const fimA = a.estado.tipo === 'ativo' ? new Date(a.estado.fimIso).getTime() : Infinity
+      const fimB = b.estado.tipo === 'ativo' ? new Date(b.estado.fimIso).getTime() : Infinity
+      return fimA - fimB
+    })
+  }
+
+  // Selo de alerta no cabeçalho da seção — acende se qualquer oferta ativa
+  // (special_offers) estiver a ≤30min do fim.
+  const mostrarAlertaEncerrando = algumaOfertaEncerrandoEmBreve(ofertasVisiveis)
+
   return (
     <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
+    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes}>
     <div className="min-h-screen" style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 
         {/* ── CABEÇALHO ── */}
         <div className="rounded-2xl p-5 shadow mb-4"
           style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+          <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-4">
             {est.logo_url && (
               <div className="relative w-14 h-14 flex-shrink-0 overflow-hidden rounded-full border-2"
@@ -147,9 +212,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
               </p>
               <p className="text-xs opacity-50 mt-0.5">{totalItens} itens · {categorias.length} categorias</p>
               {est.endereco && (
-                <p className="mt-1 text-xs opacity-60">📍 {est.endereco}</p>
+                <p className="mt-1 text-xs opacity-60">📍 {[est.endereco, est.numero].filter(Boolean).join(', ')}</p>
               )}
             </div>
+          </div>
+          <SeletorIdioma idiomasAtivos={idiomasAtivos} />
           </div>
           <Link
             href={
@@ -180,13 +247,18 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         </div>
 
         {/* ── CARROSSEL DE PROMOÇÕES ── */}
-        {itensComPromo.length > 0 && (
+        {(itensComPromo.length > 0 || ofertasVisiveis.length > 0) && (
           <div className="rounded-2xl mb-4 overflow-hidden shadow"
             style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
             <div className="px-4 py-3 border-b flex items-center gap-2"
               style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
               <span className="text-base">🔥</span>
               <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
+              {mostrarAlertaEncerrando && (
+                <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 animate-pulse">
+                  ⚠️ Encerrando em breve
+                </span>
+              )}
             </div>
             <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
               {itensComPromo.map((item: any) => {
@@ -195,7 +267,13 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                   ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
                 return (
                   <a key={item.id} href={`#cat-${item.categoria_id}`}
-                    className="flex-shrink-0 w-32 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
+                    // Altura fixa (não "auto") — sem isso, o align-items:stretch
+                    // padrão do flex do carrossel deixa esse card tão alto
+                    // quanto o vizinho mais alto da linha (o SpecialOfferCard,
+                    // que tem sua própria altura fixa maior), esticando esse
+                    // card de item mesmo sem precisar. Esse valor (h-44) é a
+                    // referência que SpecialOfferCard também usa.
+                    className="flex-shrink-0 w-32 h-44 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
                     style={{ backgroundColor: corF, borderColor: corBd }}>
                     <div className="relative h-20 bg-gray-100">
                       {foto
@@ -209,17 +287,22 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                       )}
                     </div>
                     <div className="p-2">
-                      {mostrarCodigo && item.codigo && (
-                        <span className="text-xs font-mono opacity-60 block">#{item.codigo}</span>
-                      )}
+                      {/* Código do produto (#123) fica só na listagem completa do
+                          cardápio — no carrossel, mais compacto, não aparece. */}
                       <p className="text-xs font-medium leading-tight line-clamp-2"
-                        style={{ color: corT }}>{item.nome}</p>
+                        style={{ color: corT }}><Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto></p>
                       <p className="text-xs text-gray-400 line-through mt-0.5">R$ {fmt(item.preco)}</p>
                       <p className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</p>
                     </div>
                   </a>
                 )
               })}
+              {itensComPromo.length > 0 && ofertasVisiveis.length > 0 && (
+                <div className="flex-shrink-0 w-px self-stretch my-1" style={{ backgroundColor: corBd }} />
+              )}
+              {ofertasVisiveis.map(({ offer, estado }) => (
+                <SpecialOfferCard key={offer.id} offer={offer} estado={estado} corP={corP} corT={corT} corF={corF} corBd={corBd} />
+              ))}
             </div>
           </div>
         )}
@@ -234,7 +317,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                 <a key={cat.id} href={`#cat-${cat.id}`}
                   className="flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition"
                   style={{ backgroundColor: `${corP}15`, color: corP }}>
-                  {cat.nome}
+                  <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
                 </a>
               )
             })}
@@ -247,6 +330,96 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             style={{ backgroundColor: corS }}>
             <p className="text-lg font-medium">Nenhum item disponível</p>
             <p className="text-sm opacity-60 mt-1">Volte em breve!</p>
+          </div>
+        ) : layoutCardapio === 'catalogo' ? (
+          <div className="space-y-6">
+            {categorias.map((cat: any) => {
+              const itens = itensPorCat[cat.id] || []
+              if (!itens.length) return null
+              return (
+                <div key={cat.id} id={`cat-${cat.id}`} className="scroll-mt-20">
+                  <h2 className="mb-3 text-base font-semibold" style={{ color: corP }}>
+                    <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
+                    <span className="ml-2 text-sm font-normal opacity-60">({itens.length})</span>
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {itens.map((item: any) => {
+                      const foto    = getOptimizedCloudinaryUrl(item.foto_url, 300, 300, 'fill')
+                      const algArr  = alergenos(item)
+                      const promoOk = item.promo_status === 'active' && item.preco_promocional
+                      const pct     = promoOk ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
+                      const temVariacoes = item.variacoes_item && item.variacoes_item.length > 0
+
+                      return (
+                        <div key={item.id}
+                          className="rounded-xl overflow-hidden shadow-sm transition hover:scale-105 hover:shadow-lg"
+                          style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+                          <ItemClicavel
+                            ativado={cliqueExpandeAtivado}
+                            nome={item.nome}
+                            descricao={item.descricao}
+                            fotoUrl={item.foto_url}
+                            preco={item.preco}
+                            precoPromocional={promoOk ? item.preco_promocional : null}
+                            alergenos={algArr}
+                            mostrarAlergenos={mostrarAlergenos}
+                            corP={corP} corT={corT} corS={corS} corBd={corBd}
+                          >
+                            {/* FOTO — altura fixa, cortada pra preencher */}
+                            <div className="relative h-32 bg-gray-100">
+                              {foto ? (
+                                <Image src={foto} alt={item.nome} fill
+                                  className="object-cover" sizes="(max-width: 640px) 50vw, 25vw" unoptimized loading="lazy" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-2xl">🍽️</div>
+                              )}
+                              {pct > 0 && (
+                                <span className="absolute top-1 left-1 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
+                                  style={{ backgroundColor: corP }}>-{pct}%</span>
+                              )}
+                            </div>
+
+                            {/* NOME + DESCRIÇÃO — centralizados */}
+                            <div className="p-3 text-center">
+                              <h3 className="font-semibold text-sm" style={{ color: corT }}>
+                                <Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto>
+                              </h3>
+                              {item.descricao && (
+                                <p className="text-xs opacity-60 mt-1 line-clamp-2" style={{ color: corT }}>
+                                  <Texto tipo="item" id={item.id} campo="descricao">{item.descricao}</Texto>
+                                </p>
+                              )}
+
+                              {/* PREÇO — etiqueta/pill, não só texto */}
+                              {promoOk && (
+                                <p className="text-xs text-gray-400 line-through mt-2">R$ {fmt(item.preco)}</p>
+                              )}
+                              <div className={`inline-block rounded-full px-3 py-1 text-sm font-bold text-white ${promoOk ? 'mt-1' : 'mt-2'}`}
+                                style={{ backgroundColor: corP }}>
+                                R$ {fmt(promoOk ? item.preco_promocional : item.preco)}
+                              </div>
+                            </div>
+                          </ItemClicavel>
+
+                          {/* Botão de comprar — fora do wrapper clicável, não abre o painel */}
+                          {!temVariacoes && (
+                            <PararPropagacaoClique className="px-3 pb-3 flex justify-center">
+                              <BotaoAdicionarCarrinho
+                                id={item.id}
+                                nome={item.nome}
+                                preco={item.preco}
+                                precoPromocional={promoOk ? item.preco_promocional : null}
+                                corDestaque={corP}
+                              />
+                            </PararPropagacaoClique>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         ) : (
           <div className="space-y-6">
@@ -262,7 +435,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                   <div className="px-5 py-3 border-b"
                     style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
                     <h2 className="text-base font-semibold" style={{ color: corP }}>
-                      {cat.nome}
+                      <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
                       <span className="ml-2 text-sm font-normal opacity-60">({itens.length})</span>
                     </h2>
                   </div>
@@ -276,6 +449,17 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
                       return (
                         <div key={item.id} className="p-4 group hover:bg-black/[.02] transition">
+                        <ItemClicavel
+                          ativado={cliqueExpandeAtivado}
+                          nome={item.nome}
+                          descricao={item.descricao}
+                          fotoUrl={item.foto_url}
+                          preco={item.preco}
+                          precoPromocional={promoOk ? item.preco_promocional : null}
+                          alergenos={algArr}
+                          mostrarAlergenos={mostrarAlergenos}
+                          corP={corP} corT={corT} corS={corS} corBd={corBd}
+                        >
                           <div className={`flex ${fl.flex} gap-4 items-start`}>
 
                             {/* FOTO */}
@@ -301,7 +485,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                       </span>
                                     )}
                                     <h3 className="font-semibold text-sm" style={{ color: corT }}>
-                                      {item.nome}
+                                      <Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto>
                                     </h3>
                                     {promoOk && (
                                       <span className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
@@ -317,7 +501,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                   </div>
                                   {item.descricao && (
                                     <p className="text-xs leading-relaxed opacity-70" style={{ color: corT }}>
-                                      {item.descricao}
+                                      <Texto tipo="item" id={item.id} campo="descricao">{item.descricao}</Texto>
                                     </p>
                                   )}
                                   {/* GRUPOS DE COMPLEMENTOS — só informativo por enquanto; o
@@ -417,19 +601,24 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                           R$ {fmt(item.preco)}
                                         </div>
                                       )}
-                                      <BotaoAdicionarCarrinho
-                                        id={item.id}
-                                        nome={item.nome}
-                                        preco={item.preco}
-                                        precoPromocional={promoOk ? item.preco_promocional : null}
-                                        corDestaque={corP}
-                                      />
+                                      {/* stopPropagation — clicar em "adicionar" não deve também
+                                          abrir o painel do ItemClicavel que embrulha a linha toda. */}
+                                      <PararPropagacaoClique>
+                                        <BotaoAdicionarCarrinho
+                                          id={item.id}
+                                          nome={item.nome}
+                                          preco={item.preco}
+                                          precoPromocional={promoOk ? item.preco_promocional : null}
+                                          corDestaque={corP}
+                                        />
+                                      </PararPropagacaoClique>
                                     </>
                                   )}
                                 </div>
                               </div>
                             </div>
                           </div>
+                        </ItemClicavel>
                         </div>
                       )
                     })}
@@ -446,6 +635,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         </p>
       </div>
     </div>
+    </TraducaoProvider>
     </CarrinhoProvider>
   )
 }

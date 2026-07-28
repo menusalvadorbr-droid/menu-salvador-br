@@ -58,11 +58,15 @@ export default async function PainelPage() {
     isSuperAdmin = profile.role === 'super_admin'
   }
 
-  // 3. Buscar estabelecimentos do dono
+  // 3. Buscar estabelecimentos do dono — exclui status='excluido' (o dono
+  //    já pediu pra excluir; a partir daí é fila do admin, não aparece mais
+  //    aqui, mesmo que o admin ainda não tenha decidido restaurar ou apagar
+  //    de vez).
   const { data: estabelecimentos, error } = await supabase
     .from('estabelecimentos')
     .select('id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
     .eq('owner_user_id', user.id)
+    .neq('status', 'excluido')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -83,7 +87,7 @@ export default async function PainelPage() {
 
   const estabelecimentosComoFuncionario = (vinculos || [])
     .map((v: any) => ({ ...v.estabelecimentos, cargo: v.cargo }))
-    .filter((e: any) => e && e.id)
+    .filter((e: any) => e && e.id && e.status !== 'excluido')
 
   const CARGO_LABEL: Record<string, string> = {
     gerente: '👔 Gerente',
@@ -150,7 +154,14 @@ export default async function PainelPage() {
       <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
         {/* Listagem */}
         {estabelecimentos && estabelecimentos.length > 0 ? (
-          <ListaEstabelecimentosDono estabelecimentos={estabelecimentos} toggleOcultar={toggleOcultar} />
+          // O TS infere estabelecimento_tipos_cozinha.tipos_cozinha como array pra
+          // esse select (sem tipos gerados do Supabase, a inferência de
+          // cardinalidade do embed erra) — na prática, é sempre objeto único
+          // (cada linha da junção aponta pra um só tipos_cozinha), como o resto
+          // do código já assume (ex: EstablishmentCard.tsx). `as any` aqui só
+          // pra não brigar com essa inferência errada, mesmo padrão já usado
+          // no resto deste arquivo pra resultado de query do Supabase.
+          <ListaEstabelecimentosDono estabelecimentos={estabelecimentos as any} toggleOcultar={toggleOcultar} />
         ) : (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-black/5">
             <Building2 className="w-16 h-16 mx-auto mb-4" style={{ color: '#D8CFC0' }} />

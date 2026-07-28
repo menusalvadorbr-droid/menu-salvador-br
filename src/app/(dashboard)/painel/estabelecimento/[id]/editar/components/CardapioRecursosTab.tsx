@@ -8,6 +8,8 @@ interface CardapioRecursosTabProps {
     id: string
     cardapio_variacoes_ativado?: boolean
     cardapio_complementos_ativado?: boolean
+    promocoes_contador_ativado?: boolean
+    cardapio_clique_expande_ativado?: boolean
   }
   readOnly?: boolean
 }
@@ -18,10 +20,12 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
 
   const [variacoesAtivado, setVariacoesAtivado] = useState(estabelecimento.cardapio_variacoes_ativado || false)
   const [complementosAtivado, setComplementosAtivado] = useState(estabelecimento.cardapio_complementos_ativado || false)
+  const [promocoesContadorAtivado, setPromocoesContadorAtivado] = useState(estabelecimento.promocoes_contador_ativado || false)
+  const [cliqueExpandeAtivado, setCliqueExpandeAtivado] = useState(estabelecimento.cardapio_clique_expande_ativado || false)
   const [salvando, setSalvando] = useState(false)
   const [mensagem, setMensagem] = useState<string | null>(null)
 
-  async function salvar(novoVariacoes: boolean, novoComplementos: boolean) {
+  async function salvar(novoVariacoes: boolean, novoComplementos: boolean, novoPromocoesContador: boolean, novoCliqueExpande: boolean) {
     if (readOnly) return
     setSalvando(true)
     setMensagem(null)
@@ -30,6 +34,8 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
       .update({
         cardapio_variacoes_ativado: novoVariacoes,
         cardapio_complementos_ativado: novoComplementos,
+        promocoes_contador_ativado: novoPromocoesContador,
+        cardapio_clique_expande_ativado: novoCliqueExpande,
       })
       .eq('id', estabelecimento.id)
 
@@ -85,7 +91,7 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
         onToggle={() => {
           const novo = !variacoesAtivado
           setVariacoesAtivado(novo)
-          salvar(novo, complementosAtivado)
+          salvar(novo, complementosAtivado, promocoesContadorAtivado, cliqueExpandeAtivado)
         }}
         titulo="Tamanhos/variações de preço"
         descricao='Pra pizzaria (P/M/G/Família) ou marmita (Para 1/Para 2) — adicione tamanhos com preços diferentes em cada item, na aba Cardápio.'
@@ -96,10 +102,32 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
         onToggle={() => {
           const novo = !complementosAtivado
           setComplementosAtivado(novo)
-          salvar(variacoesAtivado, novo)
+          salvar(variacoesAtivado, novo, promocoesContadorAtivado, cliqueExpandeAtivado)
         }}
         titulo="Grupos de complementos"
         descricao='Pra "monte sua marmita" (proteína + acompanhamentos) ou adicionais de pizza — crie grupos de opções reutilizáveis entre vários itens, na aba Cardápio.'
+      />
+
+      <ToggleRow
+        checked={promocoesContadorAtivado}
+        onToggle={() => {
+          const novo = !promocoesContadorAtivado
+          setPromocoesContadorAtivado(novo)
+          salvar(variacoesAtivado, complementosAtivado, novo, cliqueExpandeAtivado)
+        }}
+        titulo="Promoções com contador"
+        descricao="Cadastre combos e ofertas por tempo limitado (ex: happy hour) que não são itens do cardápio — aparecem no carrossel de promoções com contador regressivo, na aba Promoções."
+      />
+
+      <ToggleRow
+        checked={cliqueExpandeAtivado}
+        onToggle={() => {
+          const novo = !cliqueExpandeAtivado
+          setCliqueExpandeAtivado(novo)
+          salvar(variacoesAtivado, complementosAtivado, promocoesContadorAtivado, novo)
+        }}
+        titulo="Clique expande"
+        descricao="Tocar num item do cardápio público abre um painel com foto maior, descrição completa e alérgenos — funciona em qualquer tema, não só no Modelo Catálogo."
       />
 
       {salvando && <p className="text-xs text-gray-400 mt-2">Salvando…</p>}
