@@ -131,6 +131,16 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [gruposVinculadosIds, setGruposVinculadosIds] = useState<string[]>([])
   const [grupoEditandoIndex, setGrupoEditandoIndex] = useState<number | null>(null)
   const [salvandoGrupo, setSalvandoGrupo] = useState(false)
+  // Editor progressivo — as seções de tamanhos/grupos só aparecem abertas
+  // de cara quando o item editado já tem algo configurado; senão ficam
+  // atrás de um link, pra não poluir o formulário de item por padrão.
+  const [mostrarVariacoes, setMostrarVariacoes] = useState(false)
+  const [mostrarGrupos, setMostrarGrupos] = useState(false)
+  // Grupo(s) extra vinculado(s) por opção (opcao_grupo_complemento) — ex:
+  // escolher "Carne X" dentro de "Proteína base" libera o grupo "Ponto da
+  // carne". Carregado sob demanda quando o dono expande essa opção.
+  const [gruposExtrasPorOpcao, setGruposExtrasPorOpcao] = useState<Record<string, string[]>>({})
+  const [opcoesExtraExpandidas, setOpcoesExtraExpandidas] = useState<string[]>([])
 
   // UI – nova categoria
   const [novaCategoria, setNovaCategoria]       = useState('')
@@ -487,16 +497,18 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .select('allergen_id')
         .eq('item_id', item.id)
       setAlergenosSel(data?.map((a: any) => a.allergen_id) || [])
-      setVariacoes(
-        (item.variacoes || []).map((v) => ({ id: v.id, nome: v.nome, preco: v.preco.toString().replace('.', ',') }))
-      )
+      const variacoesDoItem = (item.variacoes || []).map((v) => ({ id: v.id, nome: v.nome, preco: v.preco.toString().replace('.', ',') }))
+      setVariacoes(variacoesDoItem)
+      setMostrarVariacoes(variacoesDoItem.length > 0)
 
       const { data: vinculos } = await supabase
         .from('item_grupo_complemento')
         .select('grupo_id')
         .eq('item_id', item.id)
 
-      setGruposVinculadosIds((vinculos || []).map((v: any) => v.grupo_id))
+      const vinculadosDoItem = (vinculos || []).map((v: any) => v.grupo_id)
+      setGruposVinculadosIds(vinculadosDoItem)
+      setMostrarGrupos(vinculadosDoItem.length > 0)
 
       const traducoesIniciais: TraducoesCampos = {}
       for (const idi of idiomasAtivos) traducoesIniciais[idi] = { nome: '', descricao: '' }
@@ -519,11 +531,14 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       setAlergenosSel([])
       setVariacoes([])
       setGruposVinculadosIds([])
+      setMostrarVariacoes(false)
+      setMostrarGrupos(false)
       const vazio: TraducoesCampos = {}
       for (const idi of idiomasAtivos) vazio[idi] = { nome: '', descricao: '' }
       setTraducoesItem(vazio)
     }
     setGrupoEditandoIndex(null)
+    setOpcoesExtraExpandidas([])
     setModalAberto(true)
   }
 
@@ -746,6 +761,43 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     )
   }
 
+  // Expande/recolhe o "+ Vincular grupo obrigatório extra" de uma opção —
+  // carrega os vínculos já existentes na primeira vez que abre (não a
+  // cada render), igual ao resto do editor (busca sob demanda).
+  async function toggleExtraDaOpcao(opcaoId: string) {
+    const jaExpandida = opcoesExtraExpandidas.includes(opcaoId)
+    if (jaExpandida) {
+      setOpcoesExtraExpandidas((prev) => prev.filter((id) => id !== opcaoId))
+      return
+    }
+    setOpcoesExtraExpandidas((prev) => [...prev, opcaoId])
+    if (!(opcaoId in gruposExtrasPorOpcao)) {
+      const { data } = await supabase
+        .from('opcao_grupo_complemento')
+        .select('grupo_id')
+        .eq('opcao_id', opcaoId)
+      setGruposExtrasPorOpcao((prev) => ({ ...prev, [opcaoId]: (data || []).map((v: { grupo_id: string }) => v.grupo_id) }))
+    }
+  }
+
+  // Vínculo condicional opção → grupo extra (opcao_grupo_complemento) —
+  // grava na hora, igual toggleVinculoGrupo, mas essa relação é por
+  // opção específica, não pelo item inteiro, então não dá pra esperar o
+  // "Salvar alterações do grupo" (que nem sabe qual opção é essa).
+  async function toggleGrupoExtra(opcaoId: string, grupoId: string) {
+    const atuais = gruposExtrasPorOpcao[opcaoId] || []
+    const vinculado = atuais.includes(grupoId)
+    setGruposExtrasPorOpcao((prev) => ({
+      ...prev,
+      [opcaoId]: vinculado ? atuais.filter((id) => id !== grupoId) : [...atuais, grupoId],
+    }))
+    if (vinculado) {
+      await supabase.from('opcao_grupo_complemento').delete().eq('opcao_id', opcaoId).eq('grupo_id', grupoId)
+    } else {
+      await supabase.from('opcao_grupo_complemento').insert({ opcao_id: opcaoId, grupo_id: grupoId })
+    }
+  }
+
   // Abre um grupo em branco pra criar (ainda não existe no banco).
   function iniciarNovoGrupo() {
     setGruposEstabelecimento((prev) => [...prev, { nome: '', selecaoMinima: '0', selecaoMaxima: '1', opcoes: [] }])
@@ -766,7 +818,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     )
   }
 
-  function atualizarOpcaoNoGrupoEditando(opcaoIndex: number, campo: 'itemId' | 'precoAdicional', valor: string) {
+  function atualizarOpcaoNoGrupoEditando(opcaoIndex: number, campo: 'itemId' | 'precoAdicional' | 'exibirPreco', valor: string | boolean) {
     if (grupoEditandoIndex === null) return
     setGruposEstabelecimento((prev) =>
       prev.map((g, i) =>
@@ -825,19 +877,32 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         setGruposVinculadosIds((prev) => [...prev, grupoId!])
       }
 
-      // Opções: apaga tudo e reinsere (mesmo padrão de sempre)
-      await supabase.from('opcoes_complemento').delete().eq('grupo_id', grupoId)
+      // Opções: upsert (preserva o id das que já existiam) + apaga só as
+      // removidas da lista — não é mais delete-then-insert de tudo, porque
+      // isso trocava o id de toda opção a cada salvamento do grupo e
+      // quebrava (por CASCADE) qualquer vínculo de grupo extra
+      // (opcao_grupo_complemento) que já tivesse sido configurado nela,
+      // mesmo quando essa opção específica nem tinha mudado.
       const opcoesValidas = g.opcoes
         .filter((o) => o.itemId)
         .map((o, j) => ({
+          ...(o.id ? { id: o.id } : {}),
           grupo_id: grupoId,
           item_id: o.itemId,
           preco_adicional: parseFloat((o.precoAdicional || '0').replace(',', '.')) || 0,
           exibir_preco: o.exibirPreco,
           ordem: j,
         }))
+
+      const idsMantidos = opcoesValidas.filter((o): o is typeof o & { id: string } => !!o.id).map((o) => o.id)
+      const { data: opcoesNoBanco } = await supabase.from('opcoes_complemento').select('id').eq('grupo_id', grupoId)
+      const idsParaApagar = (opcoesNoBanco || []).map((r) => r.id).filter((id) => !idsMantidos.includes(id))
+      if (idsParaApagar.length > 0) {
+        await supabase.from('opcoes_complemento').delete().in('id', idsParaApagar)
+      }
+
       if (opcoesValidas.length > 0) {
-        const { error: opcoesError } = await supabase.from('opcoes_complemento').insert(opcoesValidas)
+        const { error: opcoesError } = await supabase.from('opcoes_complemento').upsert(opcoesValidas)
         if (opcoesError) throw new Error(opcoesError.message)
       }
 
@@ -1127,6 +1192,8 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           adicionarVariacao={adicionarVariacao}
           atualizarVariacao={atualizarVariacao}
           removerVariacao={removerVariacao}
+          mostrarVariacoes={mostrarVariacoes}
+          setMostrarVariacoes={setMostrarVariacoes}
           complementosAtivado={complementosAtivado}
           gruposEstabelecimento={gruposEstabelecimento}
           gruposVinculadosIds={gruposVinculadosIds}
@@ -1141,6 +1208,12 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           salvarGrupoEstabelecimento={salvarGrupoEstabelecimento}
           excluirGrupoEstabelecimento={excluirGrupoEstabelecimento}
           salvandoGrupo={salvandoGrupo}
+          mostrarGrupos={mostrarGrupos}
+          setMostrarGrupos={setMostrarGrupos}
+          opcoesExtraExpandidas={opcoesExtraExpandidas}
+          toggleExtraDaOpcao={toggleExtraDaOpcao}
+          gruposExtrasPorOpcao={gruposExtrasPorOpcao}
+          toggleGrupoExtra={toggleGrupoExtra}
           idiomasAtivos={idiomasAtivos}
           traducoesItem={traducoesItem}
           atualizarTraducaoItem={atualizarTraducaoItem}
@@ -1320,10 +1393,13 @@ function ModalItem({
   fPromoInicio, setFPromoInicio,
   fPromoFim, setFPromoFim,
   variacoesAtivado, variacoes, adicionarVariacao, atualizarVariacao, removerVariacao,
+  mostrarVariacoes, setMostrarVariacoes,
   complementosAtivado, gruposEstabelecimento, gruposVinculadosIds, toggleVinculoGrupo,
   grupoEditandoIndex, setGrupoEditandoIndex, iniciarNovoGrupo, atualizarCampoGrupoEditando,
   adicionarOpcaoNoGrupoEditando, atualizarOpcaoNoGrupoEditando, removerOpcaoNoGrupoEditando,
   salvarGrupoEstabelecimento, excluirGrupoEstabelecimento, salvandoGrupo, itensDisponiveis,
+  mostrarGrupos, setMostrarGrupos,
+  opcoesExtraExpandidas, toggleExtraDaOpcao, gruposExtrasPorOpcao, toggleGrupoExtra,
   idiomasAtivos, traducoesItem, atualizarTraducaoItem,
 }: any) {
   const [mostrarTraducoes, setMostrarTraducoes] = useState(false)
@@ -1456,8 +1532,20 @@ function ModalItem({
             </div>
           </div>
 
-          {/* VARIAÇÕES DE TAMANHO/PREÇO (fase 1 do módulo cardápio) */}
-          {variacoesAtivado && (
+          {/* VARIAÇÕES DE TAMANHO/PREÇO (fase 1 do módulo cardápio) — editor
+              progressivo: fechada por padrão atrás de um link, não polui o
+              formulário de item pra quem não usa. Abre sozinha quando o
+              item editado já tem alguma variação configurada. */}
+          {variacoesAtivado && !mostrarVariacoes && (
+            <button
+              type="button"
+              onClick={() => setMostrarVariacoes(true)}
+              className="text-xs font-medium text-orange-600 hover:underline"
+            >
+              + Adicionar tamanhos
+            </button>
+          )}
+          {variacoesAtivado && mostrarVariacoes && (
             <div className="rounded-xl border border-gray-200 p-3 space-y-2">
               <label className="block text-xs font-medium text-gray-600">
                 Tamanhos/variações <span className="text-gray-400 font-normal">(opcional — ex: Pequena, Média, Grande)</span>
@@ -1499,8 +1587,19 @@ function ModalItem({
             </div>
           )}
 
-          {/* GRUPOS DE COMPLEMENTOS (fase 2 do módulo cardápio) */}
-          {complementosAtivado && (
+          {/* GRUPOS DE COMPLEMENTOS (fase 2 do módulo cardápio) — mesmo
+              editor progressivo: fechado por padrão atrás de um link, abre
+              sozinho quando o item já tem grupo vinculado. */}
+          {complementosAtivado && !mostrarGrupos && (
+            <button
+              type="button"
+              onClick={() => setMostrarGrupos(true)}
+              className="text-xs font-medium text-orange-600 hover:underline"
+            >
+              + Vincular grupo de complementos
+            </button>
+          )}
+          {complementosAtivado && mostrarGrupos && (
             <div className="space-y-2">
               <label className="block text-xs font-medium text-gray-600">
                 Grupos de complementos <span className="text-gray-400 font-normal">(ex: Guarnições — compartilhado entre vários itens)</span>
@@ -1581,7 +1680,8 @@ function ModalItem({
 
                         <div className="space-y-1.5 pl-2 border-l-2 border-gray-200">
                           {g.opcoes.map((o: OpcaoComplemento, oi: number) => (
-                            <div key={oi} className="flex gap-2 items-center">
+                            <div key={oi}>
+                            <div className="flex gap-2 items-center">
                               <select
                                 value={o.itemId}
                                 onChange={(e) => atualizarOpcaoNoGrupoEditando(oi, 'itemId', e.target.value)}
@@ -1607,7 +1707,7 @@ function ModalItem({
                                 <input
                                   type="checkbox"
                                   checked={o.exibirPreco}
-                                  onChange={() => undefined}
+                                  onChange={(e) => atualizarOpcaoNoGrupoEditando(oi, 'exibirPreco', e.target.checked)}
                                   className="rounded"
                                 />
                                 Mostrar preço
@@ -1620,6 +1720,53 @@ function ModalItem({
                               >
                                 ✕
                               </button>
+                            </div>
+
+                            {/* Grupo obrigatório extra (opcao_grupo_complemento) — só
+                                depois da opção salva, já que a relação aponta pro id
+                                dela. Ex: escolher "Carne X" libera "Ponto da carne". */}
+                            {o.id ? (
+                              <div className="pl-1 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExtraDaOpcao(o.id!)}
+                                  className="text-[11px] font-medium text-orange-600 hover:underline"
+                                >
+                                  {opcoesExtraExpandidas.includes(o.id) ? 'Fechar grupo extra' : '+ Vincular grupo obrigatório extra'}
+                                </button>
+                                {opcoesExtraExpandidas.includes(o.id) && (
+                                  <div className="mt-1 space-y-1 rounded-lg border border-gray-200 bg-white p-2">
+                                    <p className="text-[11px] text-gray-500">
+                                      Grupo(s) que só aparecem pro cliente quando ele escolher &quot;{o.itemNome || 'esta opção'}&quot;.
+                                    </p>
+                                    {gruposEstabelecimento.filter((outro: GrupoComplemento) => outro.id && outro.id !== g.id).length === 0 ? (
+                                      <p className="text-[11px] text-gray-400">Crie outro grupo primeiro pra poder vincular aqui.</p>
+                                    ) : (
+                                      gruposEstabelecimento
+                                        .filter((outro: GrupoComplemento) => outro.id && outro.id !== g.id)
+                                        .map((outro: GrupoComplemento) => {
+                                          const vinculadoExtra = (gruposExtrasPorOpcao[o.id!] || []).includes(outro.id!)
+                                          return (
+                                            <label key={outro.id} className="flex items-center gap-1.5 text-xs text-gray-600">
+                                              <input
+                                                type="checkbox"
+                                                checked={vinculadoExtra}
+                                                onChange={() => toggleGrupoExtra(o.id!, outro.id!)}
+                                                className="w-3.5 h-3.5 accent-orange-500"
+                                              />
+                                              {outro.nome || '(sem nome)'}
+                                            </label>
+                                          )
+                                        })
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="pl-1 mt-1 text-[11px] text-gray-400">
+                                Salve o grupo pra poder vincular um grupo extra a esta opção.
+                              </p>
+                            )}
                             </div>
                           ))}
                           <button

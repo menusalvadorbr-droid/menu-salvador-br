@@ -37,6 +37,12 @@ function montarMensagemWhatsApp(dados: DadosFinalizacao): string {
   dados.items.forEach((item, i) => {
     const subtotal = (item.preco * item.quantidade).toFixed(2)
     mensagem += `${i + 1}️⃣  *${item.quantidade}x*  ${item.nome}\n`
+    if (item.variacao) {
+      mensagem += `       Tamanho: ${item.variacao.nome}\n`
+    }
+    if (item.complementos && item.complementos.length > 0) {
+      mensagem += `       Complementos: ${item.complementos.map((c) => c.opcaoNome).join(', ')}\n`
+    }
     mensagem += `       R$ ${item.preco.toFixed(2)} cada  |  Subtotal: R$ ${subtotal}\n\n`
   })
   mensagem += `━━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ ${dados.total.toFixed(2)}*\n━━━━━━━━━━━━━━━━━━\n\n`

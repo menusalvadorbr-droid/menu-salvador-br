@@ -3,29 +3,43 @@
 import { useState, useCallback } from 'react'
 import type { ItemPedido as ItemSacola } from '../types'
 
+// Duas adições do mesmo prato só viram a mesma linha (e só então
+// incrementam quantidade) se tiverem a mesma variação e os mesmos
+// complementos — senão "Pizza G + borda recheada" e "Pizza G" sozinha
+// se fundiriam numa linha só, perdendo a customização de uma delas.
+function chaveLinha(item: Omit<ItemSacola, 'quantidade' | 'linhaId'>): string {
+  const variacao = item.variacao?.id || ''
+  const complementos = (item.complementos || [])
+    .map(c => c.opcaoId)
+    .sort()
+    .join(',')
+  return `${item.id}::${variacao}::${complementos}`
+}
+
 export function useSacola() {
   const [itens, setItens] = useState<ItemSacola[]>([])
 
-  const adicionarItem = useCallback((item: Omit<ItemSacola, 'quantidade'>) => {
+  const adicionarItem = useCallback((item: Omit<ItemSacola, 'quantidade' | 'linhaId'>) => {
+    const linhaId = chaveLinha(item)
     setItens(prev => {
-      const existente = prev.find(i => i.id === item.id)
+      const existente = prev.find(i => i.linhaId === linhaId)
       if (existente) {
         return prev.map(i =>
-          i.id === item.id ? { ...i, quantidade: i.quantidade + 1 } : i
+          i.linhaId === linhaId ? { ...i, quantidade: i.quantidade + 1 } : i
         )
       }
-      return [...prev, { ...item, quantidade: 1, observacao: '' }]
+      return [...prev, { ...item, quantidade: 1, observacao: '', linhaId }]
     })
   }, [])
 
-  const removerItem = useCallback((id: string) => {
-    setItens(prev => prev.filter(i => i.id !== id))
+  const removerItem = useCallback((linhaId: string) => {
+    setItens(prev => prev.filter(i => i.linhaId !== linhaId))
   }, [])
 
-  const alterarQuantidade = useCallback((id: string, delta: number) => {
+  const alterarQuantidade = useCallback((linhaId: string, delta: number) => {
     setItens(prev =>
       prev.map(i => {
-        if (i.id !== id) return i
+        if (i.linhaId !== linhaId) return i
         const novaQuantidade = i.quantidade + delta
         return novaQuantidade <= 0 ? i : { ...i, quantidade: novaQuantidade }
       }).filter(i => i.quantidade > 0)

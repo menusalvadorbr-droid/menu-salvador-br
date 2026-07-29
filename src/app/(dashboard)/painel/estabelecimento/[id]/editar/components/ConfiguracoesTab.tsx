@@ -7,6 +7,7 @@ import GoogleReviewsTab from './GoogleReviewsTab'
 import CardapioRecursosTab from './CardapioRecursosTab'
 import GaleriaTab from '../GaleriaTab'
 import IdiomasTab from './IdiomasTab'
+import GestaoTab from './GestaoTab'
 
 interface ConfiguracoesTabProps {
   estabelecimento: {
@@ -26,6 +27,7 @@ const SECOES = [
   { id: 'avaliacoes', label: '⭐ Avaliações Google' },
   { id: 'idiomas', label: '🌐 Idiomas' },
   { id: 'cardapio-recursos', label: '🍽️ Recursos do cardápio' },
+  { id: 'gestao', label: '🛠️ Módulo de Gestão' },
 ] as const
 
 export default function ConfiguracoesTab({ estabelecimento, readOnly }: ConfiguracoesTabProps) {
@@ -70,6 +72,9 @@ export default function ConfiguracoesTab({ estabelecimento, readOnly }: Configur
         )}
         {secaoAtiva === 'cardapio-recursos' && (
           <CardapioRecursosTab estabelecimento={estabelecimento} readOnly={readOnly} />
+        )}
+        {secaoAtiva === 'gestao' && (
+          <GestaoTab estabelecimento={estabelecimento} readOnly={readOnly} />
         )}
       </div>
     </div>

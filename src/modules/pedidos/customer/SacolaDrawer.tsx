@@ -9,8 +9,8 @@ interface SacolaDrawerProps {
   itens: ItemSacola[]
   total: number
   onFechar: () => void
-  onRemover: (id: string) => void
-  onAlterarQuantidade: (id: string, delta: number) => void
+  onRemover: (linhaId: string) => void
+  onAlterarQuantidade: (linhaId: string, delta: number) => void
   onFinalizar: () => void
 }
 
@@ -69,17 +69,25 @@ export default function SacolaDrawer({
               const preco = item.preco_promocional && item.preco_promocional < item.preco
                 ? item.preco_promocional
                 : item.preco
+              const linhaId = item.linhaId || item.id
+              const detalhes = [
+                item.variacao?.nome,
+                ...(item.complementos || []).map((c) => c.opcaoNome),
+              ].filter(Boolean)
               return (
-                <div key={item.id} className="flex justify-between items-center border-b pb-3">
+                <div key={linhaId} className="flex justify-between items-center border-b pb-3">
                   <div className="flex-1">
                     <p className="font-medium text-gray-800">{item.nome}</p>
+                    {detalhes.length > 0 && (
+                      <p className="text-xs text-gray-400">{detalhes.join(' · ')}</p>
+                    )}
                     <p className="text-sm text-gray-500">
                       R$ {formatarPreco(preco)} x {item.quantidade}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onAlterarQuantidade(item.id, -1)}
+                      onClick={() => onAlterarQuantidade(linhaId, -1)}
                       className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
                       aria-label="Diminuir quantidade"
                     >
@@ -87,14 +95,14 @@ export default function SacolaDrawer({
                     </button>
                     <span className="w-6 text-center">{item.quantidade}</span>
                     <button
-                      onClick={() => onAlterarQuantidade(item.id, 1)}
+                      onClick={() => onAlterarQuantidade(linhaId, 1)}
                       className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
                       aria-label="Aumentar quantidade"
                     >
                       +
                     </button>
                     <button
-                      onClick={() => onRemover(item.id)}
+                      onClick={() => onRemover(linhaId)}
                       className="text-red-500 hover:text-red-700 ml-2 text-xl"
                       aria-label="Remover item"
                     >

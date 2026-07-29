@@ -1,18 +1,31 @@
 'use client'
 
-import { useState, useEffect, useRef, use } from 'react'
+import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { logSupabaseError } from '@/lib/supabase/logError'
-import { useRouter } from 'next/navigation'
-import TabsContainer from '@/app/(dashboard)/painel/components/TabsContainer'
-import CardapioTab from '../editar/CardapioTab'
-import QrCodeTab from '../editar/QrCodeTab'
-import PromocoesTab from '../editar/PromocoesTab'
+import { ArrowLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react'
 import EditarEstabelecimentoForm from '../editar/EditarEstabelecimentoForm'
-import { TemaEditor } from '@/components/tema'
-import ConfiguracoesTab from '../editar/components/ConfiguracoesTab'
-import FuncionariosTab from './FuncionariosTab'
+import EstadoCarregamento from './EstadoCarregamento'
+import { useEstabelecimentoGerenciar } from './useEstabelecimentoGerenciar'
+
+function saudacao() {
+  const hora = new Date().getHours()
+  if (hora < 12) return 'Bom dia'
+  if (hora < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
+function statusBadge(estabelecimento: { status: string; ativo: boolean | null }) {
+  if (estabelecimento.status === 'em_analise') {
+    return { label: '🕒 Em análise', bg: 'bg-amber-50', text: 'text-amber-700' }
+  }
+  if (estabelecimento.status === 'blocked') {
+    return { label: '🚫 Bloqueado', bg: 'bg-red-50', text: 'text-red-700' }
+  }
+  if (estabelecimento.ativo === false) {
+    return { label: '🙈 Oculto', bg: 'bg-gray-100', text: 'text-gray-600' }
+  }
+  return { label: '✅ Ativo', bg: 'bg-green-50', text: 'text-green-700' }
+}
 
 export default function GerenciarEstabelecimentoPage({
   params,
@@ -20,167 +33,76 @@ export default function GerenciarEstabelecimentoPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const router = useRouter()
-  // Estabilizar a referência do cliente com useRef para não disparar
-  // useEffect toda vez que o componente re-renderizar
-  const supabaseRef = useRef(createClient())
-  const supabase = supabaseRef.current
-
-  const [estabelecimento, setEstabelecimento] = useState<any>(null)
-  const [usuarioLogadoId, setUsuarioLogadoId] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [cargo, setCargo] = useState<string | null>(null) // null = é o dono
-  const [acessoNegado, setAcessoNegado] = useState(false)
   const [contaAberta, setContaAberta] = useState(false)
+  const [temHorarios, setTemHorarios] = useState(false)
+
+  const {
+    router,
+    supabase,
+    estabelecimento,
+    usuarioLogadoId,
+    usuarioNome,
+    loading,
+    acessoNegado,
+    ehDonoOuGerente,
+    podeEditar,
+    emAnalise,
+  } = useEstabelecimentoGerenciar(id)
 
   useEffect(() => {
-    async function carregar() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-      setUsuarioLogadoId(user.id)
+    if (!estabelecimento) return
+    supabase
+      .from('horarios_funcionamento')
+      .select('id', { count: 'exact', head: true })
+      .eq('estabelecimento_id', estabelecimento.id)
+      .then(({ count }: { count: number | null }) => setTemHorarios((count || 0) > 0))
+  }, [estabelecimento, supabase])
 
-      const { data, error } = await supabase
-        .from('estabelecimentos')
-        .select('*')
-        .eq('id', id)
-        .single()
+  const estadoEspecial = EstadoCarregamento({ acessoNegado, loading, encontrado: !!estabelecimento })
+  if (estadoEspecial) return estadoEspecial
 
-      if (error || !data) {
-        logSupabaseError('Erro ao carregar estabelecimento:', error)
-        router.push('/painel')
-        return
-      }
+  const nomeExibicao = estabelecimento.nome_fantasia || estabelecimento.nome
+  const primeiroNome = usuarioNome.split(' ')[0] || usuarioNome
+  const badge = statusBadge(estabelecimento)
+  const gestaoAtivado = !!estabelecimento.gestao_modulo_ativado
 
-      // Determinar o papel do usuário atual nesse estabelecimento:
-      // dono (owner_user_id bate), super_admin (acesso total, sem
-      // precisar de vínculo), funcionário (tem vínculo ativo) ou
-      // nenhum dos três (acesso negado).
-      if (data.owner_user_id === user.id) {
-        setCargo(null) // dono enxerga tudo
-      } else {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (profile?.role === 'super_admin') {
-          setCargo(null) // admin enxerga e edita como se fosse o dono
-        } else {
-          const { data: vinculo } = await supabase
-            .from('funcionarios')
-            .select('cargo')
-            .eq('estabelecimento_id', id)
-            .eq('user_id', user.id)
-            .eq('ativo', true)
-            .maybeSingle()
-
-          if (!vinculo) {
-            setAcessoNegado(true)
-            setLoading(false)
-            return
-          }
-          setCargo(vinculo.cargo)
-        }
-      }
-
-      setEstabelecimento(data)
-      setLoading(false)
-    }
-
-    carregar()
-  }, [id, router])
-
-  if (acessoNegado) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-red-600">
-        Você não tem acesso a este estabelecimento.
-      </div>
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-neutral-500">
-        <div className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-        Carregando...
-      </div>
-    )
-  }
-
-  if (!estabelecimento) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-red-600">
-        Estabelecimento não encontrado.
-      </div>
-    )
-  }
-
-  // Regras de visibilidade por papel:
-  // - Dono (cargo === null) e Gerente: veem e editam tudo, inclusive
-  //   dados administrativos do estabelecimento e a equipe.
-  // - Caixa e Garçom: só consultam o cardápio (não editam).
-  // - Cozinha: só consulta o cardápio também (sem tela de pedidos por
-  //   enquanto — a operação de pedidos não está disponível nesse painel).
-  const ehDonoOuGerente = cargo === null || cargo === 'gerente'
-  const podeEditarCardapio = ehDonoOuGerente
-  // Edição fica liberada tanto quando já está público ('active') quanto
-  // durante a análise da reivindicação ('em_analise') — é exatamente
-  // nesse segundo estado que o dono está preenchendo os dados pela
-  // primeira vez. Só fica travado mesmo quando 'blocked'.
-  const podeEditar = estabelecimento.status === 'active' || estabelecimento.status === 'em_analise'
-  const emAnalise = estabelecimento.status === 'em_analise'
-
- const tabs = [
-  {
-    id: 'cardapio',
-    label: '🍽️ Cardápio',
-    content: <CardapioTab estabelecimentoId={estabelecimento.id} readOnly={!podeEditarCardapio} />,
-  },
-  ...(ehDonoOuGerente
-    ? [
-        {
-          id: 'promocoes',
-          label: '⭐ Promoções',
-          content: <PromocoesTab estabelecimentoId={estabelecimento.id} readOnly={!podeEditar} />,
-        },
-        {
-          id: 'qrcode',
-          label: '📱 QR Code',
-          content: (
-            <QrCodeTab
-              estabelecimentoId={estabelecimento.id}
-              shortUrl={estabelecimento.qrcode_short_url}
-              slug={estabelecimento.slug}
-              logoUrl={estabelecimento.logo_url}
-            />
-          ),
-        },
-        {
-          id: 'configuracoes',
-          label: '⚙️ Configurações',
-          content: <ConfiguracoesTab estabelecimento={estabelecimento} readOnly={!podeEditar} />,
-        },
-        {
-          id: 'tema',
-          label: '🎨 Tema',
-          content: (
-            <TemaEditor
-              estabelecimentoId={estabelecimento.id}
-              temaAtualId={estabelecimento.tema_atual_id}
-              readOnly={!ehDonoOuGerente}
-              onTemaChange={(temaId) => {
-                console.log('Tema alterado para:', temaId)
-              }}
-            />
-          ),
-        },
-      ]
-    : []),
-] // ← FECHE O ARRAY AQUI
+  // Checklist de progresso do perfil público — cada item aponta pro lugar
+  // onde dá pra resolver aquilo. "Descrição" mora no próprio modal Conta
+  // desta página (não precisa navegar); o resto vive dentro do módulo
+  // Cardápio (Configurações → Galeria/Horários).
+  const itensChecklist = [
+    {
+      id: 'descricao',
+      label: 'Escrever descrição',
+      feito: !!estabelecimento.descricao,
+      onClick: () => setContaAberta(true),
+    },
+    {
+      id: 'foto_capa',
+      label: 'Foto de capa adicionada',
+      feito: !!estabelecimento.foto_capa,
+      href: `/painel/estabelecimento/${id}/gerenciar/cardapio`,
+    },
+    {
+      id: 'logo',
+      label: 'Logo adicionado',
+      feito: !!estabelecimento.logo_url,
+      href: `/painel/estabelecimento/${id}/gerenciar/cardapio`,
+    },
+    {
+      id: 'galeria',
+      label: 'Fotos na galeria',
+      feito: (estabelecimento.galeria_fotos?.length || 0) > 0,
+      href: `/painel/estabelecimento/${id}/gerenciar/cardapio`,
+    },
+    {
+      id: 'horarios',
+      label: 'Configurar horários',
+      feito: temHorarios,
+      href: `/painel/estabelecimento/${id}/gerenciar/cardapio`,
+    },
+  ]
+  const feitos = itensChecklist.filter((i) => i.feito).length
 
   return (
     <div className="min-h-screen bg-neutral-50 p-4 text-neutral-900 md:p-6">
@@ -194,57 +116,157 @@ export default function GerenciarEstabelecimentoPage({
             </span>
           </div>
         )}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
+
+        {/* Cabeçalho — mesma estrutura do /painel: cartão único, título/
+            identificação à esquerda, ação/status à direita. */}
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               onClick={() => router.push('/painel')}
-              className="mb-1 text-sm text-neutral-500 hover:text-orange-600"
+              aria-label="Voltar ao painel"
+              className="shrink-0 rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-orange-600"
             >
-              ← Voltar ao painel
+              <ArrowLeft className="h-5 w-5" />
             </button>
-            {ehDonoOuGerente ? (
-              <button
-                onClick={() => setContaAberta(true)}
-                className="text-left text-2xl font-bold tracking-tight text-neutral-900 transition hover:text-orange-600"
-                title="Ver e editar dados da conta"
-              >
-                {estabelecimento.nome_fantasia || estabelecimento.nome}
-              </button>
-            ) : (
-              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
-                {estabelecimento.nome_fantasia || estabelecimento.nome}
-              </h1>
-            )}
+            <div className="min-w-0">
+              <p className="text-xs text-neutral-400">
+                {saudacao()}, {primeiroNome}
+              </p>
+              {ehDonoOuGerente ? (
+                <button
+                  onClick={() => setContaAberta(true)}
+                  className="flex items-center gap-1 text-lg font-bold tracking-tight text-neutral-900 transition hover:text-orange-600"
+                  title="Ver e editar dados da conta"
+                >
+                  <span className="truncate">{nomeExibicao}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-50" />
+                </button>
+              ) : (
+                <h1 className="truncate text-lg font-bold tracking-tight text-neutral-900">{nomeExibicao}</h1>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href={`/painel/estabelecimento/${estabelecimento.id}/pedidos`}
-              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700"
-            >
-              📋 Ver pedidos
-            </Link>
-            <Link
-              href={`/painel/estabelecimento/${estabelecimento.id}/estoque`}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50"
-            >
-              📦 Estoque
-            </Link>
-            <Link
-              href={`/painel/estabelecimento/${estabelecimento.id}/caixa`}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50"
-            >
-              💰 Caixa
-            </Link>
-            <Link
-              href={`/painel/estabelecimento/${estabelecimento.id}/fornecedores`}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50"
-            >
-              🚚 Fornecedores
-            </Link>
-          </div>
+          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${badge.bg} ${badge.text}`}>
+            {badge.label}
+          </span>
         </div>
 
-        <TabsContainer tabs={tabs} defaultTab="cardapio" />
+        {/* Módulos de primeiro nível — agora são destinos de navegação,
+            não abas que trocam conteúdo nesta mesma tela. */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Link
+            href={`/painel/estabelecimento/${id}/gerenciar/cardapio`}
+            className="group flex items-center justify-between rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm transition hover:border-orange-200 hover:shadow-md"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-2xl">
+                🍽️
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900">Cardápio</h3>
+                <p className="text-sm text-neutral-500">Itens, promoções, QR Code, tema e equipe</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-neutral-300 transition group-hover:text-orange-500" />
+          </Link>
+
+          {gestaoAtivado ? (
+            <Link
+              href={`/painel/estabelecimento/${id}/gerenciar/gestao`}
+              className="group flex items-center justify-between rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm transition hover:border-orange-200 hover:shadow-md"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-2xl">
+                  🛠️
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral-900">Gestão</h3>
+                  <p className="text-sm text-neutral-500">Pedidos, estoque, caixa e fornecedores</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-neutral-300 transition group-hover:text-orange-500" />
+            </Link>
+          ) : (
+            <div
+              aria-disabled="true"
+              title="Módulo de Gestão desativado — ative em Cardápio → Configurações → Módulo de Gestão"
+              className="flex cursor-not-allowed items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50 p-6 opacity-50"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-2xl">
+                  🛠️
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral-400">Gestão</h3>
+                  <p className="text-sm text-neutral-400">Pedidos, estoque, caixa e fornecedores</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-neutral-300" />
+            </div>
+          )}
+        </div>
+
+        {/* Início do estabelecimento — checklist de progresso do perfil
+            público + reserva de espaço pra métricas futuras. */}
+        <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-neutral-900">📋 Complete seu perfil público</h2>
+            <span className="text-sm font-medium text-neutral-500">
+              {feitos}/{itensChecklist.length}
+            </span>
+          </div>
+          <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+            <div
+              className="h-full rounded-full bg-orange-500 transition-all"
+              style={{ width: `${(feitos / itensChecklist.length) * 100}%` }}
+            />
+          </div>
+          <ul className="space-y-2.5">
+            {itensChecklist.map((item) => {
+              const conteudo = (
+                <>
+                  {item.feito ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <Circle className="h-4 w-4 shrink-0 text-neutral-300" />
+                  )}
+                  <span className={item.feito ? 'text-neutral-400 line-through' : 'text-neutral-700'}>
+                    {item.label}
+                  </span>
+                </>
+              )
+              return (
+                <li key={item.id}>
+                  {item.href ? (
+                    <Link href={item.href} className="flex items-center gap-2 text-sm transition hover:text-orange-600">
+                      {conteudo}
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={item.onClick}
+                      className="flex items-center gap-2 text-sm transition hover:text-orange-600"
+                    >
+                      {conteudo}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+
+        {/* Métricas — espaço reservado, sem dado real ainda. */}
+        <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-base font-bold text-neutral-900">📈 Métricas</h2>
+          <div className="grid grid-cols-3 gap-4">
+            {['Visualizações', 'Scans de QR Code', 'Pedidos'].map((label) => (
+              <div key={label} className="rounded-xl bg-neutral-50 p-4 text-center opacity-50">
+                <p className="text-2xl font-bold text-neutral-400">—</p>
+                <p className="mt-1 text-xs text-neutral-400">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {contaAberta && (

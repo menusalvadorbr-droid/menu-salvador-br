@@ -115,43 +115,45 @@ export default async function PainelPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COR_FUNDO }}>
-      {/* Cabeçalho */}
-      <div className="text-white" style={{ backgroundColor: COR_TEXTO }}>
-        <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-60">Painel do estabelecimento</p>
-              <h1 className="mt-1 text-2xl md:text-[2rem] font-bold tracking-tight flex items-center gap-3">
-                <Building2 className="w-7 h-7" style={{ color: COR_TERRACOTA }} />
-                Meus estabelecimentos
-              </h1>
-              <p className="mt-1 text-sm opacity-70">{user.email}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {isSuperAdmin && (
+      <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
+        {/* Cabeçalho — cartão único, título à esquerda, ação à direita
+            (mesma estrutura usada em gerenciar/[id], só que aqui com a
+            identidade visual de sempre deste painel). */}
+        <div className="mb-8 overflow-hidden rounded-2xl text-white shadow-sm" style={{ backgroundColor: COR_TEXTO }}>
+          <div className="px-6 py-8 md:px-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-60">Painel do estabelecimento</p>
+                <h1 className="mt-1 text-2xl md:text-[2rem] font-bold tracking-tight flex items-center gap-3">
+                  <Building2 className="w-7 h-7" style={{ color: COR_TERRACOTA }} />
+                  Meus estabelecimentos
+                </h1>
+                <p className="mt-1 text-sm opacity-70">{user.email}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {isSuperAdmin && (
+                  <Link
+                    href="/admin"
+                    className="border border-white/20 hover:bg-white/10 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
+                  >
+                    <Shield className="w-4 h-4" />
+                    Admin
+                  </Link>
+                )}
                 <Link
-                  href="/admin"
-                  className="border border-white/20 hover:bg-white/10 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
+                  href="/estabelecimentos/novo"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 text-white hover:brightness-110"
+                  style={{ backgroundColor: COR_TERRACOTA }}
                 >
-                  <Shield className="w-4 h-4" />
-                  Admin
+                  <Plus className="w-4 h-4" />
+                  Novo estabelecimento
                 </Link>
-              )}
-              <Link
-                href="/estabelecimentos/novo"
-                className="px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 text-white hover:brightness-110"
-                style={{ backgroundColor: COR_TERRACOTA }}
-              >
-                <Plus className="w-4 h-4" />
-                Novo estabelecimento
-              </Link>
+              </div>
             </div>
           </div>
+          <FaixaAzulejo />
         </div>
-        <FaixaAzulejo />
-      </div>
 
-      <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
         {/* Listagem */}
         {estabelecimentos && estabelecimentos.length > 0 ? (
           // O TS infere estabelecimento_tipos_cozinha.tipos_cozinha como array pra

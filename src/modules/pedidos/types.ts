@@ -1,3 +1,17 @@
+export interface VariacaoSelecionada {
+  id: string
+  nome: string
+  preco: number
+}
+
+export interface ComplementoSelecionado {
+  grupoId: string
+  grupoNome: string
+  opcaoId: string
+  opcaoNome: string
+  precoAdicional: number
+}
+
 export interface ItemPedido {
   id: string
   nome: string
@@ -5,6 +19,19 @@ export interface ItemPedido {
   preco_promocional?: number
   quantidade: number
   observacao?: string
+  // Tamanho escolhido (quando o item tem variacoes_item) — preco já reflete
+  // o preço da variação (não o preço-base "a partir de" do item).
+  variacao?: VariacaoSelecionada | null
+  // Complementos escolhidos, achatados de todos os grupos aplicáveis
+  // (os do item + os condicionalmente liberados por opcao_grupo_complemento).
+  complementos?: ComplementoSelecionado[]
+  // Identifica uma linha única no carrinho — dois acréscimos do mesmo item
+  // com variação/complementos diferentes não podem se fundir numa só
+  // linha (por isso não dá pra usar só `id`, que dois lançamentos do
+  // mesmo prato compartilham). Itens sem variação/complementos usam o
+  // próprio `id` como linhaId, preservando o comportamento de sempre
+  // (repetir "+ Adicionar" só incrementa a quantidade).
+  linhaId?: string
 }
 
 export type StatusPedido =

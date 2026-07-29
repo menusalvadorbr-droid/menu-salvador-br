@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { logSupabaseError } from '@/lib/supabase/logError'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -11,6 +12,7 @@ import SpecialOfferCard from '@/components/public/SpecialOfferCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import ItemClicavel, { PararPropagacaoClique } from '@/components/public/ItemClicavel'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
+import type { GrupoResolvido, OpcaoResolvida, VariacaoResolvida } from '@/modules/pedidos/customer/tiposSelecao'
 
 // Fora do componente (Server Component roda uma vez por request, mas o
 // lint de pureza não sabe disso e trata new Date()/Date.now() escritos
@@ -20,6 +22,53 @@ function algumaOfertaEncerrandoEmBreve(ofertas: { estado: EstadoOferta }[]): boo
   return ofertas.some(
     ({ estado }) => estado.tipo === 'ativo' && (new Date(estado.fimIso).getTime() - Date.now()) / 60000 <= 30
   )
+}
+
+// Formato cru do Postgrest (join aninhado) → formato já pronto pro
+// seletor de item usar (nomes resolvidos, preços numéricos). `resolverOpcao`
+// e `resolverGrupo` são mutuamente recursivos porque uma opção pode
+// liberar outro grupo (opcao_grupo_complemento), que por sua vez tem
+// opções que podem liberar outros grupos.
+type ComOrdem = { ordem: number }
+const porOrdem = (a: ComOrdem, b: ComOrdem) => a.ordem - b.ordem
+
+function resolverVariacoes(item: any): VariacaoResolvida[] {
+  return (item.variacoes_item || []).map((v: any) => ({ id: v.id, nome: v.nome, preco: v.preco }))
+}
+
+function resolverOpcao(o: any): OpcaoResolvida {
+  return {
+    id: o.id,
+    nome: o.itens_cardapio?.nome || '(item removido)',
+    precoAdicional: o.preco_adicional || 0,
+    exibirPreco: o.exibir_preco !== false,
+    gruposExtras: ((o.opcao_grupo_complemento || []) as any[])
+      .map((v: any) => v.grupos_complementos)
+      .filter(Boolean)
+      .map(resolverGrupo),
+  }
+}
+
+function resolverGrupo(g: any): GrupoResolvido {
+  return {
+    id: g.id,
+    nome: g.nome,
+    selecaoMinima: g.selecao_minima ?? 0,
+    selecaoMaxima: g.selecao_maxima ?? 1,
+    opcoes: (g.opcoes_complemento || [])
+      .slice()
+      .sort(porOrdem)
+      .map(resolverOpcao),
+  }
+}
+
+function resolverGrupos(item: any): GrupoResolvido[] {
+  return (item.item_grupo_complemento || [])
+    .slice()
+    .sort(porOrdem)
+    .map((v: any) => v.grupos_complementos)
+    .filter(Boolean)
+    .map(resolverGrupo)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -101,12 +150,14 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
     if (categorias.length > 0) {
       const catIds = categorias.map((c: any) => c.id)
-      const { data: itens } = await supabase
+      const { data: itens, error: itensErr } = await supabase
         .from('itens_cardapio')
-        .select(`*, item_allergens(allergen:allergen_id(id, nome, icone)), variacoes_item(id, nome, preco), item_grupo_complemento(ordem, grupos_complementos(id, nome, selecao_minima, selecao_maxima, opcoes_complemento(id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome))))`)
+        .select(`*, item_allergens(allergen:allergen_id(id, nome, icone)), variacoes_item(id, nome, preco), item_grupo_complemento(ordem, grupos_complementos(id, nome, selecao_minima, selecao_maxima, opcoes_complemento(id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome), opcao_grupo_complemento(grupos_complementos(id, nome, selecao_minima, selecao_maxima, opcoes_complemento(id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome)))))))`)
         .in('categoria_id', catIds)
         .eq('disponivel', true)
         .order('ordem')
+
+      if (itensErr) logSupabaseError('Erro ao buscar itens do cardápio público:', itensErr)
 
       if (itens) {
         categorias.forEach((cat: any) => {
@@ -135,10 +186,22 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   // independente de tema (funciona tanto na Lista quanto no Catálogo).
   const cliqueExpandeAtivado = !!est.cardapio_clique_expande_ativado
 
+  // Carrinho de pedidos — opt-in via Configurações → Recursos do cardápio.
+  // Desligado (padrão), nenhum botão de "Adicionar" aparece em lugar
+  // nenhum (nem no card comum, nem no painel de clique expande) — o
+  // cardápio fica só informativo.
+  const carrinhoAtivado = !!est.cardapio_carrinho_ativado
+
   // Helper: classes e tamanhos da foto conforme posição
   function fotoLayout(pos: string) {
     if (pos === 'right') return { flex: 'flex-row-reverse', sz: 'w-24 h-24', sizes: '96px' }
-    if (pos === 'top')   return { flex: 'flex-col',         sz: 'w-full h-44', sizes: '400px' }
+    // aspect-ratio em vez de altura fixa — com h-56 fixo, a foto ficava
+    // cada vez mais cortada em telas largas (a largura do card cresce mas
+    // a altura não acompanha, esticando o corte do object-cover). 16:9
+    // (aspect-video) mantém um corte proporcional em qualquer tela sem
+    // deixar o card alto demais — 4/3 tentado antes deixava o card grande
+    // demais.
+    if (pos === 'top')   return { flex: 'flex-col',         sz: 'w-full aspect-video', sizes: '400px' }
     if (pos === 'none')  return { flex: 'flex-row',         sz: '',            sizes: '' }
     return                       { flex: 'flex-row',         sz: 'w-24 h-24', sizes: '96px' }
   }
@@ -347,6 +410,14 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                       const promoOk = item.promo_status === 'active' && item.preco_promocional
                       const pct     = promoOk ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
                       const temVariacoes = item.variacoes_item && item.variacoes_item.length > 0
+                      // "a partir de" só usa o campo Preço* quando ele foi
+                      // preenchido de propósito pra isso (rótulo do próprio
+                      // editor); sem preço-base, não tem "a partir de" que
+                      // fazer sentido, cai pro menor preço entre os tamanhos.
+                      const precoBaseValido = item.preco > 0
+                      const menorPrecoVariacao = temVariacoes
+                        ? Math.min(...item.variacoes_item.map((v: any) => v.preco))
+                        : null
 
                       return (
                         <div key={item.id}
@@ -354,6 +425,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                           style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
                           <ItemClicavel
                             ativado={cliqueExpandeAtivado}
+                            id={item.id}
                             nome={item.nome}
                             descricao={item.descricao}
                             fotoUrl={item.foto_url}
@@ -362,6 +434,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                             alergenos={algArr}
                             mostrarAlergenos={mostrarAlergenos}
                             corP={corP} corT={corT} corS={corS} corBd={corBd}
+                            carrinhoAtivado={carrinhoAtivado}
+                            variacoes={resolverVariacoes(item)}
+                            grupos={resolverGrupos(item)}
                           >
                             {/* FOTO — altura fixa, cortada pra preencher */}
                             <div className="relative h-32 bg-gray-100">
@@ -394,13 +469,22 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                               )}
                               <div className={`inline-block rounded-full px-3 py-1 text-sm font-bold text-white ${promoOk ? 'mt-1' : 'mt-2'}`}
                                 style={{ backgroundColor: corP }}>
-                                R$ {fmt(promoOk ? item.preco_promocional : item.preco)}
+                                {temVariacoes && precoBaseValido && <span className="mr-1 text-[10px] font-normal opacity-80">a partir de</span>}
+                                R$ {fmt(
+                                  temVariacoes
+                                    ? (precoBaseValido ? item.preco : menorPrecoVariacao)
+                                    : (promoOk ? item.preco_promocional : item.preco)
+                                )}
                               </div>
                             </div>
                           </ItemClicavel>
 
-                          {/* Botão de comprar — fora do wrapper clicável, não abre o painel */}
-                          {!temVariacoes && (
+                          {/* Botão de comprar — fora do wrapper clicável, não abre o painel.
+                              Item com variação/complemento abre o seletor em vez de adicionar
+                              direto — ver BotaoAdicionarCarrinho. Só aparece com o carrinho
+                              ativado em Configurações → Recursos do cardápio; desligado, o
+                              cardápio fica só informativo. */}
+                          {carrinhoAtivado && (
                             <PararPropagacaoClique className="px-3 pb-3 flex justify-center">
                               <BotaoAdicionarCarrinho
                                 id={item.id}
@@ -408,6 +492,8 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                 preco={item.preco}
                                 precoPromocional={promoOk ? item.preco_promocional : null}
                                 corDestaque={corP}
+                                variacoes={resolverVariacoes(item)}
+                                grupos={resolverGrupos(item)}
                               />
                             </PararPropagacaoClique>
                           )}
@@ -441,14 +527,29 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                   {/* Itens */}
                   <div className="divide-y" style={{ borderColor: corBd }}>
                     {itens.map((item: any) => {
-                      const foto     = getOptimizedCloudinaryUrl(item.foto_url, 300, 300, 'fill')
+                      // Pede ao Cloudinary já no formato exibido (16:9 pra
+                      // foto acima, quadrado pros outros) — antes pedia
+                      // sempre quadrado e o CSS cortava de novo por cima
+                      // pra caber na caixa larga da posição "acima",
+                      // cortando a foto duas vezes (uma no Cloudinary,
+                      // outra no object-cover).
+                      const foto = fotoPosicao === 'top'
+                        ? getOptimizedCloudinaryUrl(item.foto_url, 400, 225, 'fill')
+                        : getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
                       const algArr   = alergenos(item)
                       const promoOk  = item.promo_status === 'active' && item.preco_promocional
+                      const temVariacoes = item.variacoes_item && item.variacoes_item.length > 0
+                      // "a partir de" só usa o campo Preço* quando ele foi
+                      // preenchido de propósito pra isso (rótulo do próprio
+                      // editor); sem preço-base, mostra a lista de tamanhos
+                      // com cada preço, como já era antes do carrinho.
+                      const precoBaseValido = item.preco > 0
 
                       return (
                         <div key={item.id} className="p-4 group hover:bg-black/[.02] transition">
                         <ItemClicavel
                           ativado={cliqueExpandeAtivado}
+                          id={item.id}
                           nome={item.nome}
                           descricao={item.descricao}
                           fotoUrl={item.foto_url}
@@ -457,6 +558,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                           alergenos={algArr}
                           mostrarAlergenos={mostrarAlergenos}
                           corP={corP} corT={corT} corS={corS} corBd={corBd}
+                          carrinhoAtivado={carrinhoAtivado}
+                          variacoes={resolverVariacoes(item)}
+                          grupos={resolverGrupos(item)}
                         >
                           <div className={`flex ${fl.flex} gap-4 items-start`}>
 
@@ -502,11 +606,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                       <Texto tipo="item" id={item.id} campo="descricao">{item.descricao}</Texto>
                                     </p>
                                   )}
-                                  {/* GRUPOS DE COMPLEMENTOS — só informativo por enquanto; o
-                                      carrinho ainda não suporta escolher complementos, então
-                                      não tem seleção interativa aqui, só a lista do que existe.
-                                      Fica em caixa própria (borda + fundo levemente colorido),
-                                      separada visualmente da descrição do prato. */}
+                                  {/* GRUPOS DE COMPLEMENTOS — prévia do que existe, na própria
+                                      linha do item (borda + fundo levemente colorido, separada
+                                      da descrição). A escolha de verdade (com validação de
+                                      mín./máx.) acontece no seletor aberto pelo botão de
+                                      adicionar, não aqui. */}
                                   {item.item_grupo_complemento && item.item_grupo_complemento.length > 0 && (
                                     <div className="mt-2 space-y-1.5">
                                       {[...item.item_grupo_complemento]
@@ -567,12 +671,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
                                 {/* PREÇO */}
                                 <div className="text-right flex-shrink-0">
-                                  {item.variacoes_item && item.variacoes_item.length > 0 ? (
-                                    // Item com tamanhos/variações — mostra a lista de opções.
-                                    // O carrinho ainda não sabe pedir "qual tamanho", então por
-                                    // enquanto não mostramos o botão de adicionar aqui — fica
-                                    // como próximo passo natural quando o carrinho ganhar suporte
-                                    // a variações.
+                                  {temVariacoes && !precoBaseValido ? (
+                                    // Sem Preço* preenchido, mostra a lista de tamanhos com
+                                    // cada preço em vez de um "a partir de" sem base real.
                                     <div className="space-y-0.5">
                                       {[...item.variacoes_item]
                                         .sort((a: any, b: any) => a.preco - b.preco)
@@ -585,32 +686,38 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                     </div>
                                   ) : (
                                     <>
-                                      {promoOk ? (
-                                        <>
+                                      {temVariacoes ? (
+                                        <div className="text-xs opacity-60" style={{ color: corT }}>a partir de</div>
+                                      ) : (
+                                        promoOk && (
                                           <div className="text-xs text-gray-400 line-through">
                                             R$ {fmt(item.preco)}
                                           </div>
-                                          <div className="text-base font-bold" style={{ color: corP }}>
-                                            R$ {fmt(item.preco_promocional)}
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <div className="text-base font-bold" style={{ color: corP }}>
-                                          R$ {fmt(item.preco)}
-                                        </div>
+                                        )
                                       )}
-                                      {/* stopPropagation — clicar em "adicionar" não deve também
-                                          abrir o painel do ItemClicavel que embrulha a linha toda. */}
-                                      <PararPropagacaoClique>
-                                        <BotaoAdicionarCarrinho
-                                          id={item.id}
-                                          nome={item.nome}
-                                          preco={item.preco}
-                                          precoPromocional={promoOk ? item.preco_promocional : null}
-                                          corDestaque={corP}
-                                        />
-                                      </PararPropagacaoClique>
+                                      <div className="text-base font-bold" style={{ color: corP }}>
+                                        R$ {fmt(temVariacoes ? item.preco : (promoOk ? item.preco_promocional : item.preco))}
+                                      </div>
                                     </>
+                                  )}
+                                  {/* stopPropagation — clicar em "adicionar" não deve também
+                                      abrir o painel do ItemClicavel que embrulha a linha toda.
+                                      Item com variação/complemento abre o seletor em vez de
+                                      adicionar direto — ver BotaoAdicionarCarrinho. Só aparece
+                                      com o carrinho ativado em Configurações → Recursos do
+                                      cardápio. */}
+                                  {carrinhoAtivado && (
+                                    <PararPropagacaoClique>
+                                      <BotaoAdicionarCarrinho
+                                        id={item.id}
+                                        nome={item.nome}
+                                        preco={item.preco}
+                                        precoPromocional={promoOk ? item.preco_promocional : null}
+                                        corDestaque={corP}
+                                        variacoes={resolverVariacoes(item)}
+                                        grupos={resolverGrupos(item)}
+                                      />
+                                    </PararPropagacaoClique>
                                   )}
                                 </div>
                               </div>

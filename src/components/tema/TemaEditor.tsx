@@ -48,6 +48,13 @@ const ITENS_PREVIEW = [
     alergenos: ['🥛 Leite', '🌰 Nozes'],
     promocao_ativa: false,
     preco_promocional: null,
+    // Exemplo de item com tamanhos, só pro preview mostrar a mesma regra
+    // do cardápio público: "a partir de" usa o Preço* (aqui, 34) quando
+    // preenchido; sem ele, mostraria a lista de tamanhos em vez disso.
+    variacoes: [
+      { id: 'v1', nome: 'Individual', preco: 34.0 },
+      { id: 'v2', nome: 'Para compartilhar', preco: 58.0 },
+    ],
   },
   {
     id: '3',
@@ -356,9 +363,37 @@ export default function TemaEditor({
         {/* ── PREVIEW (direita) ── */}
         <div className="order-1 xl:order-2">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">📱 Preview do cardápio</span>
-              <span className="text-xs text-gray-400">tema: {temaAtual?.nome}</span>
+              <div className="flex items-center gap-2">
+                {/* Mesmo formato usado em "Opções do cardápio" à esquerda —
+                    um só estado (`formato`), não uma prévia à parte, senão
+                    os dois ficam fora de sincronia (era exatamente esse o
+                    bug: escolher "Lista" na aba de opções não refletia
+                    aqui, porque essa prévia tinha um estado separado que
+                    nunca mudava). */}
+                <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
+                  <button
+                    onClick={() => updFormato('lista')}
+                    disabled={readOnly}
+                    className={`px-2 py-1 text-xs font-medium rounded-md transition ${
+                      formato === 'lista' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Lista
+                  </button>
+                  <button
+                    onClick={() => updFormato('catalogo')}
+                    disabled={readOnly}
+                    className={`px-2 py-1 text-xs font-medium rounded-md transition ${
+                      formato === 'catalogo' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Catálogo
+                  </button>
+                </div>
+                <span className="text-xs text-gray-400">tema: {temaAtual?.nome}</span>
+              </div>
             </div>
             <div className="p-4">
               <div
@@ -402,6 +437,52 @@ export default function TemaEditor({
                 )}
 
                 {/* Itens */}
+                {formato === 'catalogo' ? (
+                  <div className="p-3 grid grid-cols-2 gap-3">
+                    {ITENS_PREVIEW.map(item => {
+                      const temVariacoes = !!item.variacoes && item.variacoes.length > 0
+                      const precoBaseValido = item.preco > 0
+                      const menorPrecoVariacao = temVariacoes
+                        ? Math.min(...item.variacoes!.map(v => v.preco))
+                        : null
+
+                      return (
+                        <div key={item.id} className="rounded-xl overflow-hidden shadow-sm"
+                          style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+                          <div className="relative h-20 bg-gray-100">
+                            <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+                            {item.promocao_ativa && (
+                              <span className="absolute top-1 left-1 text-xs text-white px-1.5 py-0.5 rounded-full font-semibold"
+                                style={{ backgroundColor: corP }}>
+                                -{Math.round((1 - item.preco_promocional! / item.preco) * 100)}%
+                              </span>
+                            )}
+                          </div>
+                          <div className="p-2 text-center">
+                            <p className="text-xs font-semibold truncate" style={{ color: corT }}>{item.nome}</p>
+                            {item.promocao_ativa ? (
+                              <>
+                                <p className="text-xs text-gray-400 line-through mt-1">R$ {fmt(item.preco)}</p>
+                                <div className="inline-block rounded-full px-2 py-0.5 text-xs font-bold text-white mt-0.5"
+                                  style={{ backgroundColor: corP }}>
+                                  R$ {fmt(item.preco_promocional!)}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="inline-block rounded-full px-2 py-0.5 text-xs font-bold text-white mt-1"
+                                style={{ backgroundColor: corP }}>
+                                {temVariacoes && precoBaseValido && (
+                                  <span className="mr-0.5 text-[9px] font-normal opacity-80">a partir de</span>
+                                )}
+                                R$ {fmt(temVariacoes ? (precoBaseValido ? item.preco : menorPrecoVariacao!) : item.preco)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
                 <div className="p-3 space-y-3">
                   {ITENS_PREVIEW.map(item => {
                     const fp = cfg.foto_posicao
@@ -464,6 +545,7 @@ export default function TemaEditor({
                     )
                   })}
                 </div>
+                )}
               </div>
             </div>
           </div>
