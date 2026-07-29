@@ -48,7 +48,19 @@ export default function SecaoAnimada({
       { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
     )
     observer.observe(el)
-    return () => observer.disconnect()
+
+    // Rede de segurança: alguns navegadores/WebViews (ex: in-app browser
+    // do Instagram/Facebook no Android) têm um IntersectionObserver que
+    // nunca dispara pra determinados elementos — sem isso, a seção ficava
+    // presa em opacity-0 pra sempre nesses casos (conteúdo real no HTML,
+    // mas invisível). Se o observer não avisar em 2s, revela do mesmo
+    // jeito — pior caso é perder a animação, nunca o conteúdo.
+    const timeoutId = setTimeout(() => setVisivel(true), 2000)
+
+    return () => {
+      observer.disconnect()
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   return (
