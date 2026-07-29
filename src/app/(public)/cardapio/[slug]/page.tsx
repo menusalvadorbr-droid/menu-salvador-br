@@ -7,7 +7,7 @@ import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import BotaoAdicionarCarrinho from '@/modules/pedidos/customer/BotaoAdicionarCarrinho'
-import { TraducaoProvider, Texto, SeletorIdioma, type TraducaoRow } from '@/components/public/TraducaoCardapio'
+import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import SpecialOfferCard from '@/components/public/SpecialOfferCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import ItemClicavel, { PararPropagacaoClique } from '@/components/public/ItemClicavel'
@@ -211,12 +211,20 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   // estiver ativado em Configurações → Idiomas.
   const idiomasAtivos: string[] = est.idiomas_ativos || []
   let traducoes: TraducaoRow[] = []
+  let traducoesInterface: TraducaoInterfaceRow[] = []
   if (idiomasAtivos.length > 0) {
-    const { data: trads } = await supabase
-      .from('traducoes')
-      .select('tipo_registro, registro_id, idioma, campo, valor')
-      .eq('estabelecimento_id', est.id)
+    const [{ data: trads }, { data: tradsInterface }] = await Promise.all([
+      supabase
+        .from('traducoes')
+        .select('tipo_registro, registro_id, idioma, campo, valor')
+        .eq('estabelecimento_id', est.id),
+      // Textos fixos da interface (rótulos, botões, dias da semana) —
+      // globais da plataforma, não filtrados por estabelecimento; cadastrados
+      // uma vez pelo admin geral em /admin/traducoes-interface.
+      supabase.from('traducoes_interface').select('chave, idioma, valor'),
+    ])
     traducoes = trads || []
+    traducoesInterface = tradsInterface || []
   }
 
   // Promoções com contador (special_offers) — combos/ofertas por tempo
@@ -248,8 +256,12 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const mostrarAlertaEncerrando = algumaOfertaEncerrandoEmBreve(ofertasVisiveis)
 
   return (
+    // TraducaoProvider por fora — CarrinhoProvider renderiza sua própria UI
+    // (sacola flutuante, drawer, modal de finalizar, chamar garçom) como
+    // irmã de `children`, não descendente; com TraducaoProvider por dentro
+    // essa UI nunca conseguiria ler o idioma escolhido pra se traduzir.
+    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes} traducoesInterface={traducoesInterface}>
     <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
-    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes}>
     <div className="min-h-screen" style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 
@@ -273,9 +285,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                 {(est.estabelecimento_tipos_cozinha || [])
                   .map((v: any) => v.tipos_cozinha?.nome)
                   .filter(Boolean)
-                  .join(', ') || 'Culinária variada'}
+                  .join(', ') || <TextoInterface chave="culinaria_variada">Culinária variada</TextoInterface>}
               </p>
-              <p className="text-xs opacity-50 mt-0.5">{totalItens} itens · {categorias.length} categorias</p>
+              <p className="text-xs opacity-50 mt-0.5">
+                {totalItens} <TextoInterface chave="itens_label">itens</TextoInterface> · {categorias.length} <TextoInterface chave="categorias_label">categorias</TextoInterface>
+              </p>
               {est.endereco && (
                 <p className="mt-1 text-xs opacity-60">📍 {[est.endereco, est.numero].filter(Boolean).join(', ')}</p>
               )}
@@ -290,7 +304,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                 : `/cardapio/${est.slug}`
             }
             className="mt-3 inline-block text-sm hover:underline" style={{ color: corP }}>
-            ← Voltar ao perfil
+            ← <TextoInterface chave="voltar_perfil">Voltar ao perfil</TextoInterface>
           </Link>
           {!est.owner_user_id && (
             <div
@@ -298,14 +312,15 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
               style={{ backgroundColor: `${corP}12`, border: `1px solid ${corBd}` }}
             >
               <span style={{ color: corP }}>
-                <strong>Esse é o seu estabelecimento?</strong> Reivindique pra editar o cardápio.
+                <strong><TextoInterface chave="reivindicar_titulo">Esse é o seu estabelecimento?</TextoInterface></strong>{' '}
+                <TextoInterface chave="reivindicar_texto_cardapio">Reivindique pra editar o cardápio.</TextoInterface>
               </span>
               <a
                 href={`/estabelecimentos/novo?cnpj=${est.cnpj}`}
                 className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
                 style={{ backgroundColor: corP }}
               >
-                Reivindicar
+                <TextoInterface chave="reivindicar_botao">Reivindicar</TextoInterface>
               </a>
             </div>
           )}
@@ -318,10 +333,12 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             <div className="px-4 py-3 border-b flex items-center gap-2"
               style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
               <span className="text-base">🔥</span>
-              <span className="text-sm font-semibold" style={{ color: corP }}>Promoções de hoje</span>
+              <span className="text-sm font-semibold" style={{ color: corP }}>
+                <TextoInterface chave="promocoes_hoje">Promoções de hoje</TextoInterface>
+              </span>
               {mostrarAlertaEncerrando && (
                 <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 animate-pulse">
-                  ⚠️ Encerrando em breve
+                  ⚠️ <TextoInterface chave="encerrando_breve">Encerrando em breve</TextoInterface>
                 </span>
               )}
             </div>
@@ -389,8 +406,8 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         {categorias.length === 0 ? (
           <div className="rounded-2xl p-12 text-center shadow"
             style={{ backgroundColor: corS }}>
-            <p className="text-lg font-medium">Nenhum item disponível</p>
-            <p className="text-sm opacity-60 mt-1">Volte em breve!</p>
+            <p className="text-lg font-medium"><TextoInterface chave="nenhum_item_disponivel">Nenhum item disponível</TextoInterface></p>
+            <p className="text-sm opacity-60 mt-1"><TextoInterface chave="volte_em_breve">Volte em breve!</TextoInterface></p>
           </div>
         ) : layoutCardapio === 'catalogo' ? (
           <div className="space-y-6">
@@ -469,7 +486,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                               )}
                               <div className={`inline-block rounded-full px-3 py-1 text-sm font-bold text-white ${promoOk ? 'mt-1' : 'mt-2'}`}
                                 style={{ backgroundColor: corP }}>
-                                {temVariacoes && precoBaseValido && <span className="mr-1 text-[10px] font-normal opacity-80">a partir de</span>}
+                                {temVariacoes && precoBaseValido && <span className="mr-1 text-[10px] font-normal opacity-80"><TextoInterface chave="a_partir_de">a partir de</TextoInterface></span>}
                                 R$ {fmt(
                                   temVariacoes
                                     ? (precoBaseValido ? item.preco : menorPrecoVariacao)
@@ -592,12 +609,12 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                     {promoOk && (
                                       <span className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
                                         style={{ backgroundColor: corP }}>
-                                        🔥 Promoção
+                                        🔥 <TextoInterface chave="promocao_badge">Promoção</TextoInterface>
                                       </span>
                                     )}
                                     {item.delivery_disponivel && (
                                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                                        🛵 Delivery
+                                        🛵 <TextoInterface chave="delivery_badge">Delivery</TextoInterface>
                                       </span>
                                     )}
                                   </div>
@@ -618,17 +635,29 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                         .filter((v: any) => v.grupos_complementos)
                                         .map((v: any) => {
                                           const g = v.grupos_complementos
-                                          const rotuloSelecao = g.selecao_minima > 0
-                                            ? (g.selecao_minima === g.selecao_maxima
-                                                ? `escolha ${g.selecao_minima} · obrigatório`
-                                                : `escolha ${g.selecao_minima} a ${g.selecao_maxima} · obrigatório`)
-                                            : `opcional · até ${g.selecao_maxima}`
                                           return (
                                             <div key={g.id} className="rounded-lg px-2.5 py-1.5"
                                               style={{ backgroundColor: `${corP}0d`, border: `1px solid ${corBd}` }}>
                                               <p className="text-[11px] font-semibold" style={{ color: corT }}>
                                                 {g.nome}
-                                                <span className="font-normal opacity-60"> — {rotuloSelecao}</span>
+                                                <span className="font-normal opacity-60">
+                                                  {' — '}
+                                                  {g.selecao_minima > 0 ? (
+                                                    g.selecao_minima === g.selecao_maxima ? (
+                                                      <TextoInterface chave="grupo_escolha_obrigatorio" vars={{ min: g.selecao_minima }}>
+                                                        {'escolha {min} · obrigatório'}
+                                                      </TextoInterface>
+                                                    ) : (
+                                                      <TextoInterface chave="grupo_escolha_intervalo_obrigatorio" vars={{ min: g.selecao_minima, max: g.selecao_maxima }}>
+                                                        {'escolha {min} a {max} · obrigatório'}
+                                                      </TextoInterface>
+                                                    )
+                                                  ) : (
+                                                    <TextoInterface chave="grupo_opcional_ate" vars={{ max: g.selecao_maxima }}>
+                                                      {'opcional · até {max}'}
+                                                    </TextoInterface>
+                                                  )}
+                                                </span>
                                               </p>
                                               <div className="flex flex-wrap gap-1 mt-1">
                                                 {(g.opcoes_complemento || [])
@@ -687,7 +716,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                                   ) : (
                                     <>
                                       {temVariacoes ? (
-                                        <div className="text-xs opacity-60" style={{ color: corT }}>a partir de</div>
+                                        <div className="text-xs opacity-60" style={{ color: corT }}><TextoInterface chave="a_partir_de">a partir de</TextoInterface></div>
                                       ) : (
                                         promoOk && (
                                           <div className="text-xs text-gray-400 line-through">
@@ -736,11 +765,13 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
         {/* RODAPÉ */}
         <p className="mt-8 text-center text-xs opacity-40" style={{ color: corT }}>
-          Cardápio sujeito a alterações. Alérgenos: consulte o atendente em caso de dúvida.
+          <TextoInterface chave="rodape_aviso">
+            Cardápio sujeito a alterações. Alérgenos: consulte o atendente em caso de dúvida.
+          </TextoInterface>
         </p>
       </div>
     </div>
-    </TraducaoProvider>
     </CarrinhoProvider>
+    </TraducaoProvider>
   )
 }

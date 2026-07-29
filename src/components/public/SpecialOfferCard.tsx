@@ -5,6 +5,7 @@ import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import ContadorRegressivo from './ContadorRegressivo'
 import { useUrgenciaOferta, type NivelUrgencia } from './useUrgenciaOferta'
 import type { EstadoOferta, SpecialOfferRow } from '@/lib/specialOffers'
+import { useTraducao } from './TraducaoCardapio'
 
 interface SpecialOfferCardProps {
   offer: SpecialOfferRow
@@ -51,6 +52,7 @@ export default function SpecialOfferCard({ offer, estado, corP, corT, corF, corB
     estado.tipo === 'ativo' ? estado.fimIso : '2099-01-01T00:00:00.000Z',
     offer.alerta_minutos
   )
+  const { traduzirInterface } = useTraducao()
 
   if (estado.tipo === 'fora') return null
 
@@ -120,7 +122,9 @@ export default function SpecialOfferCard({ offer, estado, corP, corT, corF, corB
             nivel === 'critico' ? 'bg-red-500 text-white' : 'bg-amber-400 text-amber-900'
           }`}
         >
-          {nivel === 'critico' ? '🚨 Últimos minutos!' : '⚡ Encerrando em breve'}
+          {nivel === 'critico'
+            ? `🚨 ${traduzirInterface('ultimos_minutos', 'Últimos minutos!')}`
+            : `⚡ ${traduzirInterface('encerrando_breve', 'Encerrando em breve')}`}
         </div>
       )}
     </div>

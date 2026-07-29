@@ -7,6 +7,7 @@ import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { useCarrinho } from '@/modules/pedidos/customer/CarrinhoProvider'
 import SeletorItemModal from '@/modules/pedidos/customer/SeletorItemModal'
 import type { GrupoResolvido, VariacaoResolvida } from '@/modules/pedidos/customer/tiposSelecao'
+import { useTraducao } from './TraducaoCardapio'
 
 interface Alergeno {
   id: string
@@ -71,6 +72,7 @@ export default function ItemClicavel({
   const [tamanhoId, setTamanhoId] = useState<string | null>(null)
   const [seletorAberto, setSeletorAberto] = useState(false)
   const { adicionarItem } = useCarrinho()
+  const { traduzirInterface } = useTraducao()
 
   if (!ativado) return <>{children}</>
 
@@ -137,7 +139,7 @@ export default function ItemClicavel({
             <button
               onClick={() => setAberto(false)}
               className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition"
-              aria-label="Fechar"
+              aria-label={traduzirInterface('fechar', 'Fechar')}
             >
               ✕
             </button>
@@ -205,7 +207,7 @@ export default function ItemClicavel({
               <div className="border-t p-4 space-y-3" style={{ backgroundColor: corS, borderColor: corBd }}>
                 {temVariacoes && !precisaSeletorCompleto && (
                   <div className="space-y-1.5">
-                    <p className="text-xs font-semibold opacity-70" style={{ color: corT }}>Escolha o tamanho</p>
+                    <p className="text-xs font-semibold opacity-70" style={{ color: corT }}>{traduzirInterface('escolha_tamanho', 'Escolha o tamanho')}</p>
                     {variacoes.map((v) => {
                       const selecionado = tamanhoId === v.id
                       return (
@@ -242,7 +244,7 @@ export default function ItemClicavel({
                   className="w-full rounded-lg py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                   style={{ backgroundColor: corP }}
                 >
-                  Adicionar
+                  {traduzirInterface('adicionar', 'Adicionar')}
                 </button>
               </div>
             )}

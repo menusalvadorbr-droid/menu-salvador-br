@@ -1,4 +1,5 @@
 import { obterAvaliacoesGoogle } from '@/lib/googlePlaces'
+import { TextoInterface } from './TraducaoCardapio'
 
 function Estrelas({ nota }: { nota: number }) {
   return (
@@ -16,7 +17,9 @@ export default async function SecaoAvaliacoesGoogle({ estabelecimentoId }: { est
 
   return (
     <div>
-      <h2 className="mb-3 text-lg font-semibold text-neutral-800">⭐ Avaliações do Google</h2>
+      <h2 className="mb-3 text-lg font-semibold text-neutral-800">
+        ⭐ <TextoInterface chave="secao_avaliacoes_google">Avaliações do Google</TextoInterface>
+      </h2>
 
       <div className="mb-4 flex items-center gap-3">
         <span className="text-3xl font-bold text-neutral-900">{resumo.notaMedia.toFixed(1)}</span>
@@ -25,7 +28,7 @@ export default async function SecaoAvaliacoesGoogle({ estabelecimentoId }: { est
             <Estrelas nota={resumo.notaMedia} />
           </div>
           <p className="text-xs text-neutral-500">
-            {resumo.totalAvaliacoes ?? 0} avaliações via Google
+            {resumo.totalAvaliacoes ?? 0} <TextoInterface chave="avaliacoes_via_google">avaliações via Google</TextoInterface>
           </p>
         </div>
       </div>
@@ -55,7 +58,7 @@ export default async function SecaoAvaliacoesGoogle({ estabelecimentoId }: { est
 
       {/* Atribuição obrigatória pelas políticas do Google */}
       <p className="mt-3 text-[10px] text-neutral-400">
-        Avaliações fornecidas pelo{' '}
+        <TextoInterface chave="avaliacoes_fornecidas_por">Avaliações fornecidas pelo</TextoInterface>{' '}
         <a
           href={`https://www.google.com/maps/place/?q=place_id:${resumo.placeId}`}
           target="_blank"

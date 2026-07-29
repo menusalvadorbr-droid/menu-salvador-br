@@ -15,6 +15,7 @@ const NAV_GERAL = [
 
 const NAV_PLATAFORMA = [
   { href: '/admin/configuracoes', label: 'Configurações', icone: '⚙️' },
+  { href: '/admin/traducoes-interface', label: 'Traduções da interface', icone: '🌐' },
   { href: '/admin/propagandas', label: 'Propaganda', icone: '📣' },
   { href: '/admin/logs', label: 'Logs', icone: '🗒️' },
   { href: '/admin/usuarios', label: 'Usuários', icone: '👥' },

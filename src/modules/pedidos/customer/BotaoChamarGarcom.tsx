@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { chamarGarcom } from '../chamarGarcomRepository'
+import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 export default function BotaoChamarGarcom({
   estabelecimentoId,
@@ -14,6 +15,7 @@ export default function BotaoChamarGarcom({
 }) {
   const [enviado, setEnviado] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const { traduzirInterface } = useTraducao()
 
   async function handleChamar() {
     setEnviando(true)
@@ -36,7 +38,7 @@ export default function BotaoChamarGarcom({
         temCarrinho ? 'left-6' : 'left-1/2 -translate-x-1/2'
       } ${enviado ? 'bg-green-100 text-green-700' : 'bg-white text-neutral-700 hover:bg-neutral-50'}`}
     >
-      {enviado ? '✅ Garçom chamado!' : '🔔 Chamar garçom'}
+      {enviado ? `✅ ${traduzirInterface('garcom_chamado', 'Garçom chamado!')}` : `🔔 ${traduzirInterface('chamar_garcom', 'Chamar garçom')}`}
     </button>
   )
 }

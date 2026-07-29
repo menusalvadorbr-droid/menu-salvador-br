@@ -3,6 +3,7 @@
 
 import { useEffect } from 'react'
 import type { ItemPedido as ItemSacola } from '../types'
+import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 interface SacolaDrawerProps {
   aberto: boolean
@@ -23,6 +24,8 @@ export default function SacolaDrawer({
   onAlterarQuantidade,
   onFinalizar,
 }: SacolaDrawerProps) {
+  const { traduzirInterface } = useTraducao()
+
   useEffect(() => {
     if (!aberto) return
     const handleEsc = (e: KeyboardEvent) => {
@@ -50,11 +53,11 @@ export default function SacolaDrawer({
       <div className="relative w-full max-w-md max-h-[80vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
         {/* Cabeçalho com botão de fechar maior */}
         <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-bold">🛒 Minha Sacola</h2>
+          <h2 className="text-lg font-bold">🛒 {traduzirInterface('minha_sacola', 'Minha Sacola')}</h2>
           <button
             onClick={onFechar}
             className="text-3xl text-gray-500 hover:text-gray-800 transition-colors p-1 leading-none"
-            aria-label="Fechar"
+            aria-label={traduzirInterface('fechar', 'Fechar')}
           >
             &times;
           </button>
@@ -63,7 +66,7 @@ export default function SacolaDrawer({
         {/* Lista de itens */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {itens.length === 0 ? (
-            <p className="text-gray-500 text-center mt-8">Sacola vazia</p>
+            <p className="text-gray-500 text-center mt-8">{traduzirInterface('sacola_vazia', 'Sacola vazia')}</p>
           ) : (
             itens.map((item) => {
               const preco = item.preco_promocional && item.preco_promocional < item.preco
@@ -89,7 +92,7 @@ export default function SacolaDrawer({
                     <button
                       onClick={() => onAlterarQuantidade(linhaId, -1)}
                       className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                      aria-label="Diminuir quantidade"
+                      aria-label={traduzirInterface('diminuir_quantidade', 'Diminuir quantidade')}
                     >
                       −
                     </button>
@@ -97,14 +100,14 @@ export default function SacolaDrawer({
                     <button
                       onClick={() => onAlterarQuantidade(linhaId, 1)}
                       className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                      aria-label="Aumentar quantidade"
+                      aria-label={traduzirInterface('aumentar_quantidade', 'Aumentar quantidade')}
                     >
                       +
                     </button>
                     <button
                       onClick={() => onRemover(linhaId)}
                       className="text-red-500 hover:text-red-700 ml-2 text-xl"
-                      aria-label="Remover item"
+                      aria-label={traduzirInterface('remover_item', 'Remover item')}
                     >
                       🗑️
                     </button>
@@ -118,7 +121,7 @@ export default function SacolaDrawer({
         {/* Rodapé com total e botão finalizar */}
         <div className="border-t p-4">
           <div className="flex justify-between font-bold text-lg mb-4">
-            <span>Total</span>
+            <span>{traduzirInterface('total_label', 'Total')}</span>
             <span>R$ {formatarPreco(total)}</span>
           </div>
           <button
@@ -126,7 +129,7 @@ export default function SacolaDrawer({
             disabled={itens.length === 0}
             className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition"
           >
-            📦 Finalizar Pedido
+            📦 {traduzirInterface('finalizar_pedido', 'Finalizar Pedido')}
           </button>
         </div>
       </div>

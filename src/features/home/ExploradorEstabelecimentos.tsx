@@ -6,6 +6,8 @@ import { logSupabaseError } from '@/lib/supabase/logError'
 import Filtros from './Filtros'
 import CategoriaIconStrip from './CategoriaIconStrip'
 import GridEstabelecimentos from './GridEstabelecimentos'
+import SecaoAnimada from '@/components/public/SecaoAnimada'
+import CardSkeleton from '@/components/public/CardSkeleton'
 
 interface ExploradorEstabelecimentosProps {
   estabelecimentosIniciais: any[]
@@ -99,7 +101,7 @@ export default function ExploradorEstabelecimentos({
   return (
     <div>
       {mostrarFiltros && (
-        <>
+        <SecaoAnimada>
           <CategoriaIconStrip
             tiposCozinha={tiposCozinha}
             ativoId={tipoCozinhaId}
@@ -115,25 +117,19 @@ export default function ExploradorEstabelecimentos({
               setTipoCozinhaId(null)
             }}
           />
-        </>
+        </SecaoAnimada>
       )}
-      <div className="container mx-auto px-4 py-10">
+      <SecaoAnimada className="container mx-auto px-4 py-10">
         {loading ? (
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="animate-pulse overflow-hidden rounded-2xl border border-neutral-100">
-                <div className="h-48 bg-neutral-100" />
-                <div className="space-y-2 p-5">
-                  <div className="h-4 w-2/3 rounded bg-neutral-100" />
-                  <div className="h-3 w-1/2 rounded bg-neutral-100" />
-                </div>
-              </div>
+              <CardSkeleton key={i} />
             ))}
           </div>
         ) : (
           <GridEstabelecimentos estabelecimentos={estabelecimentos} />
         )}
-      </div>
+      </SecaoAnimada>
     </div>
   )
 }

@@ -15,17 +15,21 @@ interface Horario {
  * @param horarios - Lista de horários de funcionamento (vindo do Supabase)
  * @returns Objeto com:
  *   - aberto: boolean (true se está aberto agora)
- *   - texto: string (mensagem amigável para exibir ao cliente)
+ *   - estado: chave do estado ('aberto_agora' | 'fechado' | 'abre_as' | null) —
+ *     texto de verdade é resolvido na renderização (StatusPill), que sabe o
+ *     idioma escolhido; esta função não decide texto, só o estado.
+ *   - horaAbertura: só preenchido quando estado === 'abre_as'
  *   - exibir: boolean (se deve mostrar o indicador na interface)
  */
 export function isEstabelecimentoAberto(horarios: Horario[]): {
   aberto: boolean;
-  texto: string;
+  estado: 'aberto_agora' | 'fechado' | 'abre_as' | null;
+  horaAbertura?: string;
   exibir: boolean;
 } {
   // Se não houver horários cadastrados, não exibe nada
   if (!horarios || horarios.length === 0) {
-    return { aberto: false, texto: '', exibir: false };
+    return { aberto: false, estado: null, exibir: false };
   }
 
   const agora = new Date();
@@ -41,7 +45,7 @@ export function isEstabelecimentoAberto(horarios: Horario[]): {
   const periodosHoje = horarios.filter((h) => h.dia_semana === diaSemana);
 
   if (periodosHoje.length === 0 || periodosHoje.every((h) => h.fechado)) {
-    return { aberto: false, texto: 'Fechado', exibir: true };
+    return { aberto: false, estado: 'fechado', exibir: true };
   }
 
   const paraMinutos = (horario: string | null | undefined, padrao: string) => {
@@ -66,7 +70,7 @@ export function isEstabelecimentoAberto(horarios: Horario[]): {
     (p) => horaAtual >= p.aberturaMinutos && horaAtual <= p.fechamentoMinutos
   );
   if (periodoAtual) {
-    return { aberto: true, texto: 'Aberto agora', exibir: true };
+    return { aberto: true, estado: 'aberto_agora', exibir: true };
   }
 
   // Fechado agora — se ainda vai abrir hoje (existe período com abertura
@@ -75,11 +79,12 @@ export function isEstabelecimentoAberto(horarios: Horario[]): {
   if (proximoPeriodo) {
     return {
       aberto: false,
-      texto: `Abre às ${proximoPeriodo.horarioAberturaTexto}`,
+      estado: 'abre_as',
+      horaAbertura: proximoPeriodo.horarioAberturaTexto,
       exibir: true,
     };
   }
 
   // Já passou de todos os períodos de hoje
-  return { aberto: false, texto: 'Fechado', exibir: true };
+  return { aberto: false, estado: 'fechado', exibir: true };
 }

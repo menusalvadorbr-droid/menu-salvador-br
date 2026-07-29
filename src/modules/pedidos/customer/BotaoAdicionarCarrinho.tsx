@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useCarrinho } from './CarrinhoProvider'
 import SeletorItemModal from './SeletorItemModal'
 import type { GrupoResolvido, VariacaoResolvida } from './tiposSelecao'
+import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 export default function BotaoAdicionarCarrinho({
   id,
@@ -23,6 +24,7 @@ export default function BotaoAdicionarCarrinho({
   grupos?: GrupoResolvido[]
 }) {
   const { adicionarItem } = useCarrinho()
+  const { traduzirInterface } = useTraducao()
   const [seletorAberto, setSeletorAberto] = useState(false)
   // Item com tamanho e/ou complemento não pode ir direto pro carrinho —
   // precisa passar pelo seletor pra escolher (e validar) antes.
@@ -43,7 +45,7 @@ export default function BotaoAdicionarCarrinho({
         className="mt-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-white transition hover:opacity-90"
         style={{ backgroundColor: corDestaque }}
       >
-        + Adicionar
+        + {traduzirInterface('adicionar', 'Adicionar')}
       </button>
 
       {seletorAberto && (

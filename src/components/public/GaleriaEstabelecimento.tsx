@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { useTraducao } from './TraducaoCardapio'
 
 export default function GaleriaEstabelecimento({ fotos, nome }: { fotos: string[]; nome: string }) {
   const fotosExibidas = fotos.slice(0, 10)
   const [selecionada, setSelecionada] = useState(0)
+  const { traduzirInterface } = useTraducao()
 
   if (fotosExibidas.length === 0) {
-    return <p className="text-sm text-neutral-500">Nenhuma foto disponível.</p>
+    return <p className="text-sm text-neutral-500">{traduzirInterface('nenhuma_foto', 'Nenhuma foto disponível.')}</p>
   }
 
   return (

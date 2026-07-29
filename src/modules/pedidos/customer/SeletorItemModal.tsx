@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GrupoResolvido, VariacaoResolvida } from './tiposSelecao'
 import type { ComplementoSelecionado, VariacaoSelecionada } from '../types'
+import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 interface SeletorItemModalProps {
   nome: string
@@ -51,11 +52,18 @@ function gruposAplicaveis(base: GrupoResolvido[], selecoes: Record<string, strin
   return resultado
 }
 
-function mensagemErro(grupo: GrupoResolvido): string {
+function mensagemErro(
+  grupo: GrupoResolvido,
+  traduzirInterface: (chave: string, original: string, vars?: Record<string, string | number>) => string
+): string {
   const { selecaoMinima: min, selecaoMaxima: max } = grupo
-  if (min === max) return `Escolha exatamente ${min} em "${grupo.nome}".`
-  if (min === 0) return `Escolha até ${max} em "${grupo.nome}".`
-  return `Escolha entre ${min} e ${max} em "${grupo.nome}".`
+  if (min === max) {
+    return traduzirInterface('escolha_exatamente', 'Escolha exatamente {min} em "{grupo}".', { min, grupo: grupo.nome })
+  }
+  if (min === 0) {
+    return traduzirInterface('escolha_ate', 'Escolha até {max} em "{grupo}".', { max, grupo: grupo.nome })
+  }
+  return traduzirInterface('escolha_entre', 'Escolha entre {min} e {max} em "{grupo}".', { min, max, grupo: grupo.nome })
 }
 
 export default function SeletorItemModal({
@@ -71,6 +79,7 @@ export default function SeletorItemModal({
   const [variacaoId, setVariacaoId] = useState<string | null>(variacoes[0]?.id ?? null)
   const [selecoes, setSelecoes] = useState<Record<string, string[]>>({})
   const [tentouEnviar, setTentouEnviar] = useState(false)
+  const { traduzirInterface } = useTraducao()
 
   const aplicaveis = useMemo(() => gruposAplicaveis(grupos, selecoes), [grupos, selecoes])
 
@@ -79,11 +88,11 @@ export default function SeletorItemModal({
     for (const grupo of aplicaveis) {
       const qtd = (selecoes[grupo.id] || []).length
       if (qtd < grupo.selecaoMinima || qtd > grupo.selecaoMaxima) {
-        mapa[grupo.id] = mensagemErro(grupo)
+        mapa[grupo.id] = mensagemErro(grupo, traduzirInterface)
       }
     }
     return mapa
-  }, [aplicaveis, selecoes])
+  }, [aplicaveis, selecoes, traduzirInterface])
 
   const variacaoSelecionada = variacoes.find((v) => v.id === variacaoId) || null
   const precoComplementos = aplicaveis.reduce((soma, grupo) => {
@@ -160,7 +169,7 @@ export default function SeletorItemModal({
           <button
             onClick={onFechar}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-neutral-500 hover:bg-black/10"
-            aria-label="Fechar"
+            aria-label={traduzirInterface('fechar', 'Fechar')}
           >
             ✕
           </button>
@@ -170,7 +179,8 @@ export default function SeletorItemModal({
           {variacoes.length > 0 && (
             <div>
               <p className="mb-2 text-sm font-semibold text-neutral-800">
-                Tamanho <span className="font-normal text-red-500">· obrigatório</span>
+                {traduzirInterface('tamanho_label', 'Tamanho')}{' '}
+                <span className="font-normal text-red-500">· {traduzirInterface('obrigatorio_label', 'obrigatório')}</span>
               </p>
               <div className="space-y-1.5">
                 {variacoes.map((v) => (
@@ -195,7 +205,7 @@ export default function SeletorItemModal({
                 ))}
               </div>
               {tentouEnviar && !variacaoId && (
-                <p className="mt-1 text-xs font-medium text-red-600">Escolha um tamanho.</p>
+                <p className="mt-1 text-xs font-medium text-red-600">{traduzirInterface('escolha_um_tamanho', 'Escolha um tamanho.')}</p>
               )}
             </div>
           )}
@@ -205,9 +215,12 @@ export default function SeletorItemModal({
             const rotulo =
               grupo.selecaoMinima > 0
                 ? grupo.selecaoMinima === grupo.selecaoMaxima
-                  ? `escolha ${grupo.selecaoMinima} · obrigatório`
-                  : `escolha ${grupo.selecaoMinima} a ${grupo.selecaoMaxima} · obrigatório`
-                : `opcional · até ${grupo.selecaoMaxima}`
+                  ? traduzirInterface('grupo_escolha_obrigatorio', 'escolha {min} · obrigatório', { min: grupo.selecaoMinima })
+                  : traduzirInterface('grupo_escolha_intervalo_obrigatorio', 'escolha {min} a {max} · obrigatório', {
+                      min: grupo.selecaoMinima,
+                      max: grupo.selecaoMaxima,
+                    })
+                : traduzirInterface('grupo_opcional_ate', 'opcional · até {max}', { max: grupo.selecaoMaxima })
 
             return (
               <div key={grupo.id}>
@@ -256,7 +269,7 @@ export default function SeletorItemModal({
             className="w-full rounded-lg py-3 text-sm font-semibold text-white transition hover:opacity-90"
             style={{ backgroundColor: corDestaque }}
           >
-            Adicionar · R$ {fmt(precoUnidade)}
+            {traduzirInterface('adicionar', 'Adicionar')} · R$ {fmt(precoUnidade)}
           </button>
         </div>
       </div>

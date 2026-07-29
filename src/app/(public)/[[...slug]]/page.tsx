@@ -12,9 +12,10 @@ import { PromocoesCarrossel } from '@/features/home/PromocoesCarrossel'
 import ExploradorEstabelecimentos from '@/features/home/ExploradorEstabelecimentos'
 import BotaoFlutuante from '@/features/home/BotaoFlutuante'
 import PropagandaCard from '@/components/public/PropagandaCard'
+import SecaoAnimada from '@/components/public/SecaoAnimada'
 import SecaoAvaliacoesGoogle from '@/components/public/SecaoAvaliacoesGoogle'
 import { getPromocoesAtivas } from '@/features/home/getPromocoesAtivas'
-import { TraducaoProvider, Texto, SeletorIdioma, type TraducaoRow } from '@/components/public/TraducaoCardapio'
+import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import type { Metadata } from 'next'
 
 // ============================================================
@@ -175,11 +176,19 @@ async function HomePage() {
 
   return (
     <div>
-      {heroAtivado && <Hero totalScans={scansHoje || 0} totalEstabs={totalEstabs || 0} />}
-      {promocoesAtivado && <PromocoesCarrossel itens={promocoes} />}
-      <div className="mx-auto max-w-6xl px-4 pt-6">
+      {heroAtivado && (
+        <SecaoAnimada>
+          <Hero totalScans={scansHoje || 0} totalEstabs={totalEstabs || 0} />
+        </SecaoAnimada>
+      )}
+      {promocoesAtivado && (
+        <SecaoAnimada>
+          <PromocoesCarrossel itens={promocoes} />
+        </SecaoAnimada>
+      )}
+      <SecaoAnimada className="mx-auto max-w-6xl px-4 pt-6">
         <PropagandaCard />
-      </div>
+      </SecaoAnimada>
       {gridAtivado && (
         <ExploradorEstabelecimentos
           estabelecimentosIniciais={destaques || []}
@@ -599,11 +608,11 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
   const cidade = est.cidade || 'Salvador'
   const bairro = est.bairro
 
-  const ETIQUETA_ESTACIONAMENTO: Record<string, string> = {
-    proprio: '🅿️ Estacionamento próprio',
-    valet: '🚗 Manobrista',
-    rua: '🅿️ Estacionamento na rua',
-    nao_tem: '🚫 Sem estacionamento',
+  const ETIQUETA_ESTACIONAMENTO: Record<string, { emoji: string; chave: string; texto: string }> = {
+    proprio: { emoji: '🅿️', chave: 'estacionamento_proprio', texto: 'Estacionamento próprio' },
+    valet: { emoji: '🚗', chave: 'estacionamento_manobrista', texto: 'Manobrista' },
+    rua: { emoji: '🅿️', chave: 'estacionamento_rua', texto: 'Estacionamento na rua' },
+    nao_tem: { emoji: '🚫', chave: 'estacionamento_sem', texto: 'Sem estacionamento' },
   }
 
   const temComodidade =
@@ -614,16 +623,23 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
   // item (sem descrição, sem categoria).
   const idiomasAtivos: string[] = est.idiomas_ativos || []
   let traducoes: TraducaoRow[] = []
+  let traducoesInterface: TraducaoInterfaceRow[] = []
   if (idiomasAtivos.length > 0) {
-    const { data: trads } = await supabase
-      .from('traducoes')
-      .select('tipo_registro, registro_id, idioma, campo, valor')
-      .eq('estabelecimento_id', est.id)
+    const [{ data: trads }, { data: tradsInterface }] = await Promise.all([
+      supabase
+        .from('traducoes')
+        .select('tipo_registro, registro_id, idioma, campo, valor')
+        .eq('estabelecimento_id', est.id),
+      // Textos fixos da interface — globais da plataforma, cadastrados uma
+      // vez pelo admin geral em /admin/traducoes-interface.
+      supabase.from('traducoes_interface').select('chave, idioma, valor'),
+    ])
     traducoes = trads || []
+    traducoesInterface = tradsInterface || []
   }
 
   return (
-    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes}>
+    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes} traducoesInterface={traducoesInterface}>
     <div className="pb-16">
       <div className="mx-auto max-w-5xl px-4 pt-6">
         {/* Hero – foto de capa dedicada (mesma fonte de verdade usada no
@@ -653,7 +669,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
             <div className="flex-1 space-y-2">
               <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{nomeExibicao}</h1>
               <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
-                <span className="capitalize">{est.tipo_estabelecimento || 'Restaurante'}</span>
+                <span className="capitalize">{est.tipo_estabelecimento || <TextoInterface chave="tipo_estabelecimento_fallback">Restaurante</TextoInterface>}</span>
                 {(est.estabelecimento_tipos_cozinha || [])
                   .map((v: any) => v.tipos_cozinha?.nome)
                   .filter(Boolean)
@@ -663,8 +679,8 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                       <span>{nome}</span>
                     </span>
                   ))}
-                {statusAberto.exibir && (
-                  <StatusPill aberto={statusAberto.aberto} mensagem={statusAberto.texto} />
+                {statusAberto.exibir && statusAberto.estado && (
+                  <StatusPill aberto={statusAberto.aberto} estado={statusAberto.estado} horaAbertura={statusAberto.horaAbertura} />
                 )}
               </div>
             </div>
@@ -678,14 +694,16 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
           {!est.owner_user_id && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
               <p className="text-sm text-orange-900">
-                <strong>Esse é o seu estabelecimento?</strong> Reivindique o perfil para editar informações,
-                fotos e cardápio.
+                <strong><TextoInterface chave="reivindicar_titulo">Esse é o seu estabelecimento?</TextoInterface></strong>{' '}
+                <TextoInterface chave="reivindicar_texto_perfil">
+                  Reivindique o perfil para editar informações, fotos e cardápio.
+                </TextoInterface>
               </p>
               <a
                 href={`/estabelecimentos/novo?cnpj=${est.cnpj}`}
                 className="shrink-0 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
               >
-                Reivindicar
+                <TextoInterface chave="reivindicar_botao">Reivindicar</TextoInterface>
               </a>
             </div>
           )}
@@ -701,13 +719,17 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                 case 'sobre':
                   return (
                     <div key={chave}>
-                      <h2 className="mb-4 text-lg font-semibold text-neutral-800">📝 Sobre</h2>
+                      <h2 className="mb-4 text-lg font-semibold text-neutral-800">
+                        📝 <TextoInterface chave="secao_sobre">Sobre</TextoInterface>
+                      </h2>
                       <div className="space-y-3">
-                        <h3 className="text-sm font-semibold text-neutral-700">Endereço</h3>
+                        <h3 className="text-sm font-semibold text-neutral-700">
+                          <TextoInterface chave="endereco_label">Endereço</TextoInterface>
+                        </h3>
                         <p className="text-sm text-neutral-700">
                           {[[est.tipo_logradouro, est.endereco].filter(Boolean).join(' '), est.numero]
                             .filter(Boolean)
-                            .join(', ') || 'Endereço não informado'}
+                            .join(', ') || <TextoInterface chave="endereco_nao_informado">Endereço não informado</TextoInterface>}
                         </p>
                         <p className="text-xs text-neutral-500">{bairro} - {cidade}, BA</p>
                       </div>
@@ -717,13 +739,15 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                 case 'cardapio_destaque':
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">📋 Cardápio</h2>
+                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
+                        📋 <TextoInterface chave="secao_cardapio">Cardápio</TextoInterface>
+                      </h2>
                       <Link
                         href={`/cardapio/${est.slug}`}
                         className="inline-block rounded-full px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
                         style={{ backgroundColor: 'var(--brand-primary)' }}
                       >
-                        Ver cardápio completo →
+                        <TextoInterface chave="ver_cardapio_completo">Ver cardápio completo</TextoInterface> →
                       </Link>
                     </div>
                   )
@@ -731,7 +755,9 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                 case 'galeria':
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">📸 Fotos</h2>
+                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
+                        📸 <TextoInterface chave="secao_fotos">Fotos</TextoInterface>
+                      </h2>
                       <GaleriaEstabelecimento fotos={galeriaFotos} nome={nomeExibicao} />
                     </div>
                   )
@@ -739,10 +765,20 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                 case 'horarios':
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">🕒 Horários</h2>
+                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
+                        🕒 <TextoInterface chave="secao_horarios">Horários</TextoInterface>
+                      </h2>
                       {horarios && horarios.length > 0 ? (
                         <div className="space-y-3">
-                          {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((dia, idx) => {
+                          {[
+                            { dia: 'Domingo', chave: 'dia_domingo' },
+                            { dia: 'Segunda', chave: 'dia_segunda' },
+                            { dia: 'Terça', chave: 'dia_terca' },
+                            { dia: 'Quarta', chave: 'dia_quarta' },
+                            { dia: 'Quinta', chave: 'dia_quinta' },
+                            { dia: 'Sexta', chave: 'dia_sexta' },
+                            { dia: 'Sábado', chave: 'dia_sabado' },
+                          ].map(({ dia, chave: chaveDia }, idx) => {
                             const periodos = horarios.filter((h: any) => h.dia_semana === idx)
                             const hoje = new Date().getDay() === idx
                             const todosFechados = periodos.every((h: any) => h.fechado)
@@ -755,10 +791,13 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                                 style={hoje ? { backgroundColor: 'color-mix(in srgb, var(--brand-primary) 8%, white)' } : undefined}
                               >
                                 <div className="flex items-start justify-between">
-                                  <span className="font-medium">{hoje && '👉 '}{dia}</span>
+                                  <span className="font-medium">
+                                    {hoje && '👉 '}
+                                    <TextoInterface chave={chaveDia}>{dia}</TextoInterface>
+                                  </span>
                                   <div className="text-right">
                                     {todosFechados ? (
-                                      <span className="text-red-500">Fechado</span>
+                                      <span className="text-red-500"><TextoInterface chave="fechado">Fechado</TextoInterface></span>
                                     ) : (
                                       periodos.map((h: any, i: number) => (
                                         <div key={i} className="text-neutral-700">
@@ -773,7 +812,9 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                           })}
                         </div>
                       ) : (
-                        <p className="py-6 text-center text-sm text-neutral-500">Horários não cadastrados.</p>
+                        <p className="py-6 text-center text-sm text-neutral-500">
+                          <TextoInterface chave="horarios_nao_cadastrados">Horários não cadastrados.</TextoInterface>
+                        </p>
                       )}
                     </div>
                   )
@@ -782,14 +823,16 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                   return (
                     <div key={chave}>
                       <div className="mb-2 flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-neutral-800">📍 Localização</h2>
+                        <h2 className="text-lg font-semibold text-neutral-800">
+                          📍 <TextoInterface chave="secao_localizacao">Localização</TextoInterface>
+                        </h2>
                         <a
                           href={linkAbrirMapa}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm font-medium text-orange-600 hover:underline"
                         >
-                          Abrir no Google Maps
+                          <TextoInterface chave="abrir_google_maps">Abrir no Google Maps</TextoInterface>
                         </a>
                       </div>
                       <div className="h-56 w-full overflow-hidden rounded-xl border border-neutral-200">
@@ -809,16 +852,21 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                   if (!temComodidade) return null
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">✨ Comodidades</h2>
+                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
+                        ✨ <TextoInterface chave="secao_comodidades">Comodidades</TextoInterface>
+                      </h2>
                       <div className="flex flex-wrap gap-2">
                         {est.aceita_pets && (
                           <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700">
-                            🐾 Aceita pets
+                            🐾 <TextoInterface chave="aceita_pets">Aceita pets</TextoInterface>
                           </span>
                         )}
                         {est.estacionamento && est.estacionamento !== 'nao_tem' && (
                           <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700">
-                            {ETIQUETA_ESTACIONAMENTO[est.estacionamento]}
+                            {ETIQUETA_ESTACIONAMENTO[est.estacionamento].emoji}{' '}
+                            <TextoInterface chave={ETIQUETA_ESTACIONAMENTO[est.estacionamento].chave}>
+                              {ETIQUETA_ESTACIONAMENTO[est.estacionamento].texto}
+                            </TextoInterface>
                           </span>
                         )}
                         {(est.acessibilidade || []).map((item: string, i: number) => (
@@ -833,13 +881,17 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                 case 'contato':
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">📞 Contato</h2>
+                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
+                        📞 <TextoInterface chave="secao_contato">Contato</TextoInterface>
+                      </h2>
                       <div className="space-y-1 text-sm text-neutral-700">
                         {est.telefone && <p>📞 {est.telefone}</p>}
                         {est.whatsapp && <p>💬 {est.whatsapp}</p>}
                         {est.instagram && <p>📷 {est.instagram}</p>}
                         {!est.telefone && !est.whatsapp && !est.instagram && (
-                          <p className="text-neutral-400">Contato não informado</p>
+                          <p className="text-neutral-400">
+                            <TextoInterface chave="contato_nao_informado">Contato não informado</TextoInterface>
+                          </p>
                         )}
                       </div>
                     </div>
@@ -849,7 +901,9 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                   if (promocoes.length === 0) return null
                   return (
                     <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">🎉 Promoções</h2>
+                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
+                        🎉 <TextoInterface chave="secao_promocoes">Promoções</TextoInterface>
+                      </h2>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         {promocoes.map((item) => (
                           <div key={item.id} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3">

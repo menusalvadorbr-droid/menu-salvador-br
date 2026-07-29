@@ -7,6 +7,7 @@ import SacolaDrawer from './SacolaDrawer'
 import FinalizarPedidoModal from './FinalizarPedidoModal'
 import StatusConexaoPedidos from '../components/StatusConexaoPedidos'
 import BotaoChamarGarcom from './BotaoChamarGarcom'
+import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 interface CarrinhoContextValue {
   adicionarItem: ReturnType<typeof useSacola>['adicionarItem']
@@ -32,6 +33,7 @@ export default function CarrinhoProvider({
   children: React.ReactNode
 }) {
   const sacola = useSacola()
+  const { traduzirInterface } = useTraducao()
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [modalAberto, setModalAberto] = useState(false)
 
@@ -59,7 +61,7 @@ export default function CarrinhoProvider({
           onClick={() => setDrawerAberto(true)}
           className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-orange-600 px-5 py-3 font-semibold text-white shadow-lg transition hover:bg-orange-700"
         >
-          🛒 {sacola.totalItens} {sacola.totalItens === 1 ? 'item' : 'itens'} · R$ {sacola.total.toFixed(2)}
+          🛒 {sacola.totalItens} {sacola.totalItens === 1 ? traduzirInterface('item_singular', 'item') : traduzirInterface('itens_label', 'itens')} · R$ {sacola.total.toFixed(2)}
         </button>
       )}
 

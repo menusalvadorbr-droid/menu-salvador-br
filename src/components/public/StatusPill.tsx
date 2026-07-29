@@ -1,10 +1,25 @@
+'use client'
+
+import { useTraducao } from './TraducaoCardapio'
+
 export default function StatusPill({
   aberto,
-  mensagem,
+  estado,
+  horaAbertura,
 }: {
   aberto: boolean
-  mensagem: string
+  estado: 'aberto_agora' | 'fechado' | 'abre_as'
+  horaAbertura?: string
 }) {
+  const { traduzirInterface } = useTraducao()
+
+  const mensagem =
+    estado === 'aberto_agora'
+      ? traduzirInterface('aberto_agora', 'Aberto agora')
+      : estado === 'abre_as'
+      ? traduzirInterface('abre_as', 'Abre às {hora}', { hora: horaAbertura || '' })
+      : traduzirInterface('fechado', 'Fechado')
+
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${

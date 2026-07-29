@@ -15,10 +15,24 @@ export interface TraducaoRow {
   valor: string
 }
 
+/**
+ * Texto fixo da interface da plataforma (rótulos, botões, dias da semana)
+ * — diferente de TraducaoRow, que é conteúdo específico de um
+ * estabelecimento (nome/descrição de item ou categoria). Uma chave só,
+ * traduzida uma vez pelo admin geral em /admin/traducoes-interface, vale
+ * pra qualquer cardápio da plataforma.
+ */
+export interface TraducaoInterfaceRow {
+  chave: string
+  idioma: string
+  valor: string
+}
+
 interface TraducaoContextValue {
   idioma: IdiomaCardapio
   setIdioma: (idioma: IdiomaCardapio) => void
   traduzir: (tipo: 'item' | 'categoria', id: string, campo: 'nome' | 'descricao', original: string) => string
+  traduzirInterface: (chave: string, original: string, vars?: Record<string, string | number>) => string
 }
 
 const TraducaoContext = createContext<TraducaoContextValue | null>(null)
@@ -35,11 +49,13 @@ export function TraducaoProvider({
   slug,
   idiomasAtivos,
   traducoes,
+  traducoesInterface = [],
   children,
 }: {
   slug: string
   idiomasAtivos: string[]
   traducoes: TraducaoRow[]
+  traducoesInterface?: TraducaoInterfaceRow[]
   children: React.ReactNode
 }) {
   const [idioma, setIdiomaState] = useState<IdiomaCardapio>('pt')
@@ -72,19 +88,38 @@ export function TraducaoProvider({
     return m
   }, [traducoes])
 
+  const mapaInterface = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of traducoesInterface) {
+      m.set(`${t.idioma}:${t.chave}`, t.valor)
+    }
+    return m
+  }, [traducoesInterface])
+
   function traduzir(tipo: 'item' | 'categoria', id: string, campo: 'nome' | 'descricao', original: string) {
     if (idioma === 'pt') return original
     return mapa.get(`${idioma}:${tipo}:${id}:${campo}`) || original
   }
 
+  // `vars` faz substituição simples de token — {min}/{max}/{hora}/etc no
+  // texto (traduzido ou o original em português de fallback) viram o
+  // valor passado. Cobre os poucos textos fixos que têm uma parte
+  // dinâmica (ex: "Abre às {hora}", "escolha {min} a {max} · obrigatório"),
+  // sem precisar de uma lib de i18n inteira só por causa desses casos.
+  function traduzirInterface(chave: string, original: string, vars?: Record<string, string | number>) {
+    const base = idioma === 'pt' ? original : mapaInterface.get(`${idioma}:${chave}`) || original
+    if (!vars) return base
+    return Object.entries(vars).reduce((acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)), base)
+  }
+
   return (
-    <TraducaoContext.Provider value={{ idioma, setIdioma, traduzir }}>
+    <TraducaoContext.Provider value={{ idioma, setIdioma, traduzir, traduzirInterface }}>
       {children}
     </TraducaoContext.Provider>
   )
 }
 
-function useTraducao(): TraducaoContextValue {
+export function useTraducao(): TraducaoContextValue {
   const ctx = useContext(TraducaoContext)
   if (!ctx) throw new Error('useTraducao precisa estar dentro de um TraducaoProvider')
   return ctx
@@ -108,6 +143,25 @@ export function Texto({
 }) {
   const { traduzir } = useTraducao()
   return <>{traduzir(tipo, id, campo, children)}</>
+}
+
+/**
+ * Mesma ideia de `Texto`, mas pra texto fixo da interface (não vem do
+ * banco por estabelecimento) — rótulos, botões, dias da semana etc.
+ * `children` é o texto original em português, usado como fallback quando
+ * a chave ainda não tem tradução cadastrada pro idioma atual.
+ */
+export function TextoInterface({
+  chave,
+  vars,
+  children,
+}: {
+  chave: string
+  vars?: Record<string, string | number>
+  children: string
+}) {
+  const { traduzirInterface } = useTraducao()
+  return <>{traduzirInterface(chave, children, vars)}</>
 }
 
 /** Seletor por sigla de texto (PT · EN · FR · ES), sem bandeira. PT sempre disponível. */

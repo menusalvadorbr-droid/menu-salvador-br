@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useFinalizarPedido } from './useFinalizarPedido'
 import type { ItemPedido, TipoPedido } from '../types'
+import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 interface FinalizarPedidoModalProps {
   aberto: boolean
@@ -15,10 +16,10 @@ interface FinalizarPedidoModalProps {
   mesaFixa?: string
 }
 
-const OPCOES_TIPO: { valor: TipoPedido; label: string; icone: string }[] = [
-  { valor: 'mesa', label: 'Estou na mesa', icone: '🍽️' },
-  { valor: 'retirada', label: 'Vou retirar', icone: '🛍️' },
-  { valor: 'entrega', label: 'Entrega', icone: '🛵' },
+const OPCOES_TIPO: { valor: TipoPedido; label: string; chave: string; icone: string }[] = [
+  { valor: 'mesa', label: 'Estou na mesa', chave: 'opcao_mesa', icone: '🍽️' },
+  { valor: 'retirada', label: 'Vou retirar', chave: 'opcao_retirada', icone: '🛍️' },
+  { valor: 'entrega', label: 'Entrega', chave: 'opcao_entrega', icone: '🛵' },
 ]
 
 export default function FinalizarPedidoModal({
@@ -38,6 +39,7 @@ export default function FinalizarPedidoModal({
   const [metodoPagamento, setMetodoPagamento] = useState('Dinheiro')
   const [observacoes, setObservacoes] = useState('')
   const { finalizar, enviando, resultado, erro } = useFinalizarPedido()
+  const { traduzirInterface } = useTraducao()
 
   if (!aberto) return null
 
@@ -64,19 +66,20 @@ export default function FinalizarPedidoModal({
           {resultado === 'online' ? (
             <>
               <div className="mb-2 text-4xl">✅</div>
-              <h2 className="text-lg font-bold text-neutral-900">Pedido enviado!</h2>
+              <h2 className="text-lg font-bold text-neutral-900">{traduzirInterface('pedido_enviado_titulo', 'Pedido enviado!')}</h2>
               <p className="mt-1 text-sm text-neutral-500">
-                O estabelecimento já recebeu seu pedido e vai confirmar em instantes.
+                {traduzirInterface('pedido_enviado_texto', 'O estabelecimento já recebeu seu pedido e vai confirmar em instantes.')}
               </p>
             </>
           ) : (
             <>
               <div className="mb-2 text-4xl">📲</div>
-              <h2 className="text-lg font-bold text-neutral-900">Pedido enviado via WhatsApp</h2>
+              <h2 className="text-lg font-bold text-neutral-900">{traduzirInterface('pedido_whatsapp_titulo', 'Pedido enviado via WhatsApp')}</h2>
               <p className="mt-1 text-sm text-neutral-500">
-                O sistema está temporariamente indisponível, então enviamos seu pedido direto
-                pelo WhatsApp do estabelecimento — e ele será sincronizado automaticamente assim
-                que a conexão voltar.
+                {traduzirInterface(
+                  'pedido_whatsapp_texto',
+                  'O sistema está temporariamente indisponível, então enviamos seu pedido direto pelo WhatsApp do estabelecimento — e ele será sincronizado automaticamente assim que a conexão voltar.'
+                )}
               </p>
             </>
           )}
@@ -87,7 +90,7 @@ export default function FinalizarPedidoModal({
             }}
             className="mt-5 w-full rounded-lg bg-orange-600 py-2.5 font-semibold text-white hover:bg-orange-700"
           >
-            Fechar
+            {traduzirInterface('fechar', 'Fechar')}
           </button>
         </div>
       </div>
@@ -98,13 +101,13 @@ export default function FinalizarPedidoModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onFechar} />
       <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
-        <h2 className="mb-4 text-lg font-bold text-neutral-900">📦 Finalizar pedido</h2>
+        <h2 className="mb-4 text-lg font-bold text-neutral-900">📦 {traduzirInterface('finalizar_pedido', 'Finalizar pedido')}</h2>
 
         {erro && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
 
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Como vai ser?</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">{traduzirInterface('como_vai_ser', 'Como vai ser?')}</label>
             <div className="grid grid-cols-3 gap-2">
               {OPCOES_TIPO.map((opcao) => (
                 <button
@@ -118,14 +121,14 @@ export default function FinalizarPedidoModal({
                   }`}
                 >
                   <span className="text-lg">{opcao.icone}</span>
-                  {opcao.label}
+                  {traduzirInterface(opcao.chave, opcao.label)}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Seu nome *</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">{traduzirInterface('seu_nome', 'Seu nome *')}</label>
             <input
               type="text"
               value={nome}
@@ -136,7 +139,7 @@ export default function FinalizarPedidoModal({
 
           {tipoPedido === 'mesa' && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Número da mesa</label>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">{traduzirInterface('numero_mesa', 'Número da mesa')}</label>
               <input
                 type="text"
                 value={mesa}
@@ -150,7 +153,7 @@ export default function FinalizarPedidoModal({
 
           {tipoPedido === 'entrega' && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Endereço de entrega *</label>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">{traduzirInterface('endereco_entrega', 'Endereço de entrega *')}</label>
               <textarea
                 value={enderecoEntrega}
                 onChange={(e) => setEnderecoEntrega(e.target.value)}
@@ -159,13 +162,13 @@ export default function FinalizarPedidoModal({
                 className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-neutral-900"
               />
               <p className="mt-1 text-xs text-neutral-400">
-                A taxa de entrega, se houver, é combinada direto com o estabelecimento.
+                {traduzirInterface('taxa_entrega_aviso', 'A taxa de entrega, se houver, é combinada direto com o estabelecimento.')}
               </p>
             </div>
           )}
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Forma de pagamento</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">{traduzirInterface('forma_pagamento', 'Forma de pagamento')}</label>
             <select
               value={metodoPagamento}
               onChange={(e) => setMetodoPagamento(e.target.value)}
@@ -178,7 +181,7 @@ export default function FinalizarPedidoModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Observações</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">{traduzirInterface('observacoes_label', 'Observações')}</label>
             <textarea
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
@@ -189,7 +192,7 @@ export default function FinalizarPedidoModal({
           </div>
 
           <div className="flex justify-between border-t border-neutral-100 pt-3 text-base font-bold text-neutral-900">
-            <span>Total</span>
+            <span>{traduzirInterface('total_label', 'Total')}</span>
             <span>R$ {total.toFixed(2)}</span>
           </div>
 
@@ -199,13 +202,13 @@ export default function FinalizarPedidoModal({
               disabled={enviando}
               className="flex-1 rounded-lg bg-green-600 py-2.5 font-semibold text-white hover:bg-green-700 disabled:opacity-50"
             >
-              {enviando ? 'Enviando...' : 'Confirmar pedido'}
+              {enviando ? traduzirInterface('enviando', 'Enviando...') : traduzirInterface('confirmar_pedido', 'Confirmar pedido')}
             </button>
             <button
               onClick={onFechar}
               className="flex-1 rounded-lg border border-neutral-200 py-2.5 font-semibold text-neutral-700 hover:bg-neutral-50"
             >
-              Cancelar
+              {traduzirInterface('cancelar', 'Cancelar')}
             </button>
           </div>
         </div>
