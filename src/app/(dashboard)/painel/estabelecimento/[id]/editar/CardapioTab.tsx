@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import ImageUpload from '@/app/(dashboard)/painel/components/ImageUpload'
+import { baixarPlanilhaCardapio } from './planilha/planilhaCardapio'
+import SubirPlanilhaModal from './planilha/SubirPlanilhaModal'
+import { baixarPlanilhaTraducao, type TraducaoExistente } from './planilha/planilhaTraducao'
+import SubirPlanilhaTraducaoModal from './planilha/SubirPlanilhaTraducaoModal'
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -146,6 +150,15 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [novaCategoria, setNovaCategoria]       = useState('')
   const [criandoCategoria, setCriandoCategoria] = useState(false)
   const [erroCategoria, setErroCategoria]       = useState<string | null>(null)
+
+  // UI – planilha (baixar/subir cardápio em massa)
+  const [modalPlanilhaAberto, setModalPlanilhaAberto] = useState(false)
+  const [mensagemPlanilha, setMensagemPlanilha] = useState<string | null>(null)
+
+  // UI – planilha de tradução (baixar/subir traduções em massa)
+  const [modalPlanilhaTraducaoAberto, setModalPlanilhaTraducaoAberto] = useState(false)
+  const [traducoesParaPlanilha, setTraducoesParaPlanilha] = useState<TraducaoExistente[]>([])
+  const [carregandoPlanilhaTraducao, setCarregandoPlanilhaTraducao] = useState(false)
 
   // UI – modal de edição
   const [modalAberto, setModalAberto]   = useState(false)
@@ -386,6 +399,56 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     if (!confirm('Remover esta categoria e todos os seus itens?')) return
     await supabase.from('categorias').delete().eq('id', id)
     carregar()
+  }
+
+  // ── PLANILHA (baixar/subir em massa) ─────
+  function baixarPlanilha() {
+    const nomeArquivo = `cardapio-${new Date().toISOString().slice(0, 10)}.xlsx`
+    baixarPlanilhaCardapio(categorias, itens, nomeArquivo)
+  }
+
+  async function aoConcluirPlanilha() {
+    await carregar()
+    setMensagemPlanilha('✅ Planilha aplicada com sucesso!')
+    setTimeout(() => setMensagemPlanilha(null), 4000)
+  }
+
+  // ── PLANILHA DE TRADUÇÃO (baixar/subir em massa) ─────
+  // Busca avulsa, sob demanda — diferente do resto da tela, que carrega
+  // tradução item por item só quando o dono abre aquele item específico
+  // pra editar. Baixar/subir a planilha precisa de todas de uma vez.
+  async function buscarTraducoesExistentes(): Promise<TraducaoExistente[]> {
+    const { data, error } = await supabase
+      .from('traducoes')
+      .select('tipo_registro, registro_id, idioma, campo, valor')
+      .eq('estabelecimento_id', estabelecimentoId)
+    if (error) {
+      logSupabaseError('Erro ao buscar traduções', error)
+      return []
+    }
+    return data || []
+  }
+
+  async function baixarPlanilhaDeTraducao() {
+    setCarregandoPlanilhaTraducao(true)
+    const traducoesExistentes = await buscarTraducoesExistentes()
+    const nomeArquivo = `traducoes-${new Date().toISOString().slice(0, 10)}.xlsx`
+    baixarPlanilhaTraducao(categorias, itens, idiomasAtivos, traducoesExistentes, nomeArquivo)
+    setCarregandoPlanilhaTraducao(false)
+  }
+
+  async function abrirModalPlanilhaTraducao() {
+    setCarregandoPlanilhaTraducao(true)
+    const traducoesExistentes = await buscarTraducoesExistentes()
+    setTraducoesParaPlanilha(traducoesExistentes)
+    setCarregandoPlanilhaTraducao(false)
+    setModalPlanilhaTraducaoAberto(true)
+  }
+
+  async function aoConcluirPlanilhaTraducao() {
+    await carregar()
+    setMensagemPlanilha('✅ Traduções aplicadas com sucesso!')
+    setTimeout(() => setMensagemPlanilha(null), 4000)
   }
 
   // ── RENOMEAR CATEGORIA (nome em português, inline) ──
@@ -981,6 +1044,12 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         </div>
       )}
 
+      {mensagemPlanilha && (
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">
+          {mensagemPlanilha}
+        </div>
+      )}
+
       {/* TOOLBAR */}
       {!readOnly && (
         <div className="flex flex-wrap items-end gap-3">
@@ -1012,6 +1081,42 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           </div>
 
           <div className="flex-1" />
+
+          {/* Planilha */}
+          <button
+            onClick={baixarPlanilha}
+            className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition whitespace-nowrap"
+          >
+            ⬇️ Baixar planilha
+          </button>
+          <button
+            onClick={() => setModalPlanilhaAberto(true)}
+            disabled={!menuId}
+            className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+          >
+            ⬆️ Subir planilha
+          </button>
+
+          {/* Planilha de tradução — só faz sentido com pelo menos um
+              idioma ativado em Configurações → Idiomas. */}
+          {idiomasAtivos.length > 0 && (
+            <>
+              <button
+                onClick={baixarPlanilhaDeTraducao}
+                disabled={carregandoPlanilhaTraducao}
+                className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+              >
+                🌐⬇️ Baixar traduções
+              </button>
+              <button
+                onClick={abrirModalPlanilhaTraducao}
+                disabled={!menuId || carregandoPlanilhaTraducao}
+                className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+              >
+                🌐⬆️ Subir traduções
+              </button>
+            </>
+          )}
 
           {/* Novo item */}
           <button
@@ -1217,6 +1322,27 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           idiomasAtivos={idiomasAtivos}
           traducoesItem={traducoesItem}
           atualizarTraducaoItem={atualizarTraducaoItem}
+        />
+      )}
+
+      {modalPlanilhaAberto && menuId && (
+        <SubirPlanilhaModal
+          menuId={menuId}
+          categorias={categorias}
+          itens={itens}
+          onFechar={() => setModalPlanilhaAberto(false)}
+          onConcluido={aoConcluirPlanilha}
+        />
+      )}
+
+      {modalPlanilhaTraducaoAberto && (
+        <SubirPlanilhaTraducaoModal
+          estabelecimentoId={estabelecimentoId}
+          categorias={categorias}
+          itens={itens}
+          traducoesExistentes={traducoesParaPlanilha}
+          onFechar={() => setModalPlanilhaTraducaoAberto(false)}
+          onConcluido={aoConcluirPlanilhaTraducao}
         />
       )}
     </div>

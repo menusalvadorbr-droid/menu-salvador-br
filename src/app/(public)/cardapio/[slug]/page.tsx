@@ -6,13 +6,16 @@ import Image from 'next/image'
 import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
-import BotaoAdicionarCarrinho from '@/modules/pedidos/customer/BotaoAdicionarCarrinho'
 import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import SpecialOfferCard from '@/components/public/SpecialOfferCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
-import ItemClicavel, { PararPropagacaoClique } from '@/components/public/ItemClicavel'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
-import type { GrupoResolvido, OpcaoResolvida, VariacaoResolvida } from '@/modules/pedidos/customer/tiposSelecao'
+import FaixasCategorias from '@/components/public/FaixasCategorias'
+import ItemCatalogoCard from '@/components/public/ItemCatalogoCard'
+import ItemListaLinha from '@/components/public/ItemListaLinha'
+import { obterFonteTema } from '@/lib/fontesTema'
+import { gradienteHeroImagem } from '@/lib/temaHero'
+import { SELECT_ITEM_CARDAPIO_PUBLICO } from '@/lib/resolverItemCardapio'
 
 // Fora do componente (Server Component roda uma vez por request, mas o
 // lint de pureza não sabe disso e trata new Date()/Date.now() escritos
@@ -22,53 +25,6 @@ function algumaOfertaEncerrandoEmBreve(ofertas: { estado: EstadoOferta }[]): boo
   return ofertas.some(
     ({ estado }) => estado.tipo === 'ativo' && (new Date(estado.fimIso).getTime() - Date.now()) / 60000 <= 30
   )
-}
-
-// Formato cru do Postgrest (join aninhado) → formato já pronto pro
-// seletor de item usar (nomes resolvidos, preços numéricos). `resolverOpcao`
-// e `resolverGrupo` são mutuamente recursivos porque uma opção pode
-// liberar outro grupo (opcao_grupo_complemento), que por sua vez tem
-// opções que podem liberar outros grupos.
-type ComOrdem = { ordem: number }
-const porOrdem = (a: ComOrdem, b: ComOrdem) => a.ordem - b.ordem
-
-function resolverVariacoes(item: any): VariacaoResolvida[] {
-  return (item.variacoes_item || []).map((v: any) => ({ id: v.id, nome: v.nome, preco: v.preco }))
-}
-
-function resolverOpcao(o: any): OpcaoResolvida {
-  return {
-    id: o.id,
-    nome: o.itens_cardapio?.nome || '(item removido)',
-    precoAdicional: o.preco_adicional || 0,
-    exibirPreco: o.exibir_preco !== false,
-    gruposExtras: ((o.opcao_grupo_complemento || []) as any[])
-      .map((v: any) => v.grupos_complementos)
-      .filter(Boolean)
-      .map(resolverGrupo),
-  }
-}
-
-function resolverGrupo(g: any): GrupoResolvido {
-  return {
-    id: g.id,
-    nome: g.nome,
-    selecaoMinima: g.selecao_minima ?? 0,
-    selecaoMaxima: g.selecao_maxima ?? 1,
-    opcoes: (g.opcoes_complemento || [])
-      .slice()
-      .sort(porOrdem)
-      .map(resolverOpcao),
-  }
-}
-
-function resolverGrupos(item: any): GrupoResolvido[] {
-  return (item.item_grupo_complemento || [])
-    .slice()
-    .sort(porOrdem)
-    .map((v: any) => v.grupos_complementos)
-    .filter(Boolean)
-    .map(resolverGrupo)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -122,6 +78,10 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const corF  = temaConfig.cor_fundo      || '#f9fafb'
   const corT  = temaConfig.cor_texto      || '#1f2937'
   const corBd = temaConfig.cor_borda      || `${corP}30`
+  const fonteTema = obterFonteTema(temaConfig.fonte)
+  const heroComImagem = temaConfig.hero_modo === 'imagem' && !!temaConfig.hero_imagem_url
+  const heroGradiente = gradienteHeroImagem(corF, Number(temaConfig.hero_veu_opacidade) || 50)
+  const cardRaio = `${Number.isFinite(temaConfig.card_raio) ? temaConfig.card_raio : 16}px`
 
   // 3. Config do cardápio — salvo em estabelecimentos.cardapio_config (pelo TemaEditor)
   const cc: any = est.cardapio_config || {}
@@ -129,6 +89,13 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const mostrarCodigo    = cc.mostrar_codigo    !== false
   const mostrarAlergenos = cc.mostrar_alergenos !== false
   const tituloCardapio   = cc.titulo            || est.nome_fantasia || est.nome
+
+  // Navegação de categoria — independente do Formato (Lista/Catálogo).
+  // "Faixas" muda só o container de navegação: cada categoria vira uma
+  // faixa que busca seus itens sob demanda ao abrir, em vez de tudo já
+  // carregado de uma vez como na navegação em pílulas (padrão).
+  const navegacaoCategoria: 'pilulas' | 'faixas' =
+    est.cardapio_navegacao_categoria === 'faixas' ? 'faixas' : 'pilulas'
 
   // 4. Menu → categorias → itens + alérgenos
   const { data: menus } = await supabase
@@ -142,6 +109,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   let categorias: any[]                      = []
   let itensPorCat: Record<string, any[]>     = {}
   let itensComPromo: any[]                   = []
+  let totalItensFaixas = 0
 
   if (menu) {
     const { data: cats } = await supabase
@@ -150,31 +118,56 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
     if (categorias.length > 0) {
       const catIds = categorias.map((c: any) => c.id)
-      const { data: itens, error: itensErr } = await supabase
-        .from('itens_cardapio')
-        .select(`*, item_allergens(allergen:allergen_id(id, nome, icone)), variacoes_item(id, nome, preco), item_grupo_complemento(ordem, grupos_complementos(id, nome, selecao_minima, selecao_maxima, opcoes_complemento(id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome), opcao_grupo_complemento(grupos_complementos(id, nome, selecao_minima, selecao_maxima, opcoes_complemento(id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome)))))))`)
-        .in('categoria_id', catIds)
-        .eq('disponivel', true)
-        .order('ordem')
 
-      if (itensErr) logSupabaseError('Erro ao buscar itens do cardápio público:', itensErr)
+      if (navegacaoCategoria === 'faixas') {
+        // Faixas expansíveis: os itens de cada categoria só são buscados
+        // quando o visitante abre aquela faixa (FaixasCategorias.tsx,
+        // client-side) — aqui busca só a contagem (pro cabeçalho) e os
+        // itens em promoção (pro carrossel do topo), sem trazer o
+        // cardápio inteiro de uma vez como a navegação em pílulas faz.
+        const [{ count }, { data: promoItens }] = await Promise.all([
+          supabase
+            .from('itens_cardapio')
+            .select('*', { count: 'exact', head: true })
+            .in('categoria_id', catIds)
+            .eq('disponivel', true),
+          supabase
+            .from('itens_cardapio')
+            .select('id, nome, preco, preco_promocional, foto_url, categoria_id')
+            .in('categoria_id', catIds)
+            .eq('disponivel', true)
+            .eq('promo_status', 'active')
+            .not('preco_promocional', 'is', null),
+        ])
+        totalItensFaixas = count || 0
+        itensComPromo = promoItens || []
+      } else {
+        const { data: itens, error: itensErr } = await supabase
+          .from('itens_cardapio')
+          .select(SELECT_ITEM_CARDAPIO_PUBLICO)
+          .in('categoria_id', catIds)
+          .eq('disponivel', true)
+          .order('ordem')
 
-      if (itens) {
-        categorias.forEach((cat: any) => {
-          itensPorCat[cat.id] = itens.filter((i: any) => i.categoria_id === cat.id)
-        })
-        // Itens com promoção ativa para o carrossel do topo
-        itensComPromo = itens.filter((i: any) =>
-          i.promo_status === 'active' && i.preco_promocional && i.disponivel
-        )
+        if (itensErr) logSupabaseError('Erro ao buscar itens do cardápio público:', itensErr)
+
+        if (itens) {
+          categorias.forEach((cat: any) => {
+            itensPorCat[cat.id] = itens.filter((i: any) => i.categoria_id === cat.id)
+          })
+          // Itens com promoção ativa para o carrossel do topo
+          itensComPromo = itens.filter((i: any) =>
+            i.promo_status === 'active' && i.preco_promocional && i.disponivel
+          )
+        }
       }
     }
   }
 
-  const totalItens = Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)
+  const totalItens = navegacaoCategoria === 'faixas'
+    ? totalItensFaixas
+    : Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const alergenos = (item: any): any[] =>
-    (item.item_allergens || []).map((r: any) => r.allergen).filter(Boolean)
 
   // Formato do cardápio — campo independente do tema (estabelecimentos.
   // cardapio_formato), escolhido em Configurações → Tema. Desacoplado de
@@ -191,21 +184,6 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   // nenhum (nem no card comum, nem no painel de clique expande) — o
   // cardápio fica só informativo.
   const carrinhoAtivado = !!est.cardapio_carrinho_ativado
-
-  // Helper: classes e tamanhos da foto conforme posição
-  function fotoLayout(pos: string) {
-    if (pos === 'right') return { flex: 'flex-row-reverse', sz: 'w-24 h-24', sizes: '96px' }
-    // aspect-ratio em vez de altura fixa — com h-56 fixo, a foto ficava
-    // cada vez mais cortada em telas largas (a largura do card cresce mas
-    // a altura não acompanha, esticando o corte do object-cover). 16:9
-    // (aspect-video) mantém um corte proporcional em qualquer tela sem
-    // deixar o card alto demais — 4/3 tentado antes deixava o card grande
-    // demais.
-    if (pos === 'top')   return { flex: 'flex-col',         sz: 'w-full aspect-video', sizes: '400px' }
-    if (pos === 'none')  return { flex: 'flex-row',         sz: '',            sizes: '' }
-    return                       { flex: 'flex-row',         sz: 'w-24 h-24', sizes: '96px' }
-  }
-  const fl = fotoLayout(fotoPosicao)
 
   // Tradução manual do cardápio (EN/FR/ES) — só busca se algum idioma
   // estiver ativado em Configurações → Idiomas.
@@ -262,41 +240,59 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     // essa UI nunca conseguiria ler o idioma escolhido pra se traduzir.
     <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes} traducoesInterface={traducoesInterface}>
     <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
-    <div className="min-h-screen" style={{ backgroundColor: corF, color: corT }}>
+    <div className={`min-h-screen ${fonteTema.className}`} style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 
-        {/* ── CABEÇALHO ── */}
-        <div className="rounded-2xl p-5 shadow mb-4"
+        {/* ── CABEÇALHO / HERO ── */}
+        <div className="overflow-hidden rounded-2xl shadow mb-4"
           style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
-          <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-4">
-            {est.logo_url && (
-              <div className="relative w-14 h-14 flex-shrink-0 overflow-hidden rounded-full border-2"
-                style={{ borderColor: corP }}>
-                <Image src={est.logo_url} alt={tituloCardapio} fill
-                  className="object-cover" sizes="56px" unoptimized priority />
-              </div>
-            )}
-            <div>
-              <h1 className="text-xl font-bold" style={{ color: corP }}>{tituloCardapio}</h1>
-              <p className="text-sm opacity-70">
-                {est.bairro}
-                {' · '}
-                {(est.estabelecimento_tipos_cozinha || [])
-                  .map((v: any) => v.tipos_cozinha?.nome)
-                  .filter(Boolean)
-                  .join(', ') || <TextoInterface chave="culinaria_variada">Culinária variada</TextoInterface>}
-              </p>
-              <p className="text-xs opacity-50 mt-0.5">
-                {totalItens} <TextoInterface chave="itens_label">itens</TextoInterface> · {categorias.length} <TextoInterface chave="categorias_label">categorias</TextoInterface>
-              </p>
-              {est.endereco && (
-                <p className="mt-1 text-xs opacity-60">📍 {[est.endereco, est.numero].filter(Boolean).join(', ')}</p>
+          {/* Bloco de identidade — só essa parte vira o "hero": fundo em cor
+              sólida (padrão) ou foto + véu escuro por cima, configurados no
+              tema. Com foto, a cor do texto vira branco (herdada pelos
+              parágrafos abaixo, que não têm cor própria); sem foto, segue
+              corP/corT normalmente. */}
+          <div className="p-5"
+            style={
+              heroComImagem
+                ? {
+                    backgroundImage: `${heroGradiente}, url(${temaConfig.hero_imagem_url})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    color: '#ffffff',
+                  }
+                : undefined
+            }>
+            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-4">
+              {est.logo_url && (
+                <div className="relative w-14 h-14 flex-shrink-0 overflow-hidden rounded-full border-2"
+                  style={{ borderColor: heroComImagem ? '#ffffff' : corP }}>
+                  <Image src={est.logo_url} alt={tituloCardapio} fill
+                    className="object-cover" sizes="56px" unoptimized priority />
+                </div>
               )}
+              <div>
+                <h1 className="text-xl font-bold" style={{ color: heroComImagem ? '#ffffff' : corP }}>{tituloCardapio}</h1>
+                <p className="text-sm opacity-70">
+                  {est.bairro}
+                  {' · '}
+                  {(est.estabelecimento_tipos_cozinha || [])
+                    .map((v: any) => v.tipos_cozinha?.nome)
+                    .filter(Boolean)
+                    .join(', ') || <TextoInterface chave="culinaria_variada">Culinária variada</TextoInterface>}
+                </p>
+                <p className="text-xs opacity-50 mt-0.5">
+                  {totalItens} <TextoInterface chave="itens_label">itens</TextoInterface> · {categorias.length} <TextoInterface chave="categorias_label">categorias</TextoInterface>
+                </p>
+                {est.endereco && (
+                  <p className="mt-1 text-xs opacity-60">📍 {[est.endereco, est.numero].filter(Boolean).join(', ')}</p>
+                )}
+              </div>
+            </div>
+            <SeletorIdioma idiomasAtivos={idiomasAtivos} />
             </div>
           </div>
-          <SeletorIdioma idiomasAtivos={idiomasAtivos} />
-          </div>
+          <div className="px-5 pb-5" style={{ paddingTop: heroComImagem ? '0.75rem' : undefined }}>
           <Link
             href={
               est.cidade && est.bairros?.slug && est.tipo_estabelecimento
@@ -324,6 +320,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
               </a>
             </div>
           )}
+          </div>
         </div>
 
         {/* ── CARROSSEL DE PROMOÇÕES ── */}
@@ -355,8 +352,8 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                     // que tem sua própria altura fixa maior), esticando esse
                     // card de item mesmo sem precisar. Esse valor (h-44) é a
                     // referência que SpecialOfferCard também usa.
-                    className="flex-shrink-0 w-32 h-44 rounded-xl overflow-hidden border cursor-pointer hover:shadow-md transition"
-                    style={{ backgroundColor: corF, borderColor: corBd }}>
+                    className="flex-shrink-0 w-32 h-44 overflow-hidden border cursor-pointer hover:shadow-md transition"
+                    style={{ backgroundColor: corF, borderColor: corBd, borderRadius: cardRaio }}>
                     <div className="relative h-20 bg-gray-100">
                       {foto
                         ? <Image src={foto} alt={item.nome} fill
@@ -390,7 +387,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         )}
 
         {/* ── NAVEGAÇÃO POR CATEGORIA ── */}
-        {categorias.length > 1 && (
+        {/* Só na navegação em pílulas — no modo "faixas" a lista de
+            faixas abaixo já É a navegação, as duas são alternativas. */}
+        {navegacaoCategoria === 'pilulas' && categorias.length > 1 && (
           <NavegacaoCategorias
             categorias={categorias.reduce((acc: { id: string; nome: string }[], cat: any) => {
               if (itensPorCat[cat.id]?.length) acc.push({ id: cat.id, nome: cat.nome })
@@ -409,6 +408,18 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             <p className="text-lg font-medium"><TextoInterface chave="nenhum_item_disponivel">Nenhum item disponível</TextoInterface></p>
             <p className="text-sm opacity-60 mt-1"><TextoInterface chave="volte_em_breve">Volte em breve!</TextoInterface></p>
           </div>
+        ) : navegacaoCategoria === 'faixas' ? (
+          <FaixasCategorias
+            categorias={categorias}
+            layoutCardapio={layoutCardapio}
+            corP={corP} corT={corT} corS={corS} corBd={corBd}
+            cardRaio={cardRaio}
+            mostrarCodigo={mostrarCodigo}
+            mostrarAlergenos={mostrarAlergenos}
+            fotoPosicao={fotoPosicao}
+            cliqueExpandeAtivado={cliqueExpandeAtivado}
+            carrinhoAtivado={carrinhoAtivado}
+          />
         ) : layoutCardapio === 'catalogo' ? (
           <div className="space-y-6">
             {categorias.map((cat: any) => {
@@ -421,102 +432,17 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                     <span className="ml-2 text-sm font-normal opacity-60">({itens.length})</span>
                   </h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {itens.map((item: any) => {
-                      const foto    = getOptimizedCloudinaryUrl(item.foto_url, 300, 300, 'fill')
-                      const algArr  = alergenos(item)
-                      const promoOk = item.promo_status === 'active' && item.preco_promocional
-                      const pct     = promoOk ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
-                      const temVariacoes = item.variacoes_item && item.variacoes_item.length > 0
-                      // "a partir de" só usa o campo Preço* quando ele foi
-                      // preenchido de propósito pra isso (rótulo do próprio
-                      // editor); sem preço-base, não tem "a partir de" que
-                      // fazer sentido, cai pro menor preço entre os tamanhos.
-                      const precoBaseValido = item.preco > 0
-                      const menorPrecoVariacao = temVariacoes
-                        ? Math.min(...item.variacoes_item.map((v: any) => v.preco))
-                        : null
-
-                      return (
-                        <div key={item.id}
-                          className="rounded-xl overflow-hidden shadow-sm transition hover:scale-105 hover:shadow-lg"
-                          style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
-                          <ItemClicavel
-                            ativado={cliqueExpandeAtivado}
-                            id={item.id}
-                            nome={item.nome}
-                            descricao={item.descricao}
-                            fotoUrl={item.foto_url}
-                            preco={item.preco}
-                            precoPromocional={promoOk ? item.preco_promocional : null}
-                            alergenos={algArr}
-                            mostrarAlergenos={mostrarAlergenos}
-                            corP={corP} corT={corT} corS={corS} corBd={corBd}
-                            carrinhoAtivado={carrinhoAtivado}
-                            variacoes={resolverVariacoes(item)}
-                            grupos={resolverGrupos(item)}
-                          >
-                            {/* FOTO — altura fixa, cortada pra preencher */}
-                            <div className="relative h-32 bg-gray-100">
-                              {foto ? (
-                                <Image src={foto} alt={item.nome} fill
-                                  className="object-cover" sizes="(max-width: 640px) 50vw, 25vw" unoptimized loading="lazy" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-2xl">🍽️</div>
-                              )}
-                              {pct > 0 && (
-                                <span className="absolute top-1 left-1 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
-                                  style={{ backgroundColor: corP }}>-{pct}%</span>
-                              )}
-                            </div>
-
-                            {/* NOME + DESCRIÇÃO — centralizados */}
-                            <div className="p-3 text-center">
-                              <h3 className="font-semibold text-sm" style={{ color: corT }}>
-                                <Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto>
-                              </h3>
-                              {item.descricao && (
-                                <p className="text-xs opacity-60 mt-1 line-clamp-2" style={{ color: corT }}>
-                                  <Texto tipo="item" id={item.id} campo="descricao">{item.descricao}</Texto>
-                                </p>
-                              )}
-
-                              {/* PREÇO — etiqueta/pill, não só texto */}
-                              {promoOk && (
-                                <p className="text-xs text-gray-400 line-through mt-2">R$ {fmt(item.preco)}</p>
-                              )}
-                              <div className={`inline-block rounded-full px-3 py-1 text-sm font-bold text-white ${promoOk ? 'mt-1' : 'mt-2'}`}
-                                style={{ backgroundColor: corP }}>
-                                {temVariacoes && precoBaseValido && <span className="mr-1 text-[10px] font-normal opacity-80"><TextoInterface chave="a_partir_de">a partir de</TextoInterface></span>}
-                                R$ {fmt(
-                                  temVariacoes
-                                    ? (precoBaseValido ? item.preco : menorPrecoVariacao)
-                                    : (promoOk ? item.preco_promocional : item.preco)
-                                )}
-                              </div>
-                            </div>
-                          </ItemClicavel>
-
-                          {/* Botão de comprar — fora do wrapper clicável, não abre o painel.
-                              Item com variação/complemento abre o seletor em vez de adicionar
-                              direto — ver BotaoAdicionarCarrinho. Só aparece com o carrinho
-                              ativado em Configurações → Recursos do cardápio; desligado, o
-                              cardápio fica só informativo. */}
-                          {carrinhoAtivado && (
-                            <PararPropagacaoClique className="px-3 pb-3 flex justify-center">
-                              <BotaoAdicionarCarrinho
-                                id={item.id}
-                                nome={item.nome}
-                                preco={item.preco}
-                                precoPromocional={promoOk ? item.preco_promocional : null}
-                                corDestaque={corP}
-                                variacoes={resolverVariacoes(item)}
-                                grupos={resolverGrupos(item)}
-                              />
-                            </PararPropagacaoClique>
-                          )}
-                        </div>
-                      )
-                    })}
+                    {itens.map((item: any) => (
+                      <ItemCatalogoCard
+                        key={item.id}
+                        item={item}
+                        corP={corP} corT={corT} corS={corS} corBd={corBd}
+                        cardRaio={cardRaio}
+                        mostrarAlergenos={mostrarAlergenos}
+                        cliqueExpandeAtivado={cliqueExpandeAtivado}
+                        carrinhoAtivado={carrinhoAtivado}
+                      />
+                    ))}
                   </div>
                 </div>
               )
@@ -543,219 +469,18 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
                   {/* Itens */}
                   <div className="divide-y" style={{ borderColor: corBd }}>
-                    {itens.map((item: any) => {
-                      // Pede ao Cloudinary já no formato exibido (16:9 pra
-                      // foto acima, quadrado pros outros) — antes pedia
-                      // sempre quadrado e o CSS cortava de novo por cima
-                      // pra caber na caixa larga da posição "acima",
-                      // cortando a foto duas vezes (uma no Cloudinary,
-                      // outra no object-cover).
-                      const foto = fotoPosicao === 'top'
-                        ? getOptimizedCloudinaryUrl(item.foto_url, 400, 225, 'fill')
-                        : getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
-                      const algArr   = alergenos(item)
-                      const promoOk  = item.promo_status === 'active' && item.preco_promocional
-                      const temVariacoes = item.variacoes_item && item.variacoes_item.length > 0
-                      // "a partir de" só usa o campo Preço* quando ele foi
-                      // preenchido de propósito pra isso (rótulo do próprio
-                      // editor); sem preço-base, mostra a lista de tamanhos
-                      // com cada preço, como já era antes do carrinho.
-                      const precoBaseValido = item.preco > 0
-
-                      return (
-                        <div key={item.id} className="p-4 group hover:bg-black/[.02] transition">
-                        <ItemClicavel
-                          ativado={cliqueExpandeAtivado}
-                          id={item.id}
-                          nome={item.nome}
-                          descricao={item.descricao}
-                          fotoUrl={item.foto_url}
-                          preco={item.preco}
-                          precoPromocional={promoOk ? item.preco_promocional : null}
-                          alergenos={algArr}
-                          mostrarAlergenos={mostrarAlergenos}
-                          corP={corP} corT={corT} corS={corS} corBd={corBd}
-                          carrinhoAtivado={carrinhoAtivado}
-                          variacoes={resolverVariacoes(item)}
-                          grupos={resolverGrupos(item)}
-                        >
-                          <div className={`flex ${fl.flex} gap-4 items-start`}>
-
-                            {/* FOTO */}
-                            {fotoPosicao !== 'none' && foto && (
-                              <div className={`${fl.sz} relative flex-shrink-0 rounded-xl overflow-hidden bg-gray-100`}>
-                                <Image src={foto} alt={item.nome} fill
-                                  className="object-cover group-hover:scale-105 transition duration-300"
-                                  sizes={fl.sizes} unoptimized loading="lazy" />
-                              </div>
-                            )}
-
-                            {/* CONTEÚDO */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-3">
-
-                                {/* Nome + badges */}
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                    {mostrarCodigo && item.codigo && (
-                                      <span className="font-mono text-xs px-2 py-0.5 rounded-full"
-                                        style={{ backgroundColor: `${corP}18`, color: corP }}>
-                                        #{item.codigo}
-                                      </span>
-                                    )}
-                                    <h3 className="font-semibold text-sm" style={{ color: corT }}>
-                                      <Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto>
-                                    </h3>
-                                    {promoOk && (
-                                      <span className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
-                                        style={{ backgroundColor: corP }}>
-                                        🔥 <TextoInterface chave="promocao_badge">Promoção</TextoInterface>
-                                      </span>
-                                    )}
-                                    {item.delivery_disponivel && (
-                                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                                        🛵 <TextoInterface chave="delivery_badge">Delivery</TextoInterface>
-                                      </span>
-                                    )}
-                                  </div>
-                                  {item.descricao && (
-                                    <p className="text-xs leading-relaxed opacity-70" style={{ color: corT }}>
-                                      <Texto tipo="item" id={item.id} campo="descricao">{item.descricao}</Texto>
-                                    </p>
-                                  )}
-                                  {/* GRUPOS DE COMPLEMENTOS — prévia do que existe, na própria
-                                      linha do item (borda + fundo levemente colorido, separada
-                                      da descrição). A escolha de verdade (com validação de
-                                      mín./máx.) acontece no seletor aberto pelo botão de
-                                      adicionar, não aqui. */}
-                                  {item.item_grupo_complemento && item.item_grupo_complemento.length > 0 && (
-                                    <div className="mt-2 space-y-1.5">
-                                      {[...item.item_grupo_complemento]
-                                        .sort((a: any, b: any) => a.ordem - b.ordem)
-                                        .filter((v: any) => v.grupos_complementos)
-                                        .map((v: any) => {
-                                          const g = v.grupos_complementos
-                                          return (
-                                            <div key={g.id} className="rounded-lg px-2.5 py-1.5"
-                                              style={{ backgroundColor: `${corP}0d`, border: `1px solid ${corBd}` }}>
-                                              <p className="text-[11px] font-semibold" style={{ color: corT }}>
-                                                {g.nome}
-                                                <span className="font-normal opacity-60">
-                                                  {' — '}
-                                                  {g.selecao_minima > 0 ? (
-                                                    g.selecao_minima === g.selecao_maxima ? (
-                                                      <TextoInterface chave="grupo_escolha_obrigatorio" vars={{ min: g.selecao_minima }}>
-                                                        {'escolha {min} · obrigatório'}
-                                                      </TextoInterface>
-                                                    ) : (
-                                                      <TextoInterface chave="grupo_escolha_intervalo_obrigatorio" vars={{ min: g.selecao_minima, max: g.selecao_maxima }}>
-                                                        {'escolha {min} a {max} · obrigatório'}
-                                                      </TextoInterface>
-                                                    )
-                                                  ) : (
-                                                    <TextoInterface chave="grupo_opcional_ate" vars={{ max: g.selecao_maxima }}>
-                                                      {'opcional · até {max}'}
-                                                    </TextoInterface>
-                                                  )}
-                                                </span>
-                                              </p>
-                                              <div className="flex flex-wrap gap-1 mt-1">
-                                                {(g.opcoes_complemento || [])
-                                                  .sort((a: any, b: any) => a.ordem - b.ordem)
-                                                  .map((o: any) => {
-                                                    const nomeOpcao = o.itens_cardapio?.nome || '(item removido)'
-                                                    // exibir_preco = false força esconder o valor mesmo que
-                                                    // preco_adicional seja > 0 — decisão do dono por opção.
-                                                    const label = o.exibir_preco === false || !(o.preco_adicional > 0)
-                                                      ? nomeOpcao
-                                                      : `${nomeOpcao} (+R$ ${fmt(o.preco_adicional)})`
-                                                    return (
-                                                      <span key={o.id} className="text-[11px] px-1.5 py-0.5 rounded-full"
-                                                        style={{ backgroundColor: corS, border: `1px solid ${corBd}`, color: corT }}>
-                                                        {label}
-                                                      </span>
-                                                    )
-                                                  })}
-                                              </div>
-                                            </div>
-                                          )
-                                        })}
-                                    </div>
-                                  )}
-                                  {/* ALÉRGENOS */}
-                                  {mostrarAlergenos && algArr.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                      {algArr.map((a: any) => (
-                                        <span key={a.id}
-                                          className="flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full"
-                                          style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
-                                          title={`Alérgeno: ${a.nome}`}>
-                                          {a.icone && <span>{a.icone}</span>}
-                                          {a.nome}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* PREÇO */}
-                                <div className="text-right flex-shrink-0">
-                                  {temVariacoes && !precoBaseValido ? (
-                                    // Sem Preço* preenchido, mostra a lista de tamanhos com
-                                    // cada preço em vez de um "a partir de" sem base real.
-                                    <div className="space-y-0.5">
-                                      {[...item.variacoes_item]
-                                        .sort((a: any, b: any) => a.preco - b.preco)
-                                        .map((v: any) => (
-                                          <div key={v.id} className="flex items-baseline justify-end gap-2 text-xs">
-                                            <span className="opacity-60" style={{ color: corT }}>{v.nome}</span>
-                                            <span className="font-bold text-sm" style={{ color: corP }}>R$ {fmt(v.preco)}</span>
-                                          </div>
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    <>
-                                      {temVariacoes ? (
-                                        <div className="text-xs opacity-60" style={{ color: corT }}><TextoInterface chave="a_partir_de">a partir de</TextoInterface></div>
-                                      ) : (
-                                        promoOk && (
-                                          <div className="text-xs text-gray-400 line-through">
-                                            R$ {fmt(item.preco)}
-                                          </div>
-                                        )
-                                      )}
-                                      <div className="text-base font-bold" style={{ color: corP }}>
-                                        R$ {fmt(temVariacoes ? item.preco : (promoOk ? item.preco_promocional : item.preco))}
-                                      </div>
-                                    </>
-                                  )}
-                                  {/* stopPropagation — clicar em "adicionar" não deve também
-                                      abrir o painel do ItemClicavel que embrulha a linha toda.
-                                      Item com variação/complemento abre o seletor em vez de
-                                      adicionar direto — ver BotaoAdicionarCarrinho. Só aparece
-                                      com o carrinho ativado em Configurações → Recursos do
-                                      cardápio. */}
-                                  {carrinhoAtivado && (
-                                    <PararPropagacaoClique>
-                                      <BotaoAdicionarCarrinho
-                                        id={item.id}
-                                        nome={item.nome}
-                                        preco={item.preco}
-                                        precoPromocional={promoOk ? item.preco_promocional : null}
-                                        corDestaque={corP}
-                                        variacoes={resolverVariacoes(item)}
-                                        grupos={resolverGrupos(item)}
-                                      />
-                                    </PararPropagacaoClique>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </ItemClicavel>
-                        </div>
-                      )
-                    })}
+                    {itens.map((item: any) => (
+                      <ItemListaLinha
+                        key={item.id}
+                        item={item}
+                        corP={corP} corT={corT} corS={corS} corBd={corBd}
+                        mostrarCodigo={mostrarCodigo}
+                        mostrarAlergenos={mostrarAlergenos}
+                        fotoPosicao={fotoPosicao}
+                        cliqueExpandeAtivado={cliqueExpandeAtivado}
+                        carrinhoAtivado={carrinhoAtivado}
+                      />
+                    ))}
                   </div>
                 </div>
               )

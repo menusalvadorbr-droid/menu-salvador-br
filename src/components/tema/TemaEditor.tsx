@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Check, ZoomIn, EyeOff } from 'lucide-react'
+import { obterFonteTema } from '@/lib/fontesTema'
+import { gradienteHeroImagem } from '@/lib/temaHero'
+import { CONFIG_TEMA_PADRAO } from './PreviewTemaCardapio'
 
 interface Tema {
   id: string
@@ -179,6 +182,13 @@ export default function TemaEditor({
   const corF  = config.cor_fundo      || '#f9fafb'
   const corT  = config.cor_texto      || '#1f2937'
   const corBd = config.cor_borda      || `${corP}30`
+  // Campos que só o tema em si controla (definidos em /admin/temas) —
+  // temas antigos não têm essas chaves ainda, daí o merge com o padrão.
+  const cfgTema = { ...CONFIG_TEMA_PADRAO, ...config }
+  const fonteTema = obterFonteTema(cfgTema.fonte)
+  const heroComImagem = cfgTema.hero_modo === 'imagem' && !!cfgTema.hero_imagem_url
+  const heroGradiente = gradienteHeroImagem(corF, cfgTema.hero_veu_opacidade)
+  const raioCard = `${cfgTema.card_raio}px`
 
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -397,12 +407,27 @@ export default function TemaEditor({
             </div>
             <div className="p-4">
               <div
-                className="mx-auto max-w-sm rounded-2xl overflow-hidden shadow-lg border"
+                className={`mx-auto max-w-sm rounded-2xl overflow-hidden shadow-lg border ${fonteTema.className}`}
                 style={{ backgroundColor: corF, color: corT, borderColor: corBd }}
               >
-                {/* Cabeçalho */}
-                <div className="p-4 border-b" style={{ backgroundColor: corS, borderColor: corBd }}>
-                  <h3 className="text-base font-bold text-center" style={{ color: corP }}>
+                {/* Cabeçalho / hero — cor sólida (padrão) ou foto + degradê
+                    até cor_fundo, conforme configurado no tema em
+                    /admin/temas. Mesmo comportamento da página pública. */}
+                <div
+                  className="p-4 border-b text-center"
+                  style={
+                    heroComImagem
+                      ? {
+                          backgroundImage: `${heroGradiente}, url(${cfgTema.hero_imagem_url})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          borderColor: corBd,
+                          color: '#ffffff',
+                        }
+                      : { backgroundColor: corS, borderColor: corBd }
+                  }
+                >
+                  <h3 className="text-base font-bold" style={{ color: heroComImagem ? '#ffffff' : corP }}>
                     🍽️ {cfg.titulo || 'Cardápio'}
                   </h3>
                 </div>
@@ -414,8 +439,8 @@ export default function TemaEditor({
                     <div className="flex gap-2 overflow-x-auto pb-2">
                       {ITENS_PREVIEW.filter(i => i.promocao_ativa).map(item => (
                         <div key={item.id}
-                          className="flex-shrink-0 w-28 rounded-xl overflow-hidden border"
-                          style={{ backgroundColor: corS, borderColor: corBd }}
+                          className="flex-shrink-0 w-28 overflow-hidden border"
+                          style={{ backgroundColor: corS, borderColor: corBd, borderRadius: raioCard }}
                         >
                           <div className="relative">
                             <img src={item.foto_url} alt={item.nome}
@@ -447,8 +472,8 @@ export default function TemaEditor({
                         : null
 
                       return (
-                        <div key={item.id} className="rounded-xl overflow-hidden shadow-sm"
-                          style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+                        <div key={item.id} className="overflow-hidden shadow-sm"
+                          style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}>
                           <div className="relative h-20 bg-gray-100">
                             <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
                             {item.promocao_ativa && (
@@ -490,8 +515,8 @@ export default function TemaEditor({
                     const fotoSz  = fp === 'top' ? 'w-full h-28' : 'w-20 h-20'
 
                     return (
-                      <div key={item.id} className="rounded-xl p-3 shadow-sm"
-                        style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+                      <div key={item.id} className="p-3 shadow-sm"
+                        style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}>
                         <div className={`flex ${flexDir} gap-3 items-start`}>
                           {fp !== 'none' && (
                             <div className={`flex-shrink-0 ${fotoSz} relative rounded-lg overflow-hidden bg-gray-100`}>

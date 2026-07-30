@@ -11,6 +11,7 @@ interface CardapioRecursosTabProps {
     promocoes_contador_ativado?: boolean
     cardapio_clique_expande_ativado?: boolean
     cardapio_carrinho_ativado?: boolean
+    cardapio_navegacao_categoria?: 'pilulas' | 'faixas'
   }
   readOnly?: boolean
 }
@@ -52,6 +53,11 @@ function ToggleRow({
   )
 }
 
+const OPCOES_NAVEGACAO = [
+  { valor: 'pilulas' as const, label: 'Pílulas fixas no topo' },
+  { valor: 'faixas' as const, label: 'Faixas expansíveis' },
+]
+
 export default function CardapioRecursosTab({ estabelecimento, readOnly }: CardapioRecursosTabProps) {
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
@@ -61,8 +67,12 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
   const [promocoesContadorAtivado, setPromocoesContadorAtivado] = useState(estabelecimento.promocoes_contador_ativado || false)
   const [cliqueExpandeAtivado, setCliqueExpandeAtivado] = useState(estabelecimento.cardapio_clique_expande_ativado || false)
   const [carrinhoAtivado, setCarrinhoAtivado] = useState(estabelecimento.cardapio_carrinho_ativado || false)
+  const [navegacaoCategoria, setNavegacaoCategoria] = useState<'pilulas' | 'faixas'>(
+    estabelecimento.cardapio_navegacao_categoria === 'faixas' ? 'faixas' : 'pilulas'
+  )
   const [salvando, setSalvando] = useState(false)
   const [mensagem, setMensagem] = useState<string | null>(null)
+  const [salvandoNavegacao, setSalvandoNavegacao] = useState(false)
 
   async function salvar(novoVariacoes: boolean, novoComplementos: boolean, novoPromocoesContador: boolean, novoCliqueExpande: boolean, novoCarrinho: boolean) {
     if (readOnly) return
@@ -82,6 +92,17 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
     setSalvando(false)
     setMensagem(error ? 'Erro ao salvar: ' + error.message : 'Salvo!')
     setTimeout(() => setMensagem(null), 2000)
+  }
+
+  async function salvarNavegacao(novo: 'pilulas' | 'faixas') {
+    if (readOnly) return
+    setNavegacaoCategoria(novo)
+    setSalvandoNavegacao(true)
+    await supabase
+      .from('estabelecimentos')
+      .update({ cardapio_navegacao_categoria: novo })
+      .eq('id', estabelecimento.id)
+    setSalvandoNavegacao(false)
   }
 
   return (
@@ -150,6 +171,35 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
         titulo="Carrinho de pedidos"
         descricao="Libera o botão de adicionar ao carrinho no cardápio público (no card comum e no painel de clique expande). Desligado, o cardápio fica só informativo, sem nenhum botão de adicionar."
       />
+
+      {/* Não é um toggle (são 2 opções, não liga/desliga) — mesmo padrão
+          visual dos outros, mas com botões de escolha em vez de switch.
+          Independente do Formato (Lista/Catálogo, na aba Tema): dá pra
+          combinar qualquer um dos dois com pílulas ou faixas. */}
+      <div className="py-3 border-b border-gray-100 last:border-0">
+        <p className="text-sm font-medium text-gray-700">Navegação de categoria</p>
+        <p className="text-xs text-gray-400 mt-1 mb-2">
+          Como o visitante navega entre as categorias no cardápio público. Faixas expansíveis carregam os itens de
+          cada categoria só quando ela é aberta, mais leve pra cardápios grandes.
+        </p>
+        <div className="grid grid-cols-2 gap-2 max-w-sm">
+          {OPCOES_NAVEGACAO.map((op) => (
+            <button
+              key={op.valor}
+              type="button"
+              onClick={() => salvarNavegacao(op.valor)}
+              disabled={readOnly || salvandoNavegacao}
+              className={`rounded-lg border-2 py-2 text-xs font-medium transition ${
+                navegacaoCategoria === op.valor
+                  ? 'border-orange-500 bg-orange-50 text-orange-700'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              } ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {op.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {salvando && <p className="text-xs text-gray-400 mt-2">Salvando…</p>}
       {mensagem && <p className="text-xs text-green-600 mt-2">{mensagem}</p>}
