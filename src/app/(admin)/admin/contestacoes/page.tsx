@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import ContestacoesList from './ContestacoesList'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function ContestacoesPage() {
   const supabase = await createClient()
@@ -39,12 +40,10 @@ export default async function ContestacoesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Contestações de vínculo</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Alguém acha que um estabelecimento com dono deveria estar vinculado a ela. Decida transferir ou descartar.
-        </p>
-      </div>
+      <AdminPageHeader
+        titulo="Contestações de vínculo"
+        descricao="Alguém acha que um estabelecimento com dono deveria estar vinculado a ela. Decida transferir ou descartar."
+      />
 
       <ContestacoesList itensIniciais={itens} />
     </div>

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import NovoEstabelecimentoAdminForm from './NovoEstabelecimentoAdminForm'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function NovoEstabelecimentoAdminPage() {
   const supabase = await createClient()
@@ -16,13 +17,19 @@ export default async function NovoEstabelecimentoAdminPage() {
       <Link href="/admin/estabelecimentos" className="text-sm text-neutral-500 hover:text-orange-600">
         ← Voltar
       </Link>
-      <h1 className="mt-1 text-2xl font-bold text-neutral-900">Adicionar estabelecimento ao diretório</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        Cadastra o estabelecimento sem dono — ele já aparece no diretório público e fica disponível pra
-        alguém reivindicar em <code className="text-xs bg-neutral-100 px-1 py-0.5 rounded">/claim</code>.
-        Os dados extras trazidos aqui (sócios, situação do Simples Nacional, tipo de logradouro) ajudam
-        a validar quem reivindicar depois.
-      </p>
+      <div className="mt-1">
+        <AdminPageHeader
+          titulo="Adicionar estabelecimento ao diretório"
+          descricao={
+            <>
+              Cadastra o estabelecimento sem dono — ele já aparece no diretório público e fica disponível pra
+              alguém reivindicar em <code className="rounded bg-neutral-100 px-1 py-0.5 text-xs">/claim</code>.
+              Os dados extras trazidos aqui (sócios, situação do Simples Nacional, tipo de logradouro) ajudam
+              a validar quem reivindicar depois.
+            </>
+          }
+        />
+      </div>
 
       <div className="mt-6 max-w-2xl rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
         <NovoEstabelecimentoAdminForm />

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import ImportarEstabelecimentos from './ImportarEstabelecimentos'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function ImportarEstabelecimentosPage() {
   const supabase = await createClient()
@@ -12,12 +13,10 @@ export default async function ImportarEstabelecimentosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Importar estabelecimentos</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Cole uma lista de CNPJs, revise um por um e insira no diretório.
-        </p>
-      </div>
+      <AdminPageHeader
+        titulo="Importar estabelecimentos"
+        descricao="Cole uma lista de CNPJs, revise um por um e insira no diretório."
+      />
 
       <ImportarEstabelecimentos
         bairros={bairros || []}

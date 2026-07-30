@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import SecoesEstabelecimentoForm from './SecoesEstabelecimentoForm'
 import PaletaPlataformaForm from './PaletaPlataformaForm'
 import ConfiguracoesHomeForm, { type ConfiguracoesHome } from './ConfiguracoesHomeForm'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 const CONFIG_HOME_PADRAO: ConfiguracoesHome = {
   hero_ativado: true,
@@ -27,10 +28,10 @@ export default async function ConfiguracoesAdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Configurações da plataforma</h1>
-        <p className="mt-1 text-sm text-neutral-500">Regras que valem para todos os estabelecimentos.</p>
-      </div>
+      <AdminPageHeader
+        titulo="Configurações da plataforma"
+        descricao="Regras que valem para todos os estabelecimentos."
+      />
 
       <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-neutral-800">Seções da home (menu.salvador)</h2>

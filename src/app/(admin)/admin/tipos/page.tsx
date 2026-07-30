@@ -4,6 +4,8 @@ import type { TipoItem } from './TiposManager'
 import { criarTipoEstabelecimento, toggleTipoEstabelecimento, editarTipoEstabelecimento, excluirTipoEstabelecimento, criarTipoCozinha, toggleTipoCozinha, editarTipoCozinha, excluirTipoCozinha } from './actions'
 import BairrosManager from '../bairros/BairrosManager'
 import type { BairroComContagem } from '../bairros/BairrosManager'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
+import AdminAcordeaoSecao from '@/components/admin/AdminAcordeaoSecao'
 
 export default async function AdminTiposPage() {
   const supabase = await createClient()
@@ -56,44 +58,47 @@ export default async function AdminTiposPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Tipos e bairros</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Essas listas aparecem no cadastro e na edição de qualquer estabelecimento, e nos filtros da home.
-        </p>
-      </div>
+      <AdminPageHeader
+        titulo="Tipos e bairros"
+        descricao="Essas listas aparecem no cadastro e na edição de qualquer estabelecimento, e nos filtros da home."
+      />
 
-      <TiposManager
+      <AdminAcordeaoSecao
         titulo="Tipos de estabelecimento"
-        descricao="Ex: restaurante, bar, lanchonete. Desativar não afeta quem já está com esse tipo — só some da lista pra escolher em novos cadastros."
-        placeholderNome="Ex: Sorveteria"
-        itensIniciais={itensEstabelecimento}
-        onCriar={criarTipoEstabelecimento}
-        onToggle={toggleTipoEstabelecimento}
-        onEditar={editarTipoEstabelecimento}
-        onExcluir={excluirTipoEstabelecimento}
-      />
+        contador={`${itensEstabelecimento.length} itens`}
+        abertoInicialmente
+      >
+        <TiposManager
+          descricao="Ex: restaurante, bar, lanchonete. Desativar não afeta quem já está com esse tipo — só some da lista pra escolher em novos cadastros."
+          placeholderNome="Ex: Sorveteria"
+          itensIniciais={itensEstabelecimento}
+          onCriar={criarTipoEstabelecimento}
+          onToggle={toggleTipoEstabelecimento}
+          onEditar={editarTipoEstabelecimento}
+          onExcluir={excluirTipoEstabelecimento}
+        />
+      </AdminAcordeaoSecao>
 
-      <TiposManager
-        titulo="Tipos de culinária"
-        descricao="Aparecem na faixa de ícones da home e na caixa de seleção (até 3) do cadastro de culinária."
-        placeholderNome="Ex: Culinária árabe"
-        itensIniciais={itensCozinha}
-        onCriar={criarTipoCozinha}
-        onToggle={toggleTipoCozinha}
-        onEditar={editarTipoCozinha}
-        onExcluir={excluirTipoCozinha}
-      />
+      <AdminAcordeaoSecao titulo="Tipos de culinária" contador={`${itensCozinha.length} itens`}>
+        <TiposManager
+          descricao="Aparecem na faixa de ícones da home e na caixa de seleção (até 3) do cadastro de culinária."
+          placeholderNome="Ex: Culinária árabe"
+          itensIniciais={itensCozinha}
+          onCriar={criarTipoCozinha}
+          onToggle={toggleTipoCozinha}
+          onEditar={editarTipoCozinha}
+          onExcluir={excluirTipoCozinha}
+        />
+      </AdminAcordeaoSecao>
 
-      <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-neutral-800">Bairros</h2>
-        <p className="mt-1 text-xs text-neutral-400">
+      <AdminAcordeaoSecao titulo="Bairros" contador={`${bairrosComContagem.length} itens`}>
+        <p className="text-xs text-neutral-400">
           Lista de bairros disponível pra todos os donos de estabelecimento escolherem no cadastro.
         </p>
         <div className="mt-4">
           <BairrosManager bairrosIniciais={bairrosComContagem} />
         </div>
-      </div>
+      </AdminAcordeaoSecao>
     </div>
   )
 }

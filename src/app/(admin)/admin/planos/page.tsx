@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function PlanosPage() {
   const supabase = await createClient()
@@ -11,7 +12,9 @@ export default async function PlanosPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Planos</h1>
+      <div className="mb-6">
+        <AdminPageHeader titulo="Planos" />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {planos && planos.length > 0 ? (

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { GRUPOS_CHAVES, IDIOMAS } from './chaves'
 import { salvarTraducoesInterface, type TraducaoInterfaceAlteracao } from './actions'
+import AdminAcordeaoSecao from '@/components/admin/AdminAcordeaoSecao'
 
 type Valores = Record<string, { en: string; fr: string; es: string }>
 
@@ -58,9 +59,13 @@ export default function TraducoesInterfaceForm({ valoresIniciais }: { valoresIni
         {erro && <span className="text-sm text-red-600">{erro}</span>}
       </div>
 
-      {GRUPOS_CHAVES.map((grupo) => (
-        <div key={grupo.grupo} className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-neutral-800">{grupo.grupo}</h2>
+      {GRUPOS_CHAVES.map((grupo, index) => (
+        <AdminAcordeaoSecao
+          key={grupo.grupo}
+          titulo={grupo.grupo}
+          contador={`${grupo.chaves.length} chaves`}
+          abertoInicialmente={index === 0}
+        >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead>
@@ -96,7 +101,7 @@ export default function TraducoesInterfaceForm({ valoresIniciais }: { valoresIni
               </tbody>
             </table>
           </div>
-        </div>
+        </AdminAcordeaoSecao>
       ))}
 
       <div className="flex items-center gap-3 pb-6">

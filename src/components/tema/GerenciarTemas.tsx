@@ -97,8 +97,8 @@ export default function GerenciarTemas() {
   function editarTema(tema: Tema) {
     setEditando(tema)
     setForm({
-      nome: tema.nome,
-      slug: tema.slug,
+      nome: tema.nome || '',
+      slug: tema.slug || '',
       descricao: tema.descricao || '',
       preview_image_url: tema.preview_image_url || '',
       config: JSON.stringify(tema.config, null, 2),

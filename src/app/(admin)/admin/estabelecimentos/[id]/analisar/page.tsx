@@ -6,6 +6,7 @@ import EditarEstabelecimentoAdminForm from '../editar/EditarEstabelecimentoAdmin
 import EditorCulinarias from '@/app/(dashboard)/painel/estabelecimento/[id]/editar/components/EditorCulinarias'
 import { alterarCargoFuncionarioAdmin, desativarFuncionarioAdmin } from '../responsaveis/actions'
 import SecaoExpansivel from './SecaoExpansivel'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 const CARGO_LABEL: Record<string, string> = {
   gerente: '👔 Gerente',
@@ -104,8 +105,9 @@ export default async function AnalisarEstabelecimentoPage({
       <Link href="/admin/estabelecimentos" className="text-sm text-neutral-500 hover:text-orange-600">
         ← Voltar
       </Link>
-      <h1 className="mt-1 text-2xl font-bold text-neutral-900">{nomeExibicao}</h1>
-      <p className="text-sm text-neutral-500">/{estabelecimento.slug}</p>
+      <div className="mt-1">
+        <AdminPageHeader titulo={nomeExibicao} descricao={`/${estabelecimento.slug}`} />
+      </div>
 
       {/* Bloco travado — CNPJ, razão social e responsável, mesma referência de sempre */}
       <div className="mt-4 mb-6 grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 sm:grid-cols-4">

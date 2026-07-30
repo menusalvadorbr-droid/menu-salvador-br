@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { logSupabaseError } from '@/lib/supabase/logError'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function AdminLogsPage({
   searchParams,
@@ -35,8 +36,7 @@ export default async function AdminLogsPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-neutral-900">Logs de auditoria</h1>
-      <p className="mt-1 text-sm text-neutral-500">Ações administrativas registradas na plataforma.</p>
+      <AdminPageHeader titulo="Logs de auditoria" descricao="Ações administrativas registradas na plataforma." />
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-sm">
         {error ? (

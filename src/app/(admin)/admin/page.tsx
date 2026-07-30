@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -43,8 +44,7 @@ export default async function AdminPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-neutral-900">Visão geral</h1>
-      <p className="mt-1 text-sm text-neutral-500">Resumo rápido da plataforma.</p>
+      <AdminPageHeader titulo="Visão geral" descricao="Resumo rápido da plataforma." />
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">

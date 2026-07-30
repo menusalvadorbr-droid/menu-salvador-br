@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import ListaEstabelecimentosAdmin from './ListaEstabelecimentosAdmin'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 const POR_PAGINA = 24
 
@@ -45,18 +46,19 @@ export default async function AdminEstabelecimentosPage({ searchParams }: PagePr
 
   return (
     <div>
-      {/* Cabeçalho */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Estabelecimentos</h1>
-          <p className="text-sm text-gray-500">Gerencie todos os estabelecimentos da plataforma</p>
-        </div>
-        <Link
-          href="/admin/estabelecimentos/novo"
-          className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-        >
-          + Adicionar estabelecimento
-        </Link>
+      <div className="mb-6">
+        <AdminPageHeader
+          titulo="Estabelecimentos"
+          descricao="Gerencie todos os estabelecimentos da plataforma"
+          acoes={
+            <Link
+              href="/admin/estabelecimentos/novo"
+              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700"
+            >
+              + Adicionar estabelecimento
+            </Link>
+          }
+        />
       </div>
 
       {/* Estatísticas — sempre do total geral, não só da página atual */}

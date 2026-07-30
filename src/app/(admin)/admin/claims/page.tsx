@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import { moderarClaim } from './actions'
+import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 export default async function AdminClaimsPage() {
   // Busca claims pendentes usando supabaseAdmin (ignora RLS)
@@ -44,74 +45,72 @@ export default async function AdminClaimsPage() {
 
   return (
     <div>
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Reivindicações pendentes</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          {claimsComDados.length} solicitações aguardando análise
-        </p>
-      </div>
+      <AdminPageHeader
+        titulo="Reivindicações pendentes"
+        descricao={`${claimsComDados.length} solicitações aguardando análise`}
+      />
 
       {claimsComDados.length > 0 ? (
-        <div className="mt-6 bg-white rounded-2xl shadow overflow-hidden">
+        <div className="mt-6 overflow-hidden rounded-2xl bg-white shadow">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Estabelecimento
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Solicitante
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Responsável / CPF
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Contato
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Galeria (onboarding)
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Data
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-neutral-200">
               {claimsComDados.map((claim) => (
-                <tr key={claim.id} className="hover:bg-gray-50">
+                <tr key={claim.id} className="hover:bg-neutral-50">
                   <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">
+                    <div className="text-sm font-medium text-neutral-900">
                       {claim.estabelecimentos?.nome || '—'}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-neutral-500">
                       /{claim.estabelecimentos?.slug || ''}
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">
+                    <div className="text-sm text-neutral-900">
                       {claim.usuarios?.nome || claim.usuarios?.email || '—'}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-neutral-500">
                       {claim.usuarios?.email || ''}
                     </div>
                     {claim.mensagem && (
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="mt-1 text-xs text-neutral-400">
                         💬 {claim.mensagem}
                       </div>
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{claim.nome_responsavel || '—'}</div>
-                    <div className="text-xs text-gray-500 font-mono">
+                    <div className="text-sm text-neutral-900">{claim.nome_responsavel || '—'}</div>
+                    <div className="font-mono text-xs text-neutral-500">
                       {claim.cpf_responsavel
                         ? claim.cpf_responsavel.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
                         : '—'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-neutral-700">
                     {claim.telefone_contato && <div>📞 {claim.telefone_contato}</div>}
                     {claim.whatsapp_contato && <div>💬 {claim.whatsapp_contato}</div>}
                     {!claim.telefone_contato && !claim.whatsapp_contato && '—'}
@@ -125,31 +124,31 @@ export default async function AdminClaimsPage() {
                             <img
                               src={url}
                               alt={`Foto ${i + 1} da galeria de ${claim.estabelecimentos?.nome || 'estabelecimento'}`}
-                              className="w-10 h-10 rounded object-cover border border-gray-200 hover:opacity-80"
+                              className="h-10 w-10 rounded border border-neutral-200 object-cover hover:opacity-80"
                             />
                           </a>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-400">Ainda não preencheu</span>
+                      <span className="text-xs text-neutral-400">Ainda não preencheu</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-neutral-500">
                     {new Date(claim.created_at).toLocaleDateString('pt-BR')}
                     <br />
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-neutral-400">
                       {new Date(claim.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex flex-wrap gap-2">
                       <form action={async () => {
                         'use server'
                         await moderarClaim(claim.id, 'approve', claim.estabelecimento_id, claim.usuario_id)
                       }}>
                         <button
                           type="submit"
-                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition"
+                          className="rounded-lg bg-green-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-green-700"
                         >
                           ✅ Aprovar
                         </button>
@@ -160,7 +159,7 @@ export default async function AdminClaimsPage() {
                       }}>
                         <button
                           type="submit"
-                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition"
+                          className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-red-700"
                         >
                           ❌ Rejeitar
                         </button>
@@ -173,8 +172,8 @@ export default async function AdminClaimsPage() {
           </table>
         </div>
       ) : (
-        <div className="mt-6 bg-white rounded-2xl shadow-sm p-12 text-center text-gray-500">
-          <div className="text-6xl mb-4">✅</div>
+        <div className="mt-6 rounded-2xl bg-white p-12 text-center text-neutral-500 shadow-sm">
+          <div className="mb-4 text-6xl">✅</div>
           <p className="text-lg font-medium">Nenhuma reivindicação pendente</p>
           <p className="text-sm">Todas as solicitações foram analisadas.</p>
         </div>

@@ -13,7 +13,6 @@ export interface TipoItem {
 }
 
 interface TiposManagerProps {
-  titulo: string
   descricao: string
   placeholderNome: string
   itensIniciais: TipoItem[]
@@ -24,7 +23,6 @@ interface TiposManagerProps {
 }
 
 export default function TiposManager({
-  titulo,
   descricao,
   placeholderNome,
   itensIniciais,
@@ -129,9 +127,8 @@ export default function TiposManager({
   }
 
   return (
-    <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
-      <h2 className="text-sm font-semibold text-neutral-800">{titulo}</h2>
-      <p className="mt-1 text-xs text-neutral-400">{descricao}</p>
+    <div>
+      <p className="text-xs text-neutral-400">{descricao}</p>
 
       <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
         <label className="flex flex-col gap-1 text-xs text-neutral-500">
