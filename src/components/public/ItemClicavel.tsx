@@ -7,7 +7,7 @@ import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { useCarrinho } from '@/modules/pedidos/customer/CarrinhoProvider'
 import SeletorItemModal from '@/modules/pedidos/customer/SeletorItemModal'
 import type { GrupoResolvido, VariacaoResolvida } from '@/modules/pedidos/customer/tiposSelecao'
-import { useTraducao } from './TraducaoCardapio'
+import { useTraducao, Texto } from './TraducaoCardapio'
 
 interface Alergeno {
   id: string
@@ -152,10 +152,14 @@ export default function ItemClicavel({
               )}
 
               <div className="p-5 space-y-3">
-                <h3 className="text-lg font-bold" style={{ color: corT }}>{nome}</h3>
+                <h3 className="text-lg font-bold" style={{ color: corT }}>
+                  <Texto tipo="item" id={id} campo="nome">{nome}</Texto>
+                </h3>
 
                 {descricao && (
-                  <p className="text-sm leading-relaxed opacity-80" style={{ color: corT }}>{descricao}</p>
+                  <p className="text-sm leading-relaxed opacity-80" style={{ color: corT }}>
+                    <Texto tipo="item" id={id} campo="descricao">{descricao}</Texto>
+                  </p>
                 )}
 
                 {mostrarAlergenos && alergenos.length > 0 && (

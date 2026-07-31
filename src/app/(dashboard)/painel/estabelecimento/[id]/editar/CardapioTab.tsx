@@ -1062,7 +1062,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                 onKeyDown={e => e.key === 'Enter' && criarCategoria()}
                 placeholder="Nome da categoria…"
                 disabled={!menuId || criandoCategoria}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50 bg-white text-gray-900"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-36 sm:w-48 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50 bg-white text-gray-900"
               />
               <button
                 onClick={criarCategoria}
@@ -1143,7 +1143,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           return (
             <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               {/* cabeçalho */}
-              <div className="bg-gray-50 px-4 py-3 flex items-center justify-between gap-3 border-b border-gray-200">
+              <div className="bg-gray-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200">
                 {/* esquerda: nome + ações sobre a categoria em si */}
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                   {catEditandoNome === cat.id ? (
@@ -1363,7 +1363,7 @@ function ItemRow({ item, readOnly, onEditar, onToggleDisponivel, onTogglePromo, 
   const temPromo      = promoAtiva || promoPendente || promoPausada
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition group ${!item.disponivel ? 'opacity-50' : ''}`}>
+    <div className={`flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-gray-50 transition group ${!item.disponivel ? 'opacity-50' : ''}`}>
       {/* thumb */}
       <div className="w-11 h-11 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-100 flex items-center justify-center">
         {item.foto_url
@@ -1373,7 +1373,7 @@ function ItemRow({ item, readOnly, onEditar, onToggleDisponivel, onTogglePromo, 
       </div>
 
       {/* info */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-[140px]">
         <div className="flex items-baseline gap-2 flex-wrap">
           {item.codigo && (
             <span className="font-mono text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
@@ -1422,9 +1422,11 @@ function ItemRow({ item, readOnly, onEditar, onToggleDisponivel, onTogglePromo, 
         )}
       </div>
 
-      {/* ações — aparecem no hover */}
+      {/* ações — sempre visíveis (hover não existe em telas de toque);
+          flex-wrap no container faz esse bloco quebrar pra linha própria
+          quando não cabe mais nada ao lado, em vez de espremer o resto. */}
       {!readOnly && (
-        <div className="flex gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
+        <div className="flex gap-1 flex-shrink-0 ml-auto">
           <Acao onClick={onEditar}          title="Editar"                         emoji="✏️" />
           <Acao onClick={onToggleDisponivel} title={item.disponivel ? 'Ocultar' : 'Exibir'} emoji={item.disponivel ? '👁️' : '🙈'} />
           <Acao onClick={onTogglePromo}     title={temPromo ? 'Remover promoção' : 'Marcar como promoção'} emoji={temPromo ? '🔥' : '🏷️'} destaque={temPromo} />
@@ -1452,7 +1454,7 @@ function Acao({ onClick, title, emoji, destaque, perigo }: {
     <button
       onClick={onClick}
       title={title}
-      className={`w-8 h-8 rounded-lg flex items-center justify-center text-base transition
+      className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition
         ${perigo    ? 'hover:bg-red-50 text-red-400'
         : destaque  ? 'bg-orange-50 text-orange-500 hover:bg-orange-100'
         :             'hover:bg-gray-100 text-gray-500'}`}

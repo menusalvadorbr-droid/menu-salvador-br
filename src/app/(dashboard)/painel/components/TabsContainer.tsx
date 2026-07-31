@@ -36,7 +36,7 @@ export default function TabsContainer({ tabs, defaultTab }: TabsContainerProps) 
         </nav>
       </div>
 
-      <div className="p-6 bg-white text-gray-900">
+      <div className="p-3 sm:p-6 bg-white text-gray-900">
         {tabs.map((tab) => (
           <div key={tab.id} className={activeTab === tab.id ? 'block' : 'hidden'}>
             {tab.content}

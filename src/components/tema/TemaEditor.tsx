@@ -98,6 +98,7 @@ export default function TemaEditor({
   // Opções por estabelecimento
   const [cfg, setCfg] = useState<CardapioConfig>(DEFAULT_CONFIG)
   const [formato, setFormato] = useState<'lista' | 'catalogo'>('lista')
+  const [navegacaoCategoria, setNavegacaoCategoria] = useState<'pilulas' | 'faixas'>('pilulas')
   const [cfgDirty, setCfgDirty] = useState(false)
 
   // Carregar temas + config do estabelecimento
@@ -106,7 +107,7 @@ export default function TemaEditor({
       const [{ data: tData }, { data: estData }] = await Promise.all([
         supabase.from('temas').select('*').eq('ativo', true).order('nome'),
         supabase.from('estabelecimentos')
-          .select('cardapio_config, cardapio_formato, nome_fantasia, nome')
+          .select('cardapio_config, cardapio_formato, cardapio_navegacao_categoria, nome_fantasia, nome')
           .eq('id', estabelecimentoId)
           .single(),
       ])
@@ -121,6 +122,7 @@ export default function TemaEditor({
           titulo:             saved.titulo              ?? (estData.nome_fantasia || estData.nome || ''),
         })
         setFormato(estData.cardapio_formato === 'catalogo' ? 'catalogo' : 'lista')
+        setNavegacaoCategoria(estData.cardapio_navegacao_categoria === 'faixas' ? 'faixas' : 'pilulas')
       }
       setLoading(false)
     }
@@ -134,6 +136,11 @@ export default function TemaEditor({
 
   function updFormato(novo: 'lista' | 'catalogo') {
     setFormato(novo)
+    setCfgDirty(true)
+  }
+
+  function updNavegacaoCategoria(novo: 'pilulas' | 'faixas') {
+    setNavegacaoCategoria(novo)
     setCfgDirty(true)
   }
 
@@ -163,7 +170,7 @@ export default function TemaEditor({
     setMensagem(null)
     const { error } = await supabase
       .from('estabelecimentos')
-      .update({ cardapio_config: cfg, cardapio_formato: formato })
+      .update({ cardapio_config: cfg, cardapio_formato: formato, cardapio_navegacao_categoria: navegacaoCategoria })
       .eq('id', estabelecimentoId)
     setSalvando(false)
     if (error) {
@@ -281,6 +288,34 @@ export default function TemaEditor({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Navegação de categoria — independente do Formato (Lista/Catálogo):
+                qualquer combinação funciona. */}
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-gray-600 mb-2">Navegação de categoria</label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: 'pilulas', label: 'Pílulas fixas no topo' },
+                  { value: 'faixas', label: 'Faixas expansíveis' },
+                ] as Array<{ value: 'pilulas' | 'faixas'; label: string }>).map(op => (
+                  <button
+                    key={op.value}
+                    onClick={() => updNavegacaoCategoria(op.value)}
+                    disabled={readOnly}
+                    className={`flex items-center justify-center gap-1 py-2 text-xs font-medium rounded-lg border transition
+                      ${navegacaoCategoria === op.value
+                        ? 'border-orange-500 bg-orange-50 text-orange-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'}
+                      ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-gray-400">
+                Faixas expansíveis carregam os itens de cada categoria só quando ela é aberta — mais leve pra cardápios grandes.
+              </p>
             </div>
 
             {/* Posição da foto — só faz sentido no formato Lista; o Catálogo
