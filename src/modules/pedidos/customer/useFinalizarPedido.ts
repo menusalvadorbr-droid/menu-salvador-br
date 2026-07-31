@@ -12,6 +12,7 @@ interface DadosFinalizacao {
   nomeCliente: string
   tipoPedido: TipoPedido
   mesa?: string
+  mesaId?: string
   enderecoEntrega?: string
   observacoes?: string
   metodoPagamento?: string
@@ -86,6 +87,7 @@ export function useFinalizarPedido() {
       nome_cliente: dados.nomeCliente,
       tipo_pedido: dados.tipoPedido,
       mesa: dados.mesa,
+      mesa_id: dados.mesaId,
       endereco_entrega: dados.enderecoEntrega,
       observacoes: dados.observacoes,
       metodo_pagamento: dados.metodoPagamento,

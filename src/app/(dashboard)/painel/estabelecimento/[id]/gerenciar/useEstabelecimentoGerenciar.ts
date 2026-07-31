@@ -25,6 +25,9 @@ export function useEstabelecimentoGerenciar(id: string) {
   const [loading, setLoading] = useState(true)
   const [cargo, setCargo] = useState<string | null>(null) // null = é o dono
   const [acessoNegado, setAcessoNegado] = useState(false)
+  // Recursos do plano atribuído pelo admin (ex: 'qr_mesa') — não é algo
+  // que o dono liga sozinho, é herdado daqui pra gatear módulos opcionais.
+  const [recursosPlano, setRecursosPlano] = useState<string[]>([])
 
   useEffect(() => {
     async function carregar() {
@@ -84,6 +87,16 @@ export function useEstabelecimentoGerenciar(id: string) {
       }
 
       setEstabelecimento(data)
+
+      if (data.plano_id) {
+        const { data: plano } = await supabase
+          .from('planos')
+          .select('recursos')
+          .eq('id', data.plano_id)
+          .maybeSingle()
+        setRecursosPlano(plano?.recursos || [])
+      }
+
       setLoading(false)
     }
 
@@ -119,5 +132,6 @@ export function useEstabelecimentoGerenciar(id: string) {
     podeEditarCardapio,
     podeEditar,
     emAnalise,
+    recursosPlano,
   }
 }

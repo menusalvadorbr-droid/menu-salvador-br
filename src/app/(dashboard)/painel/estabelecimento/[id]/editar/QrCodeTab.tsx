@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import QRCode from 'react-qr-code'
-import { toPng } from 'html-to-image'
+import { baixarElementoComoPng } from '@/lib/baixarImagemElemento'
 
 interface QrCodeTabProps {
   estabelecimentoId: string
@@ -53,15 +53,7 @@ export default function QrCodeTab({
     if (!qrRef) return
     setBaixando(true)
     try {
-      const dataUrl = await toPng(qrRef, {
-        width: 400,
-        height: 400,
-        backgroundColor: fundo,
-      })
-      const downloadLink = document.createElement('a')
-      downloadLink.download = `qrcode-${slug}.png`
-      downloadLink.href = dataUrl
-      downloadLink.click()
+      await baixarElementoComoPng(qrRef, `qrcode-${slug}.png`, fundo)
     } catch (err) {
       console.error('Erro ao baixar QR:', err)
       alert('Erro ao baixar QR Code. Tente novamente.')

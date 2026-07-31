@@ -14,6 +14,7 @@ interface FinalizarPedidoModalProps {
   total: number
   items: ItemPedido[]
   mesaFixa?: string
+  mesaIdFixa?: string
 }
 
 const OPCOES_TIPO: { valor: TipoPedido; label: string; chave: string; icone: string }[] = [
@@ -31,6 +32,7 @@ export default function FinalizarPedidoModal({
   total,
   items,
   mesaFixa,
+  mesaIdFixa,
 }: FinalizarPedidoModalProps) {
   const [nome, setNome] = useState('')
   const [tipoPedido, setTipoPedido] = useState<TipoPedido>(mesaFixa ? 'mesa' : 'retirada')
@@ -52,6 +54,10 @@ export default function FinalizarPedidoModal({
       nomeCliente: nome,
       tipoPedido,
       mesa: tipoPedido === 'mesa' ? mesa : undefined,
+      // Só manda mesa_id quando o número veio travado do QR escaneado
+      // (mesaFixa) — se o cliente digitou o número à mão, não há como
+      // saber com certeza a qual mesa cadastrada aquele texto corresponde.
+      mesaId: tipoPedido === 'mesa' && mesaFixa ? mesaIdFixa : undefined,
       enderecoEntrega: tipoPedido === 'entrega' ? enderecoEntrega : undefined,
       observacoes,
       metodoPagamento,

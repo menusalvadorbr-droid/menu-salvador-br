@@ -17,13 +17,17 @@ export interface CategoriaComItens {
 export async function listarCardapioParaGarcom(estabelecimentoId: string): Promise<CategoriaComItens[]> {
   const supabase = createClient()
 
-  const { data: menu } = await supabase
+  // Mesmo ajuste já feito em CardapioTab.tsx: .single() exige exatamente 1
+  // linha (quebra com PGRST116 se houver mais de um menu) e a coluna
+  // `ativo` pode nem existir — usa .limit(1) + primeiro item em vez disso.
+  const { data: menus } = await supabase
     .from('menus')
     .select('id')
     .eq('estabelecimento_id', estabelecimentoId)
-    .eq('ativo', true)
-    .single()
+    .order('created_at', { ascending: true })
+    .limit(1)
 
+  const menu = menus && menus.length > 0 ? menus[0] : null
   if (!menu) return []
 
   const { data: categorias } = await supabase

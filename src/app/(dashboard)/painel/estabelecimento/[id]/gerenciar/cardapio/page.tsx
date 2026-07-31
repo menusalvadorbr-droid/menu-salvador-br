@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import TabsContainer from '@/app/(dashboard)/painel/components/TabsContainer'
 import CardapioTab from '../../editar/CardapioTab'
 import QrCodeTab from '../../editar/QrCodeTab'
+import QrPorMesaTab from '../../editar/QrPorMesaTab'
 import PromocoesTab from '../../editar/PromocoesTab'
+import { planoTemRecurso } from '@/lib/recursosPlano'
 import { TemaEditor } from '@/components/tema'
 import ConfiguracoesTab from '../../editar/components/ConfiguracoesTab'
 import FuncionariosTab from '../FuncionariosTab'
@@ -26,6 +28,7 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
     ehDonoOuGerente,
     podeEditar,
     podeEditarCardapio,
+    recursosPlano,
   } = useEstabelecimentoGerenciar(id)
 
   const estadoEspecial = EstadoCarregamento({ acessoNegado, loading, encontrado: !!estabelecimento })
@@ -56,6 +59,17 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
               />
             ),
           },
+          ...(planoTemRecurso(recursosPlano, 'qr_mesa')
+            ? [
+                {
+                  id: 'qr-mesa',
+                  label: '🪑 QR por mesa',
+                  content: (
+                    <QrPorMesaTab estabelecimentoId={estabelecimento.id} slug={estabelecimento.slug} readOnly={!podeEditar} />
+                  ),
+                },
+              ]
+            : []),
           {
             id: 'configuracoes',
             label: '⚙️ Configurações',

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import EditarEstabelecimentoAdminForm from '../editar/EditarEstabelecimentoAdminForm'
 import EditorCulinarias from '@/app/(dashboard)/painel/estabelecimento/[id]/editar/components/EditorCulinarias'
 import { alterarCargoFuncionarioAdmin, desativarFuncionarioAdmin } from '../responsaveis/actions'
+import { atribuirPlanoEstabelecimentoAdmin } from '../editar/actions'
 import SecaoExpansivel from './SecaoExpansivel'
 import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
@@ -35,7 +36,7 @@ export default async function AnalisarEstabelecimentoPage({
   const { data: estabelecimento } = await supabaseAdmin
     .from('estabelecimentos')
     .select(
-      'id, nome, nome_fantasia, slug, descricao, endereco, numero, tipo_logradouro, complemento, cep, bairro, bairro_id, cidade, telefone, whatsapp, instagram, tipo_estabelecimento, tipo_cozinha, link_google_maps, latitude, longitude, cnpj, razao_social, owner_user_id, socios, situacao_cadastral'
+      'id, nome, nome_fantasia, slug, descricao, endereco, numero, tipo_logradouro, complemento, cep, bairro, bairro_id, cidade, telefone, whatsapp, instagram, tipo_estabelecimento, tipo_cozinha, link_google_maps, latitude, longitude, cnpj, razao_social, owner_user_id, socios, situacao_cadastral, plano_id'
     )
     .eq('id', id)
     .maybeSingle()
@@ -49,6 +50,7 @@ export default async function AnalisarEstabelecimentoPage({
     { data: proprietario },
     { data: funcionarios },
     { data: claims },
+    { data: planos },
   ] = await Promise.all([
     supabaseAdmin.from('bairros').select('id, nome, slug').order('nome'),
     supabaseAdmin.from('tipos_estabelecimento').select('slug, nome, icone').eq('ativo', true).order('ordem'),
@@ -61,6 +63,7 @@ export default async function AnalisarEstabelecimentoPage({
       : Promise.resolve({ data: null }),
     supabaseAdmin.from('funcionarios').select('id, cargo, ativo, user_id').eq('estabelecimento_id', id).order('ativo', { ascending: false }),
     supabaseAdmin.from('restaurant_claims').select('*').eq('estabelecimento_id', id).order('created_at', { ascending: false }),
+    supabaseAdmin.from('planos').select('id, nome').order('nome'),
   ])
 
   const funcionariosComPerfil: Array<Record<string, any>> = []
@@ -145,6 +148,19 @@ export default async function AnalisarEstabelecimentoPage({
             bairros={bairros || []}
             tiposEstabelecimento={tiposEstabelecimento || []}
           />
+        </SecaoExpansivel>
+
+        <SecaoExpansivel
+          titulo="Plano"
+          resumo={planos?.find((p) => p.id === estabelecimento.plano_id)?.nome || 'sem plano atribuído'}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <PlanoSelect estabelecimentoId={id} planos={planos || []} planoAtualId={estabelecimento.plano_id} />
+          </div>
+          <p className="mt-2 text-xs text-neutral-400">
+            Define quais recursos controlados por plano (ex: QR por mesa) o estabelecimento tem acesso — o dono não
+            escolhe isso sozinho, é herdado daqui.
+          </p>
         </SecaoExpansivel>
 
         <SecaoExpansivel
@@ -239,6 +255,39 @@ export default async function AnalisarEstabelecimentoPage({
         </SecaoExpansivel>
       </div>
     </div>
+  )
+}
+
+// Mesmo padrão do CargoSelect abaixo — form server-side com submit
+// automático, sem precisar de um client component só pra isso.
+function PlanoSelect({
+  estabelecimentoId,
+  planos,
+  planoAtualId,
+}: {
+  estabelecimentoId: string
+  planos: { id: string; nome: string }[]
+  planoAtualId: string | null
+}) {
+  return (
+    <form
+      action={async (formData: FormData) => {
+        'use server'
+        const novoPlanoId = (formData.get('plano_id') as string) || null
+        await atribuirPlanoEstabelecimentoAdmin(estabelecimentoId, novoPlanoId)
+      }}
+      className="flex items-center gap-1"
+    >
+      <select name="plano_id" defaultValue={planoAtualId || ''} className="text-sm border border-neutral-200 rounded-lg px-2 py-1">
+        <option value="">Sem plano</option>
+        {planos.map((p) => (
+          <option key={p.id} value={p.id}>{p.nome}</option>
+        ))}
+      </select>
+      <button type="submit" className="text-xs text-orange-600 hover:underline px-1">
+        Salvar
+      </button>
+    </form>
   )
 }
 

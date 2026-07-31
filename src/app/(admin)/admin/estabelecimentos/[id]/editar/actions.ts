@@ -113,3 +113,28 @@ export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecime
 
   return { slug: slugNormalizado }
 }
+
+// Plano é atribuído pelo admin, não escolhido pelo dono — os recursos que
+// ele libera (ex: QR por mesa) são herdados automaticamente pelo
+// estabelecimento a partir daqui, sem toggle nenhum do lado do dono.
+export async function atribuirPlanoEstabelecimentoAdmin(estabelecimentoId: string, planoId: string | null) {
+  const { supabase, userId } = await checarSuperAdmin()
+
+  const { error } = await supabase
+    .from('estabelecimentos')
+    .update({ plano_id: planoId })
+    .eq('id', estabelecimentoId)
+
+  if (error) throw new Error(error.message)
+
+  await supabase.from('audit_logs').insert({
+    usuario_id: userId,
+    action: 'plano_atribuido_pelo_admin',
+    target_type: 'estabelecimentos',
+    target_id: estabelecimentoId,
+    new_data: { plano_id: planoId },
+  })
+
+  revalidatePath(`/admin/estabelecimentos/${estabelecimentoId}/analisar`)
+  revalidatePath(`/painel/estabelecimento/${estabelecimentoId}/gerenciar`)
+}

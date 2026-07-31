@@ -38,9 +38,13 @@ export default function CarrinhoProvider({
   const [modalAberto, setModalAberto] = useState(false)
 
   // Se o QR code impresso na mesa tiver ?mesa=12 na URL, já preenche
-  // sozinho — o cliente não precisa digitar o número da mesa.
+  // sozinho — o cliente não precisa digitar o número da mesa. QR gerado
+  // por mesa (módulo "QR por mesa") também carrega ?mesa_id=<uuid>, que
+  // vai direto pro pedido — é o que liga automaticamente ao mapa de mesas
+  // e ao caixa, sem depender de casar o texto digitado com o cadastro.
   const searchParams = useSearchParams()
   const mesaFixa = searchParams.get('mesa') || undefined
+  const mesaIdFixo = searchParams.get('mesa_id') || undefined
 
   return (
     <CarrinhoContext.Provider
@@ -87,6 +91,7 @@ export default function CarrinhoProvider({
         total={sacola.total}
         items={sacola.itens}
         mesaFixa={mesaFixa}
+        mesaIdFixa={mesaIdFixo}
       />
 
       <StatusConexaoPedidos />
