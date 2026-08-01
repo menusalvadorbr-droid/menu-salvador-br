@@ -32,6 +32,7 @@ export async function criarPedido(input: NovoPedidoInput): Promise<ResultadoCria
         metodo_pagamento: input.metodo_pagamento || null,
         status: 'recebido',
         origem: input.origem || 'app',
+        staff_id: input.staff_id || null,
       })
       .select('id')
       .single()
@@ -72,6 +73,7 @@ export async function sincronizarPendentes(): Promise<{ sincronizados: number; r
         metodo_pagamento: pendente.input.metodo_pagamento || null,
         status: 'recebido',
         origem: pendente.input.origem === 'garcom' ? 'garcom' : 'whatsapp_contingencia',
+        staff_id: pendente.input.staff_id || null,
         pendente_sincronizacao: false,
         created_at: pendente.criadoEm,
       })
@@ -96,6 +98,24 @@ export async function listarPedidosDoEstabelecimento(estabelecimentoId: string):
     .eq('estabelecimento_id', estabelecimentoId)
     .order('created_at', { ascending: false })
     .limit(100)
+
+  if (error) throw new Error(error.message)
+  return (data || []) as Pedido[]
+}
+
+/**
+ * Pedidos ainda em aberto (nem pago, nem cancelado) de uma mesa específica —
+ * base pra "Fechar conta": soma todos eles e fecha em lote, em vez de exigir
+ * marcar cada um como pago individualmente.
+ */
+export async function listarPedidosAbertosDaMesa(mesaId: string): Promise<Pedido[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('mesa_id', mesaId)
+    .not('status', 'in', '(pago,cancelado)')
+    .order('created_at', { ascending: true })
 
   if (error) throw new Error(error.message)
   return (data || []) as Pedido[]

@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { useMesas } from '../hooks/useMesas'
 import { ETIQUETA_STATUS_MESA, type Mesa } from '../types'
 import LancarPedidoGarcom from '../../garcom/LancarPedidoGarcom'
+import FecharContaMesaModal from './FecharContaMesaModal'
 
 export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { mesas, carregando, adicionar, mudarStatus, remover } = useMesas(estabelecimentoId)
   const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null)
+  const [mesaFechandoConta, setMesaFechandoConta] = useState<Mesa | null>(null)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [numeroNovo, setNumeroNovo] = useState('')
   const [capacidadeNova, setCapacidadeNova] = useState('')
@@ -90,6 +92,15 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
                   <option value="reservada">Reservada</option>
                   <option value="fechada">Fechada</option>
                 </select>
+                {mesa.status === 'ocupada' && (
+                  <button
+                    onClick={() => setMesaFechandoConta(mesa)}
+                    className="opacity-70 hover:opacity-100"
+                    title="Fechar conta"
+                  >
+                    💳
+                  </button>
+                )}
                 <button
                   onClick={() => confirm(`Remover mesa ${mesa.numero}?`) && remover(mesa.id)}
                   className="opacity-60 hover:opacity-100"
@@ -113,6 +124,15 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
           mesa={mesaSelecionada}
           onFechar={() => setMesaSelecionada(null)}
           onPedidoLancado={() => setMesaSelecionada(null)}
+        />
+      )}
+
+      {mesaFechandoConta && (
+        <FecharContaMesaModal
+          estabelecimentoId={estabelecimentoId}
+          mesa={mesaFechandoConta}
+          onFechar={() => setMesaFechandoConta(null)}
+          onContaFechada={() => setMesaFechandoConta(null)}
         />
       )}
     </div>

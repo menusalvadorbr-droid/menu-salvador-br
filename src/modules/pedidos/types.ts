@@ -99,6 +99,7 @@ export interface NovoPedidoInput {
   observacoes?: string
   metodo_pagamento?: string
   origem?: 'app' | 'garcom'
+  staff_id?: string
 }
 
 export const ETIQUETA_STATUS: Record<StatusPedido, string> = {

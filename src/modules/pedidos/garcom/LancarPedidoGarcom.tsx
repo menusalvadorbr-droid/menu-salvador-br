@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { useSacola } from '../customer/useSacola'
 import { criarPedido } from '../ordersRepository'
 import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
@@ -42,6 +43,12 @@ export default function LancarPedidoGarcom({
     if (sacola.itens.length === 0) return
     setEnviando(true)
 
+    // Registra quem lançou o pedido — usado no demonstrativo de caixa como
+    // "funcionário responsável". Pedido feito pelo próprio cliente (QR) não
+    // passa por aqui, então fica sem staff_id, corretamente.
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
     const resposta = await criarPedido({
       estabelecimento_id: estabelecimentoId,
       items: sacola.itens,
@@ -50,6 +57,7 @@ export default function LancarPedidoGarcom({
       mesa: mesa?.numero,
       mesa_id: mesa?.id,
       origem: 'garcom',
+      staff_id: user?.id,
     })
 
     setEnviando(false)

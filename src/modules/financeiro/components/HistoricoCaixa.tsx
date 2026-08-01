@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { listarSessoes } from '../caixaRepository'
 import type { SessaoCaixa } from '../types'
 
 export default function HistoricoCaixa({ estabelecimentoId }: { estabelecimentoId: string }) {
+  const router = useRouter()
   const [sessoes, setSessoes] = useState<SessaoCaixa[]>([])
   const [carregando, setCarregando] = useState(true)
 
@@ -30,7 +32,11 @@ export default function HistoricoCaixa({ estabelecimentoId }: { estabelecimentoI
         </thead>
         <tbody className="divide-y divide-neutral-100">
           {sessoes.map((sessao) => (
-            <tr key={sessao.id}>
+            <tr
+              key={sessao.id}
+              onClick={() => router.push(`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessao.id}`)}
+              className="cursor-pointer hover:bg-neutral-50"
+            >
               <td className="px-4 py-2 text-neutral-700">
                 {new Date(sessao.aberto_em).toLocaleString('pt-BR')}
               </td>

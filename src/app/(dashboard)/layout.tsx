@@ -16,7 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           O que muda por página (título, ações específicas, "voltar
           pra") continua em cada página; isso aqui é só o que nunca
           muda: logo e acesso à conta. */}
-      <header className="flex items-center justify-between border-b border-black/5 bg-white px-6 py-3 md:px-8">
+      <header className="flex items-center justify-between border-b border-black/5 bg-white px-6 py-3 md:px-8 print:hidden">
         <Link href="/painel" className="text-sm font-bold tracking-tight" style={{ color: COR_TEXTO }}>
           menu<span style={{ color: COR_TERRACOTA }}>.salvador</span>
         </Link>
@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       <div className="flex-1">{children}</div>
 
-      <footer className="border-t border-black/5 bg-white px-6 py-4 text-center text-xs text-neutral-400 md:px-8">
+      <footer className="border-t border-black/5 bg-white px-6 py-4 text-center text-xs text-neutral-400 md:px-8 print:hidden">
         <p>
           menu.salvador — painel do estabelecimento ·{' '}
           <Link href="/" className="hover:text-neutral-600 hover:underline">
