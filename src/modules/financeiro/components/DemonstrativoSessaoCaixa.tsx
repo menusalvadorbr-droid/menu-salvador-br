@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { demonstrativoSessao } from '../caixaRepository'
-import type { DemonstrativoSessao } from '../types'
+import type { DemonstrativoSessao, GrupoMesaDemonstrativo } from '../types'
 
 const fmtDataHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR') : '—')
 const fmtHora = (iso: string | null) =>
@@ -75,100 +75,9 @@ export default function DemonstrativoSessaoCaixa({ sessaoId }: { sessaoId: strin
         </div>
       </div>
 
-      {/* Grupos por mesa */}
+      {/* Grupos por mesa — recolhidos por padrão, clique expande */}
       {dados.gruposMesa.map((grupo) => (
-        <div
-          key={grupo.mesaId}
-          className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm print:break-inside-avoid print:border print:shadow-none"
-        >
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-neutral-800">🍽️ Mesa {grupo.numeroMesa}</h3>
-            {grupo.quitada ? (
-              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
-                ✅ Quitada
-              </span>
-            ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                ⚠️ Pendente — faltam R$ {(grupo.totalPedidos - grupo.totalPagamentos).toFixed(2)}
-              </span>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="text-left text-neutral-400">
-                <tr>
-                  <th className="pb-1 pr-2 font-medium">Pedido</th>
-                  <th className="pb-1 pr-2 font-medium">Feito às</th>
-                  <th className="pb-1 pr-2 font-medium">Entregue às</th>
-                  <th className="pb-1 pr-2 font-medium">Pago às</th>
-                  <th className="pb-1 pr-2 font-medium">Funcionário</th>
-                  <th className="pb-1 text-right font-medium">Valor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-50">
-                {grupo.pedidos.map((p) => (
-                  <tr key={p.id}>
-                    <td className="py-1 pr-2 font-mono text-neutral-600">#{p.numero}</td>
-                    <td className="py-1 pr-2 text-neutral-600">{fmtHora(p.criadoEm)}</td>
-                    <td className="py-1 pr-2 text-neutral-600">{fmtHora(p.entregueEm)}</td>
-                    <td className="py-1 pr-2 text-neutral-600">{fmtHora(p.pagoEm)}</td>
-                    <td className="py-1 pr-2 text-neutral-600">{p.funcionario || '—'}</td>
-                    <td className="py-1 text-right font-semibold text-neutral-900">R$ {p.valor.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-neutral-100">
-                  <td colSpan={5} className="pt-1 text-right text-neutral-500">
-                    Total dos pedidos
-                  </td>
-                  <td className="pt-1 text-right font-bold text-neutral-900">R$ {grupo.totalPedidos.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {grupo.pagamentos.length > 0 && (
-            <div className="mt-3 border-t border-dashed border-neutral-200 pt-3">
-              <p className="mb-1 text-xs font-semibold text-neutral-500">Pagamentos</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="text-left text-neutral-400">
-                    <tr>
-                      <th className="pb-1 pr-2 font-medium">Horário</th>
-                      <th className="pb-1 pr-2 font-medium">Pago por</th>
-                      <th className="pb-1 pr-2 font-medium">Forma</th>
-                      <th className="pb-1 pr-2 font-medium">Registrado por</th>
-                      <th className="pb-1 text-right font-medium">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-50">
-                    {grupo.pagamentos.map((pg) => (
-                      <tr key={pg.id}>
-                        <td className="py-1 pr-2 text-neutral-600">{fmtHora(pg.horario)}</td>
-                        <td className="py-1 pr-2 text-neutral-600">{pg.nomePagador || '—'}</td>
-                        <td className="py-1 pr-2 text-neutral-600">{pg.formaPagamento || '—'}</td>
-                        <td className="py-1 pr-2 text-neutral-600">{pg.funcionario || '—'}</td>
-                        <td className="py-1 text-right font-semibold text-neutral-900">R$ {pg.valor.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-neutral-100">
-                      <td colSpan={4} className="pt-1 text-right text-neutral-500">
-                        Total pago
-                      </td>
-                      <td className="pt-1 text-right font-bold text-neutral-900">
-                        R$ {grupo.totalPagamentos.toFixed(2)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+        <GrupoMesaSecao key={grupo.mesaId} grupo={grupo} />
       ))}
 
       {/* Pedidos avulsos */}
@@ -247,6 +156,118 @@ function Campo({
     <div>
       <p className="text-xs text-neutral-400">{label}</p>
       <p className={`font-semibold ${cor}`}>{valor}</p>
+    </div>
+  )
+}
+
+/**
+ * Seção de uma mesa — recolhida por padrão (só cabeçalho com indicador e
+ * total), clique expande pra ver os pedidos e pagamentos, mesmo padrão já
+ * usado nas linhas da lista de vendas (VendaSessaoRow). No print/PDF o
+ * conteúdo aparece sempre, independente do estado na tela.
+ */
+function GrupoMesaSecao({ grupo }: { grupo: GrupoMesaDemonstrativo }) {
+  const [aberto, setAberto] = useState(false)
+
+  return (
+    <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm print:break-inside-avoid print:border print:shadow-none">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 text-left print:pointer-events-none"
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-neutral-300 print:hidden">{aberto ? '▼' : '▶'}</span>
+          <h3 className="text-sm font-semibold text-neutral-800">🍽️ Mesa {grupo.numeroMesa}</h3>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-neutral-400">R$ {grupo.totalPedidos.toFixed(2)}</span>
+          {grupo.quitada ? (
+            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+              ✅ Quitada
+            </span>
+          ) : (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+              ⚠️ Pendente — faltam R$ {(grupo.totalPedidos - grupo.totalPagamentos).toFixed(2)}
+            </span>
+          )}
+        </span>
+      </button>
+
+      <div className={`${aberto ? 'mt-3 block' : 'hidden'} print:mt-3 print:block`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-left text-neutral-400">
+              <tr>
+                <th className="pb-1 pr-2 font-medium">Pedido</th>
+                <th className="pb-1 pr-2 font-medium">Feito às</th>
+                <th className="pb-1 pr-2 font-medium">Entregue às</th>
+                <th className="pb-1 pr-2 font-medium">Pago às</th>
+                <th className="pb-1 pr-2 font-medium">Funcionário</th>
+                <th className="pb-1 text-right font-medium">Valor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-50">
+              {grupo.pedidos.map((p) => (
+                <tr key={p.id}>
+                  <td className="py-1 pr-2 font-mono text-neutral-600">#{p.numero}</td>
+                  <td className="py-1 pr-2 text-neutral-600">{fmtHora(p.criadoEm)}</td>
+                  <td className="py-1 pr-2 text-neutral-600">{fmtHora(p.entregueEm)}</td>
+                  <td className="py-1 pr-2 text-neutral-600">{fmtHora(p.pagoEm)}</td>
+                  <td className="py-1 pr-2 text-neutral-600">{p.funcionario || '—'}</td>
+                  <td className="py-1 text-right font-semibold text-neutral-900">R$ {p.valor.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-neutral-100">
+                <td colSpan={5} className="pt-1 text-right text-neutral-500">
+                  Total dos pedidos
+                </td>
+                <td className="pt-1 text-right font-bold text-neutral-900">R$ {grupo.totalPedidos.toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {grupo.pagamentos.length > 0 && (
+          <div className="mt-3 border-t border-dashed border-neutral-200 pt-3">
+            <p className="mb-1 text-xs font-semibold text-neutral-500">Pagamentos</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-left text-neutral-400">
+                  <tr>
+                    <th className="pb-1 pr-2 font-medium">Horário</th>
+                    <th className="pb-1 pr-2 font-medium">Pago por</th>
+                    <th className="pb-1 pr-2 font-medium">Forma</th>
+                    <th className="pb-1 pr-2 font-medium">Registrado por</th>
+                    <th className="pb-1 text-right font-medium">Valor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-50">
+                  {grupo.pagamentos.map((pg) => (
+                    <tr key={pg.id}>
+                      <td className="py-1 pr-2 text-neutral-600">{fmtHora(pg.horario)}</td>
+                      <td className="py-1 pr-2 text-neutral-600">{pg.nomePagador || '—'}</td>
+                      <td className="py-1 pr-2 text-neutral-600">{pg.formaPagamento || '—'}</td>
+                      <td className="py-1 pr-2 text-neutral-600">{pg.funcionario || '—'}</td>
+                      <td className="py-1 text-right font-semibold text-neutral-900">R$ {pg.valor.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-neutral-100">
+                    <td colSpan={4} className="pt-1 text-right text-neutral-500">
+                      Total pago
+                    </td>
+                    <td className="pt-1 text-right font-bold text-neutral-900">R$ {grupo.totalPagamentos.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
