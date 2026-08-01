@@ -37,5 +37,5 @@ export function useCaixa(estabelecimentoId: string) {
     return sessaoFechada
   }
 
-  return { sessaoAberta, resumo, carregando, abrir, fechar }
+  return { sessaoAberta, resumo, carregando, abrir, fechar, atualizar: carregar }
 }

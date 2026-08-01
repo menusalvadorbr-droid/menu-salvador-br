@@ -1,26 +1,65 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Clock, Receipt, UtensilsCrossed, AlertTriangle, Play, Square, BarChart3 } from 'lucide-react'
 import { useCaixa } from '../hooks/useCaixa'
 import MesasComContaAberta from './MesasComContaAberta'
-import VendaSessaoRow from './VendaSessaoRow'
+import MovimentacoesCaixa from './MovimentacoesCaixa'
+import InputMoeda from './InputMoeda'
+import ConfirmarAcaoModal from './ConfirmarAcaoModal'
+import LancarPedidoGarcom from '@/modules/pedidos/garcom/LancarPedidoGarcom'
+import { caixaTema } from '../caixaTema'
+
+// Turno aberto por mais que isso acende o alerta de "turno longo" na barra
+// de status — sinal de que provavelmente esqueceram de fechar o caixa.
+const LIMITE_TURNO_LONGO_HORAS = 12
+
+function formatarDuracao(desdeIso: string, agoraMs: number): string {
+  const minutos = Math.max(0, Math.floor((agoraMs - new Date(desdeIso).getTime()) / 60000))
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  return h > 0 ? `${h}h ${m}min` : `${m}min`
+}
+
+type Tela = 'venda' | 'mesas'
 
 export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: string }) {
-  const { sessaoAberta, resumo, carregando, abrir, fechar } = useCaixa(estabelecimentoId)
-  const [valorAbertura, setValorAbertura] = useState('')
-  const [valorFechamento, setValorFechamento] = useState('')
+  const { sessaoAberta, resumo, carregando, abrir, fechar, atualizar } = useCaixa(estabelecimentoId)
+  const [tela, setTela] = useState<Tela>('venda')
+  const [valorAbertura, setValorAbertura] = useState(0)
+  const [valorFechamento, setValorFechamento] = useState(0)
+  const [confirmandoFechamento, setConfirmandoFechamento] = useState(false)
   const [resultadoFechamento, setResultadoFechamento] = useState<{ diferenca: number } | null>(null)
   const [enviando, setEnviando] = useState(false)
-
   const [erro, setErro] = useState<string | null>(null)
+  // "Agora" só existe como estado, atualizado por um intervalo — nunca
+  // lido direto (Date.now()) durante o render, que é impuro e quebra a
+  // regra de pureza de render do React (podia dar resultado diferente a
+  // cada chamada, inclusive no double-render do StrictMode).
+  const [agoraMs, setAgoraMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    const intervalo = setInterval(() => setAgoraMs(Date.now()), 30000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const valorEsperado =
+    (sessaoAberta?.valor_abertura || 0) +
+    (resumo?.totalVendas || 0) +
+    (resumo?.totalSuprimentos || 0) -
+    (resumo?.totalSangrias || 0)
+
+  const turnoLongo =
+    sessaoAberta != null &&
+    agoraMs - new Date(sessaoAberta.aberto_em).getTime() > LIMITE_TURNO_LONGO_HORAS * 60 * 60 * 1000
 
   async function handleAbrir() {
     setEnviando(true)
     setErro(null)
     try {
-      await abrir(Number(valorAbertura) || 0)
-      setValorAbertura('')
+      await abrir(valorAbertura)
+      setValorAbertura(0)
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao abrir o caixa')
     } finally {
@@ -32,27 +71,34 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
     setEnviando(true)
     setErro(null)
     try {
-      const sessao = await fechar(Number(valorFechamento) || 0)
+      const sessao = await fechar(valorFechamento)
       if (sessao) setResultadoFechamento({ diferenca: sessao.diferenca || 0 })
-      setValorFechamento('')
+      setValorFechamento(0)
+      setConfirmandoFechamento(false)
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao fechar o caixa')
+      setConfirmandoFechamento(false)
     } finally {
       setEnviando(false)
     }
   }
 
   if (carregando) {
-    return <div className="py-12 text-center text-neutral-400">Carregando caixa...</div>
+    return (
+      <div className="space-y-4">
+        <div className={`h-20 ${caixaTema.skeleton}`} />
+        <div className={`h-[60vh] ${caixaTema.skeleton}`} />
+      </div>
+    )
   }
 
   if (resultadoFechamento) {
     const { diferenca } = resultadoFechamento
     return (
-      <div className="rounded-2xl border border-neutral-100 bg-white p-6 text-center shadow-sm">
-        <div className="mb-2 text-4xl">{diferenca === 0 ? '✅' : diferenca > 0 ? '📈' : '📉'}</div>
-        <h2 className="text-lg font-bold text-neutral-900">Caixa fechado</h2>
-        <p className="mt-1 text-sm text-neutral-500">
+      <div className={`mx-auto max-w-sm ${caixaTema.painel} p-8 text-center`}>
+        <div className="mb-2 text-5xl">{diferenca === 0 ? '✅' : diferenca > 0 ? '📈' : '📉'}</div>
+        <h2 className="text-lg font-bold text-white">Caixa fechado</h2>
+        <p className="mt-1 text-sm text-neutral-400">
           {diferenca === 0
             ? 'Bateu certinho com o valor esperado.'
             : diferenca > 0
@@ -61,7 +107,7 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
         </p>
         <button
           onClick={() => setResultadoFechamento(null)}
-          className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className={`mt-5 w-full rounded-lg py-2.5 text-sm font-semibold ${caixaTema.botaoNeutro}`}
         >
           Voltar
         </button>
@@ -72,25 +118,28 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
   if (!sessaoAberta) {
     return (
       <div className="space-y-6">
-        <MesasComContaAberta estabelecimentoId={estabelecimentoId} />
-        <div className="mx-auto max-w-sm rounded-2xl border border-neutral-100 bg-white p-6 text-center shadow-sm">
-          <div className="mb-2 text-4xl">🔒</div>
-          <h2 className="text-lg font-bold text-neutral-900">Caixa fechado</h2>
-          <p className="mt-1 text-sm text-neutral-500">Informe o valor inicial para abrir o caixa.</p>
-          {erro && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
-          <input
-            type="number"
+        {/* Fechar conta de mesa exige caixa aberto (pagamento precisa
+            pertencer a um turno) — não mostra essa ferramenta aqui pra não
+            sugerir que dá pra fechar mesa com o caixa fechado. */}
+        <div className={`mx-auto max-w-sm ${caixaTema.painel} p-8 text-center`}>
+          <div className="mb-3 text-5xl">🔒</div>
+          <h2 className="text-lg font-bold text-white">Caixa fechado</h2>
+          <p className="mt-1 text-sm text-neutral-400">Informe o valor inicial para abrir o caixa.</p>
+          {erro && (
+            <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>
+          )}
+          <InputMoeda
             value={valorAbertura}
-            onChange={(e) => setValorAbertura(e.target.value)}
-            placeholder="0,00"
-            className="mt-4 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-center text-lg text-neutral-900"
+            onChange={setValorAbertura}
+            autoFocus
+            className={`mt-4 w-full text-center text-lg ${caixaTema.input}`}
           />
           <button
             onClick={handleAbrir}
             disabled={enviando}
-            className="mt-3 w-full rounded-lg bg-green-600 py-2.5 font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            className={`mt-3 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-base font-bold ${caixaTema.botaoVerde}`}
           >
-            {enviando ? 'Abrindo...' : 'Abrir caixa'}
+            <Play className="h-4 w-4" /> {enviando ? 'Abrindo...' : 'Abrir caixa'}
           </button>
         </div>
       </div>
@@ -98,95 +147,140 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
   }
 
   return (
-    <div className="space-y-6">
-      <MesasComContaAberta estabelecimentoId={estabelecimentoId} />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-5">
-        <p className="text-xs font-semibold uppercase text-green-700">🟢 Caixa aberto</p>
-        <p className="mt-1 text-sm text-neutral-600">
-          Desde {new Date(sessaoAberta.aberto_em).toLocaleString('pt-BR')}
-        </p>
-        <p className="mt-2 text-sm text-neutral-600">
-          Valor de abertura: <span className="font-semibold">R$ {sessaoAberta.valor_abertura.toFixed(2)}</span>
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase text-neutral-500">Vendas nesta sessão</p>
-        <p className="mt-1 text-2xl font-bold text-neutral-900">
-          R$ {(resumo?.totalVendas || 0).toFixed(2)}
-        </p>
-        <p className="text-xs text-neutral-400">{resumo?.quantidadePedidos || 0} pedidos pagos</p>
-
-        {resumo && Object.keys(resumo.porMetodoPagamento).length > 0 && (
-          <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
-            {Object.entries(resumo.porMetodoPagamento).map(([metodo, valor]) => (
-              <div key={metodo} className="flex justify-between">
-                <span>{metodo}</span>
-                <span>R$ {valor.toFixed(2)}</span>
-              </div>
-            ))}
+    <div className="space-y-4">
+      {/* Barra de status do turno — só o essencial, nada de números de
+          vendas passadas aqui; isso mora no relatório (link abaixo). */}
+      <div className={`flex flex-wrap items-center justify-between gap-3 ${caixaTema.painel} px-5 py-3`}>
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold text-white">
+              Caixa aberto
+              {turnoLongo && (
+                <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${caixaTema.badgeAlerta}`}>
+                  <AlertTriangle className="h-3 w-3" /> turno longo
+                </span>
+              )}
+            </p>
+            <p className="flex items-center gap-1 text-xs text-neutral-500">
+              <Clock className="h-3 w-3" /> {formatarDuracao(sessaoAberta.aberto_em, agoraMs)}
+            </p>
           </div>
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm md:col-span-2">
-        <p className="mb-2 text-sm font-semibold text-neutral-700">Fechar caixa</p>
-        {erro && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
-        <p className="mb-3 text-xs text-neutral-400">
-          Valor esperado na gaveta: R$ {(sessaoAberta.valor_abertura + (resumo?.totalVendas || 0)).toFixed(2)}{' '}
-          (abertura + vendas em dinheiro/cartão registradas)
-        </p>
-        <div className="flex gap-3">
-          <input
-            type="number"
-            value={valorFechamento}
-            onChange={(e) => setValorFechamento(e.target.value)}
-            placeholder="Valor contado na gaveta"
-            className="flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-neutral-900"
-          />
-          <button
-            onClick={handleFechar}
-            disabled={enviando}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessaoAberta.id}`}
+            className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-emerald-400"
           >
-            {enviando ? 'Fechando...' : 'Fechar caixa'}
+            <BarChart3 className="h-3.5 w-3.5" /> Relatório
+          </Link>
+          <button
+            onClick={() => setConfirmandoFechamento(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20"
+          >
+            <Square className="h-3.5 w-3.5" /> Fechar caixa
           </button>
         </div>
       </div>
+
+      {/* Tela central — limpa: só o que está em uso agora (vender ou
+          acompanhar mesas/pedidos), nada de histórico de vendas. */}
+      {tela === 'venda' ? (
+        <LancarPedidoGarcom
+          key={sessaoAberta.id}
+          estabelecimentoId={estabelecimentoId}
+          mesa={null}
+          tema="escuro"
+          finalizarNoAto
+          modo="inline"
+          onPedidoLancado={() => {}}
+        />
+      ) : (
+        <div className="space-y-4">
+          <MesasComContaAberta estabelecimentoId={estabelecimentoId} />
+          <MovimentacoesCaixa
+            estabelecimentoId={estabelecimentoId}
+            caixaSessaoId={sessaoAberta.id}
+            movimentacoes={resumo?.movimentacoes || []}
+            onRegistrada={atualizar}
+          />
+          <Link
+            href={`/painel/estabelecimento/${estabelecimentoId}/pedidos`}
+            className="block text-center text-xs font-medium text-emerald-400 hover:underline"
+          >
+            Ver quadro de comandas completo →
+          </Link>
+        </div>
+      )}
+
+      {/* Botões grandes de alternância — sempre visíveis, sem precisar
+          rolar a tela pra trocar entre vender e acompanhar mesas. */}
+      <div className="sticky bottom-4 z-10 grid grid-cols-2 gap-3">
+        <button
+          onClick={() => setTela('venda')}
+          className={`flex items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition ${
+            tela === 'venda' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
+          }`}
+        >
+          <Receipt className="h-5 w-5" /> Nova venda
+        </button>
+        <button
+          onClick={() => setTela('mesas')}
+          className={`flex items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition ${
+            tela === 'mesas' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
+          }`}
+        >
+          <UtensilsCrossed className="h-5 w-5" /> Mesas e pedidos
+        </button>
       </div>
 
-      {resumo && resumo.vendas.length > 0 && (
-        <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-neutral-700">🧾 Vendas desta sessão</p>
-            <Link
-              href={`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessaoAberta.id}`}
-              className="text-xs font-medium text-orange-600 hover:underline"
-            >
-              Ver demonstrativo completo →
-            </Link>
-          </div>
-          <p className="mb-3 text-xs text-neutral-400">Clique numa linha pra ver o detalhe.</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-neutral-100 text-left text-xs uppercase text-neutral-400">
-                <tr>
-                  <th className="py-2 pr-3 font-medium">Horário</th>
-                  <th className="py-2 pr-3 font-medium">Mesa</th>
-                  <th className="py-2 pr-3 font-medium">Tipo</th>
-                  <th className="py-2 pr-3 font-medium">Forma</th>
-                  <th className="py-2 pl-3 text-right font-medium">Valor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {resumo.vendas.map((venda) => (
-                  <VendaSessaoRow key={`${venda.tipo}-${venda.id}`} venda={venda} caixaSessaoId={sessaoAberta.id} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {confirmandoFechamento && (
+        <ConfirmarAcaoModal
+          titulo="Fechar o caixa"
+          tom="perigo"
+          enviando={enviando}
+          confirmarLabel="Confirmar fechamento"
+          onCancelar={() => setConfirmandoFechamento(false)}
+          onConfirmar={handleFechar}
+          descricao={
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-400">Valor contado na gaveta</label>
+                <InputMoeda value={valorFechamento} onChange={setValorFechamento} autoFocus className={`w-full ${caixaTema.input}`} />
+              </div>
+              {erro && (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>
+              )}
+              <div className="space-y-1 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 text-xs">
+                <div className="flex justify-between">
+                  <span>Esperado na gaveta</span>
+                  <span className="font-semibold text-neutral-200">R$ {valorEsperado.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Valor contado</span>
+                  <span className="font-semibold text-neutral-200">R$ {valorFechamento.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-neutral-800 pt-1">
+                  <span>Diferença</span>
+                  <span
+                    className={`font-semibold ${
+                      valorFechamento - valorEsperado === 0
+                        ? 'text-emerald-400'
+                        : valorFechamento - valorEsperado > 0
+                          ? 'text-sky-400'
+                          : 'text-red-400'
+                    }`}
+                  >
+                    R$ {(valorFechamento - valorEsperado).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          }
+        />
       )}
     </div>
   )

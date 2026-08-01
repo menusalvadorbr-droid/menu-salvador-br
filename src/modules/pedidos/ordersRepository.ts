@@ -138,3 +138,30 @@ export async function atualizarStatusPedido(pedidoId: string, novoStatus: Status
   const { error } = await supabase.from('orders').update(atualizacao).eq('id', pedidoId)
   if (error) throw new Error(error.message)
 }
+
+/**
+ * Fecha uma venda avulsa (venda balcão registrada direto no caixa) já com
+ * o pagamento confirmado — grava o desconto aplicado, o total já com
+ * desconto, a forma de pagamento, e marca como pago numa ação só. Distinto
+ * de atualizarStatusPedido porque essa transição também precisa ajustar
+ * total/desconto/metodo_pagamento, não só o status.
+ */
+export async function finalizarVendaImediata(
+  pedidoId: string,
+  totalFinal: number,
+  desconto: number,
+  metodoPagamento: string
+) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      total: totalFinal,
+      desconto,
+      metodo_pagamento: metodoPagamento,
+      status: 'pago',
+      paid_at: new Date().toISOString(),
+    })
+    .eq('id', pedidoId)
+  if (error) throw new Error(error.message)
+}

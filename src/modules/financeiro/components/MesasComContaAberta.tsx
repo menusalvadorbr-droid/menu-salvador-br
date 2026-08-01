@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMesas } from '@/modules/pedidos/mesas/hooks/useMesas'
 import FecharContaMesaModal from '@/modules/pedidos/mesas/components/FecharContaMesaModal'
 import type { Mesa } from '@/modules/pedidos/mesas/types'
+import { caixaTema } from '../caixaTema'
 
 /**
  * Segundo ponto de entrada pro fechamento de conta por mesa (o primeiro é
@@ -13,26 +14,45 @@ import type { Mesa } from '@/modules/pedidos/mesas/types'
 export default function MesasComContaAberta({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { mesas, carregando } = useMesas(estabelecimentoId)
   const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null)
+  const [busca, setBusca] = useState('')
 
   const mesasOcupadas = mesas.filter((m) => m.status === 'ocupada')
+  const mesasFiltradas = busca.trim()
+    ? mesasOcupadas.filter((m) => m.numero.toLowerCase().includes(busca.trim().toLowerCase()))
+    : mesasOcupadas
 
   if (carregando || mesasOcupadas.length === 0) return null
 
   return (
-    <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-      <p className="mb-3 text-sm font-semibold text-neutral-700">🍽️ Mesas com conta aberta</p>
+    <div className={`${caixaTema.painel} p-5`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-white">🍽️ Mesas com conta aberta</p>
+        {mesasOcupadas.length > 4 && (
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar mesa…"
+            className={`w-32 text-sm ${caixaTema.input}`}
+          />
+        )}
+      </div>
+      {mesasFiltradas.length === 0 ? (
+        <p className="py-4 text-center text-xs text-neutral-500">Nenhuma mesa encontrada pra &quot;{busca}&quot;.</p>
+      ) : (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-        {mesasOcupadas.map((mesa) => (
+        {mesasFiltradas.map((mesa) => (
           <button
             key={mesa.id}
             onClick={() => setMesaSelecionada(mesa)}
-            className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-center transition hover:border-orange-400"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-center transition hover:border-amber-400/60 hover:bg-amber-500/20"
           >
-            <div className="text-lg font-bold text-orange-700">{mesa.numero}</div>
-            <div className="mt-0.5 text-xs font-medium text-orange-600">💳 Fechar conta</div>
+            <div className="text-lg font-bold text-amber-300">{mesa.numero}</div>
+            <div className="mt-0.5 text-xs font-medium text-amber-400/80">💳 Fechar conta</div>
           </button>
         ))}
       </div>
+      )}
 
       {mesaSelecionada && (
         <FecharContaMesaModal
@@ -40,6 +60,7 @@ export default function MesasComContaAberta({ estabelecimentoId }: { estabelecim
           mesa={mesaSelecionada}
           onFechar={() => setMesaSelecionada(null)}
           onContaFechada={() => setMesaSelecionada(null)}
+          tema="escuro"
         />
       )}
     </div>

@@ -4,6 +4,8 @@ import type {
   ResumoSessaoCaixa,
   VendaSessao,
   PagamentoMesa,
+  MovimentacaoCaixa,
+  TipoMovimentacaoCaixa,
   DemonstrativoSessao,
   GrupoMesaDemonstrativo,
   PedidoResumoDemonstrativo,
@@ -60,7 +62,11 @@ export async function abrirCaixa(
 export async function resumoSessao(sessaoId: string): Promise<ResumoSessaoCaixa> {
   const supabase = createClient()
 
-  const [{ data: pedidos, error: erroPedidos }, { data: pagamentos, error: erroPagamentos }] = await Promise.all([
+  const [
+    { data: pedidos, error: erroPedidos },
+    { data: pagamentos, error: erroPagamentos },
+    { data: movimentacoes, error: erroMovimentacoes },
+  ] = await Promise.all([
     supabase
       .from('orders')
       .select('id, total, desconto, metodo_pagamento, created_at, ready_at, delivered_at, paid_at, mesa, mesa_id, nome_cliente')
@@ -68,12 +74,18 @@ export async function resumoSessao(sessaoId: string): Promise<ResumoSessaoCaixa>
       .eq('status', 'pago'),
     supabase
       .from('pagamentos_mesa')
-      .select('id, valor, forma_pagamento, created_at, mesa_id, mesas(numero)')
+      .select('id, valor, desconto, forma_pagamento, created_at, mesa_id, mesas(numero)')
       .eq('caixa_sessao_id', sessaoId),
+    supabase
+      .from('caixa_movimentacoes')
+      .select('*')
+      .eq('caixa_sessao_id', sessaoId)
+      .order('created_at', { ascending: false }),
   ])
 
   if (erroPedidos) throw new Error(erroPedidos.message)
   if (erroPagamentos) throw new Error(erroPagamentos.message)
+  if (erroMovimentacoes) throw new Error(erroMovimentacoes.message)
 
   const porMetodoPagamento: Record<string, number> = {}
   let totalVendas = 0
@@ -93,6 +105,7 @@ export async function resumoSessao(sessaoId: string): Promise<ResumoSessaoCaixa>
 
   for (const pagamento of pagamentos || []) {
     totalVendas += pagamento.valor || 0
+    totalDesconto += pagamento.desconto || 0
     const metodo = pagamento.forma_pagamento || 'Não informado'
     porMetodoPagamento[metodo] = (porMetodoPagamento[metodo] || 0) + (pagamento.valor || 0)
   }
@@ -132,13 +145,55 @@ export async function resumoSessao(sessaoId: string): Promise<ResumoSessaoCaixa>
     }),
   ].sort((a, b) => new Date(b.pagoEm).getTime() - new Date(a.pagoEm).getTime())
 
+  const totalSangrias = (movimentacoes || [])
+    .filter((m) => m.tipo === 'sangria')
+    .reduce((soma, m) => soma + (m.valor || 0), 0)
+  const totalSuprimentos = (movimentacoes || [])
+    .filter((m) => m.tipo === 'suprimento')
+    .reduce((soma, m) => soma + (m.valor || 0), 0)
+
   return {
     totalVendas,
     totalDesconto,
     quantidadePedidos: pedidos?.length || 0,
     porMetodoPagamento,
     vendas,
+    movimentacoes: movimentacoes || [],
+    totalSangrias,
+    totalSuprimentos,
   }
+}
+
+/**
+ * Registra uma sangria (retirada) ou suprimento (reforço) de dinheiro na
+ * gaveta durante o turno. Só pode ser lançada contra uma sessão aberta —
+ * entra automaticamente no cálculo do valor esperado no fechamento.
+ */
+export async function registrarMovimentacaoCaixa(
+  estabelecimentoId: string,
+  caixaSessaoId: string,
+  tipo: TipoMovimentacaoCaixa,
+  valor: number,
+  motivo?: string
+): Promise<MovimentacaoCaixa> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data, error } = await supabase
+    .from('caixa_movimentacoes')
+    .insert({
+      estabelecimento_id: estabelecimentoId,
+      caixa_sessao_id: caixaSessaoId,
+      tipo,
+      valor,
+      motivo: motivo?.trim() || null,
+      criado_por: user?.id || null,
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
 }
 
 /**
@@ -198,7 +253,8 @@ export async function registrarPagamentoParcial(
   mesaId: string,
   valor: number,
   formaPagamento: string,
-  nomePagador?: string
+  nomePagador?: string,
+  desconto?: number
 ) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -208,6 +264,7 @@ export async function registrarPagamentoParcial(
     estabelecimento_id: estabelecimentoId,
     mesa_id: mesaId,
     valor,
+    desconto: desconto || 0,
     forma_pagamento: formaPagamento,
     nome_pagador: nomePagador?.trim() || null,
     caixa_sessao_id: sessaoAberta?.id || null,
@@ -251,7 +308,9 @@ export async function fecharCaixa(sessaoId: string, valorInformado: number): Pro
   if (erroSessao) throw erroSessao
 
   const resumo = await resumoSessao(sessaoId)
-  const valorEsperado = sessao.valor_abertura + resumo.totalVendas
+  // Dinheiro que deveria estar na gaveta: abertura + vendas + reforços
+  // (suprimentos) - retiradas (sangrias) feitas ao longo do turno.
+  const valorEsperado = sessao.valor_abertura + resumo.totalVendas + resumo.totalSuprimentos - resumo.totalSangrias
 
   const { data, error } = await supabase
     .from('caixa_sessoes')

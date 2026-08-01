@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listarPedidosAbertosDaMesa, atualizarStatusPedido } from '../../ordersRepository'
 import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
-import { vincularPedidoASessaoAberta, saldoPendenteDaMesa, registrarPagamentoParcial } from '@/modules/financeiro/caixaRepository'
+import {
+  vincularPedidoASessaoAberta,
+  saldoPendenteDaMesa,
+  registrarPagamentoParcial,
+  obterSessaoAberta,
+} from '@/modules/financeiro/caixaRepository'
 import { atualizarStatusMesa } from '../mesasRepository'
 import type { Pedido } from '../../types'
 import type { Mesa } from '../types'
@@ -22,19 +27,27 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // Fechar conta grava um pagamento_mesa vinculado à sessão de caixa aberta
+  // — sem sessão nenhuma, o pagamento entra órfão (caixa_sessao_id null),
+  // some do relatório do turno e a mesa fecha sem esse dinheiro nunca
+  // aparecer em nenhum fechamento de caixa. Por isso a ação exige sessão
+  // aberta, não é só um detalhe de vínculo opcional.
+  const [caixaAberto, setCaixaAberto] = useState(true)
 
   const carregar = useCallback(async () => {
     try {
-      const [listaPedidos, saldoInfo] = await Promise.all([
+      const [listaPedidos, saldoInfo, sessaoAberta] = await Promise.all([
         listarPedidosAbertosDaMesa(mesa.id),
         saldoPendenteDaMesa(mesa.id),
+        obterSessaoAberta(estabelecimentoId),
       ])
       setPedidos(listaPedidos)
       setSaldo(saldoInfo.saldo)
+      setCaixaAberto(!!sessaoAberta)
     } finally {
       setCarregando(false)
     }
-  }, [mesa.id])
+  }, [mesa.id, estabelecimentoId])
 
   useEffect(() => {
     carregar()
@@ -80,6 +93,10 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
     formaPagamento: string,
     nomePagador?: string
   ): Promise<{ ok: boolean; contaFechada: boolean }> {
+    if (!caixaAberto) {
+      setErro('Abra o caixa antes de registrar um pagamento.')
+      return { ok: false, contaFechada: false }
+    }
     if (!(valor > 0)) {
       setErro('Informe um valor maior que zero.')
       return { ok: false, contaFechada: false }
@@ -105,5 +122,37 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
     }
   }
 
-  return { pedidos, total, saldo, carregando, enviando, erro, registrarPagamento }
+  /**
+   * "Fechar tudo agora", com desconto opcional — diferente de
+   * registrarPagamento: aqui o valor cobrado já é o saldo menos o desconto,
+   * e a conta fecha sempre (mesmo que o desconto zere o valor cobrado),
+   * porque essa ação é explicitamente "encerrar a comanda agora", não mais
+   * uma parcela que pode ou não completar o total.
+   */
+  async function fecharTudo(
+    formaPagamento: string,
+    nomePagador?: string,
+    desconto = 0
+  ): Promise<{ ok: boolean }> {
+    if (!caixaAberto) {
+      setErro('Abra o caixa antes de fechar a conta da mesa.')
+      return { ok: false }
+    }
+
+    setEnviando(true)
+    setErro(null)
+    try {
+      const valorACobrar = Math.max(0, saldo - desconto)
+      await registrarPagamentoParcial(estabelecimentoId, mesa.id, valorACobrar, formaPagamento, nomePagador, desconto)
+      await fecharPedidosPagos()
+      return { ok: true }
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao fechar a conta')
+      return { ok: false }
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return { pedidos, total, saldo, carregando, enviando, erro, caixaAberto, registrarPagamento, fecharTudo }
 }

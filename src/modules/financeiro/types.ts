@@ -20,6 +20,7 @@ export interface PagamentoMesa {
   estabelecimento_id: string
   mesa_id: string
   valor: number
+  desconto: number
   forma_pagamento: string | null
   nome_pagador: string | null
   caixa_sessao_id: string | null
@@ -50,12 +51,33 @@ export interface VendaSessao {
   entregueEm: string | null
 }
 
+export type TipoMovimentacaoCaixa = 'sangria' | 'suprimento'
+
+/**
+ * Retirada (sangria) ou reforço (suprimento) de dinheiro na gaveta durante
+ * o turno — ex: sangria pra depósito/pagamento a fornecedor, suprimento de
+ * troco. Entra no cálculo do valor esperado no fechamento do caixa.
+ */
+export interface MovimentacaoCaixa {
+  id: string
+  estabelecimento_id: string
+  caixa_sessao_id: string
+  tipo: TipoMovimentacaoCaixa
+  valor: number
+  motivo: string | null
+  criado_por: string | null
+  created_at: string
+}
+
 export interface ResumoSessaoCaixa {
   totalVendas: number
   totalDesconto: number
   quantidadePedidos: number
   porMetodoPagamento: Record<string, number>
   vendas: VendaSessao[]
+  movimentacoes: MovimentacaoCaixa[]
+  totalSangrias: number
+  totalSuprimentos: number
 }
 
 /** Uma linha de pedido no demonstrativo detalhado — dentro de um grupo de
