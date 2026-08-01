@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
-import type { Fornecedor, PedidoCompra, NovoItemPedidoCompra } from './types'
+import { limparCnpj } from '@/lib/cnpj'
+import type { Fornecedor, NovoFornecedorInput, PedidoCompra, NovoItemPedidoCompra } from './types'
 
 export async function listarFornecedores(estabelecimentoId: string): Promise<Fornecedor[]> {
   const supabase = createClient()
@@ -12,20 +13,19 @@ export async function listarFornecedores(estabelecimentoId: string): Promise<For
   return data || []
 }
 
-export async function criarFornecedor(
-  estabelecimentoId: string,
-  nome: string,
-  telefone?: string,
-  email?: string,
-  observacoes?: string
-) {
+export async function criarFornecedor(estabelecimentoId: string, input: NovoFornecedorInput) {
   const supabase = createClient()
   const { error } = await supabase.from('fornecedores').insert({
     estabelecimento_id: estabelecimentoId,
-    nome,
-    telefone: telefone || null,
-    email: email || null,
-    observacoes: observacoes || null,
+    nome: input.nome,
+    telefone: input.telefone || null,
+    whatsapp: input.whatsapp || null,
+    // Fornecedor pode ser pessoa física sem CNPJ — só normaliza (guarda só
+    // os dígitos) quando algo foi digitado, não exige nem valida.
+    cnpj: input.cnpj ? limparCnpj(input.cnpj) : null,
+    endereco: input.endereco || null,
+    email: input.email || null,
+    observacoes: input.observacoes || null,
   })
   if (error) throw new Error(error.message)
 }

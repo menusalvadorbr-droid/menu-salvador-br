@@ -3,9 +3,22 @@ export interface Fornecedor {
   estabelecimento_id: string
   nome: string
   telefone: string | null
+  whatsapp: string | null
+  cnpj: string | null
+  endereco: string | null
   email: string | null
   observacoes: string | null
   created_at: string
+}
+
+export interface NovoFornecedorInput {
+  nome: string
+  telefone?: string
+  whatsapp?: string
+  cnpj?: string
+  endereco?: string
+  email?: string
+  observacoes?: string
 }
 
 export type StatusPedidoCompra = 'pendente' | 'recebido' | 'cancelado'

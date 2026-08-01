@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { listarFornecedores, criarFornecedor, removerFornecedor } from '../fornecedoresRepository'
-import type { Fornecedor } from '../types'
+import type { Fornecedor, NovoFornecedorInput } from '../types'
 
 export function useFornecedores(estabelecimentoId: string) {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
@@ -20,9 +20,9 @@ export function useFornecedores(estabelecimentoId: string) {
     carregar()
   }, [carregar])
 
-  async function adicionar(nome: string, telefone?: string, email?: string, observacoes?: string) {
+  async function adicionar(input: NovoFornecedorInput) {
     try {
-      await criarFornecedor(estabelecimentoId, nome, telefone, email, observacoes)
+      await criarFornecedor(estabelecimentoId, input)
       await carregar()
     } catch (err) {
       alert(`Não foi possível criar o fornecedor: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
