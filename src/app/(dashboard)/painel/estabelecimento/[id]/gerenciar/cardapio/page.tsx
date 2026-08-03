@@ -2,6 +2,7 @@
 
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { UtensilsCrossed, Star, QrCode, Grid3x3, Palette } from 'lucide-react'
 import TabsContainer from '@/app/(dashboard)/painel/components/TabsContainer'
 import CardapioTab from '../../editar/CardapioTab'
 import QrCodeTab from '../../editar/QrCodeTab'
@@ -9,8 +10,6 @@ import QrPorMesaTab from '../../editar/QrPorMesaTab'
 import PromocoesTab from '../../editar/PromocoesTab'
 import { planoTemRecurso } from '@/lib/recursosPlano'
 import { TemaEditor } from '@/components/tema'
-import ConfiguracoesTab from '../../editar/components/ConfiguracoesTab'
-import FuncionariosTab from '../FuncionariosTab'
 import EstadoCarregamento from '../EstadoCarregamento'
 import { useEstabelecimentoGerenciar } from '../useEstabelecimentoGerenciar'
 import CabecalhoGerenciar from '../CabecalhoGerenciar'
@@ -37,19 +36,22 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
   const tabs = [
     {
       id: 'cardapio',
-      label: '🍽️ Cardápio',
+      label: 'Cardápio',
+      icon: <UtensilsCrossed className="h-4 w-4" />,
       content: <CardapioTab estabelecimentoId={estabelecimento.id} readOnly={!podeEditarCardapio} />,
     },
     ...(ehDonoOuGerente
       ? [
           {
             id: 'promocoes',
-            label: '⭐ Promoções',
+            label: 'Promoções',
+            icon: <Star className="h-4 w-4" />,
             content: <PromocoesTab estabelecimentoId={estabelecimento.id} readOnly={!podeEditar} />,
           },
           {
             id: 'qrcode',
-            label: '📱 QR Code',
+            label: 'QR Code',
+            icon: <QrCode className="h-4 w-4" />,
             content: (
               <QrCodeTab
                 estabelecimentoId={estabelecimento.id}
@@ -63,7 +65,8 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
             ? [
                 {
                   id: 'qr-mesa',
-                  label: '🪑 QR por mesa',
+                  label: 'QR por mesa',
+                  icon: <Grid3x3 className="h-4 w-4" />,
                   content: (
                     <QrPorMesaTab estabelecimentoId={estabelecimento.id} slug={estabelecimento.slug} readOnly={!podeEditar} />
                   ),
@@ -71,13 +74,9 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
               ]
             : []),
           {
-            id: 'configuracoes',
-            label: '⚙️ Configurações',
-            content: <ConfiguracoesTab estabelecimento={estabelecimento} readOnly={!podeEditar} />,
-          },
-          {
             id: 'tema',
-            label: '🎨 Tema',
+            label: 'Tema',
+            icon: <Palette className="h-4 w-4" />,
             content: (
               <TemaEditor
                 estabelecimentoId={estabelecimento.id}
@@ -88,11 +87,6 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
                 }}
               />
             ),
-          },
-          {
-            id: 'equipe',
-            label: '👥 Equipe',
-            content: <FuncionariosTab estabelecimentoId={estabelecimento.id} />,
           },
         ]
       : []),
@@ -108,7 +102,7 @@ export default function CardapioModuloPage({ params }: { params: Promise<{ id: s
           ehDonoOuGerente={ehDonoOuGerente}
           podeEditar={podeEditar}
           aoVoltar={() => router.push(`/painel/estabelecimento/${id}/gerenciar`)}
-          tituloPagina={{ icone: '🍽️', texto: 'Cardápio' }}
+          tituloPagina={{ icone: <UtensilsCrossed className="h-full w-full" />, texto: 'Cardápio' }}
           contaAberta={contaAberta}
           onAbrirConta={() => setContaAberta(true)}
           onFecharConta={() => setContaAberta(false)}

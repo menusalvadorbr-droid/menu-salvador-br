@@ -2,13 +2,13 @@
 
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Wrench } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import EstadoCarregamento from '../EstadoCarregamento'
 import { useEstabelecimentoGerenciar } from '../useEstabelecimentoGerenciar'
-import ModuloGestao from '../ModuloGestao'
 import CabecalhoGerenciar from '../CabecalhoGerenciar'
+import ConfiguracoesTab from '../../editar/components/ConfiguracoesTab'
 
-export default function GestaoModuloPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ConfiguracoesModuloPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const [contaAberta, setContaAberta] = useState(false)
@@ -28,17 +28,19 @@ export default function GestaoModuloPage({ params }: { params: Promise<{ id: str
           ehDonoOuGerente={ehDonoOuGerente}
           podeEditar={podeEditar}
           aoVoltar={() => router.push(`/painel/estabelecimento/${id}/gerenciar`)}
-          tituloPagina={{ icone: <Wrench className="h-full w-full" />, texto: 'Gestão' }}
+          tituloPagina={{ icone: <Settings className="h-full w-full" />, texto: 'Configurações' }}
           contaAberta={contaAberta}
           onAbrirConta={() => setContaAberta(true)}
           onFecharConta={() => setContaAberta(false)}
         />
 
-        {/* Chega até aqui mesmo desativado só se alguém guardou o link —
-            o card da tela inicial já bloqueia a navegação nesse caso, mas
-            o ModuloGestao continua mostrando o aviso e os itens apagados
-            de qualquer forma, sem depender só desse bloqueio anterior. */}
-        <ModuloGestao estabelecimentoId={estabelecimento.id} ativado={!!estabelecimento.gestao_modulo_ativado} />
+        {ehDonoOuGerente ? (
+          <ConfiguracoesTab estabelecimento={estabelecimento} readOnly={!podeEditar} />
+        ) : (
+          <div className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-neutral-100 bg-white text-sm text-neutral-500">
+            Só o dono ou gerente do estabelecimento pode acessar as configurações.
+          </div>
+        )}
       </div>
     </div>
   )

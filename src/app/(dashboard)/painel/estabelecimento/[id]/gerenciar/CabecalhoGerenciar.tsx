@@ -1,6 +1,7 @@
 'use client'
 
-import { ArrowLeft, ChevronRight } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ArrowLeft, ChevronRight, Clock, ShieldAlert, EyeOff, CheckCircle2, X } from 'lucide-react'
 import EditarEstabelecimentoForm from '../editar/EditarEstabelecimentoForm'
 
 function saudacao() {
@@ -12,15 +13,15 @@ function saudacao() {
 
 function statusBadge(estabelecimento: { status: string; ativo: boolean | null }) {
   if (estabelecimento.status === 'em_analise') {
-    return { label: '🕒 Em análise', bg: 'bg-amber-50', text: 'text-amber-700' }
+    return { label: 'Em análise', bg: 'bg-amber-50', text: 'text-amber-700', ring: 'ring-amber-600/10', Icone: Clock }
   }
   if (estabelecimento.status === 'blocked') {
-    return { label: '🚫 Bloqueado', bg: 'bg-red-50', text: 'text-red-700' }
+    return { label: 'Bloqueado', bg: 'bg-red-50', text: 'text-red-700', ring: 'ring-red-600/10', Icone: ShieldAlert }
   }
   if (estabelecimento.ativo === false) {
-    return { label: '🙈 Oculto', bg: 'bg-gray-100', text: 'text-gray-600' }
+    return { label: 'Oculto', bg: 'bg-neutral-100', text: 'text-neutral-600', ring: 'ring-neutral-600/10', Icone: EyeOff }
   }
-  return { label: '✅ Ativo', bg: 'bg-green-50', text: 'text-green-700' }
+  return { label: 'Ativo', bg: 'bg-green-50', text: 'text-green-700', ring: 'ring-green-600/10', Icone: CheckCircle2 }
 }
 
 interface CabecalhoGerenciarProps {
@@ -35,7 +36,7 @@ interface CabecalhoGerenciarProps {
   /** Título da página específica (ex: "Cardápio", "Gestão") — exibido
    *  dentro deste mesmo cabeçalho, não como substituto dele. Omitido na
    *  tela inicial de gerenciar, que não precisa desse subtítulo. */
-  tituloPagina?: { icone: string; texto: string }
+  tituloPagina?: { icone: ReactNode; texto: string }
   /** Controlado pelo chamador — a tela inicial também abre esse mesmo
    *  modal a partir do checklist de perfil, fora deste cabeçalho, então o
    *  estado não pode viver só aqui dentro. */
@@ -64,19 +65,25 @@ export default function CabecalhoGerenciar({
 }: CabecalhoGerenciarProps) {
   const nomeExibicao = estabelecimento.nome_fantasia || estabelecimento.nome
   const primeiroNome = usuarioNome.split(' ')[0] || usuarioNome
+  const inicial = (nomeExibicao || '?').trim().charAt(0).toUpperCase()
   const badge = statusBadge(estabelecimento)
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+      <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex min-w-0 items-center gap-3">
           <button
             onClick={aoVoltar}
             aria-label="Voltar"
-            className="shrink-0 rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-orange-600"
+            className="shrink-0 rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
+
+          <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700 sm:flex">
+            {inicial}
+          </div>
+
           <div className="min-w-0">
             <p className="text-xs text-neutral-400">
               {saudacao()}, {primeiroNome}
@@ -94,13 +101,19 @@ export default function CabecalhoGerenciar({
               <h1 className="truncate text-lg font-bold tracking-tight text-neutral-900">{nomeExibicao}</h1>
             )}
             {tituloPagina && (
-              <p className="mt-0.5 truncate text-sm font-medium text-neutral-500">
-                {tituloPagina.icone} {tituloPagina.texto}
+              <p className="mt-0.5 flex items-center gap-1 truncate text-sm font-medium text-neutral-500">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center [&_svg]:h-3.5 [&_svg]:w-3.5">
+                  {tituloPagina.icone}
+                </span>
+                {tituloPagina.texto}
               </p>
             )}
           </div>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${badge.bg} ${badge.text}`}>
+        <span
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${badge.bg} ${badge.text} ${badge.ring}`}
+        >
+          <badge.Icone className="h-3.5 w-3.5" />
           {badge.label}
         </span>
       </div>
@@ -118,9 +131,10 @@ export default function CabecalhoGerenciar({
               <h2 className="font-semibold text-gray-900">Conta</h2>
               <button
                 onClick={onFecharConta}
-                className="text-xl leading-none text-gray-400 hover:text-gray-600"
+                aria-label="Fechar"
+                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
               >
-                ✕
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-6">
