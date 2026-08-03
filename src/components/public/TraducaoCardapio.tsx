@@ -7,6 +7,29 @@ export type IdiomaCardapio = 'pt' | 'en' | 'fr' | 'es'
 const IDIOMAS_SUPORTADOS: readonly IdiomaCardapio[] = ['en', 'fr', 'es']
 const IDIOMA_SIGLA: Record<IdiomaCardapio, string> = { pt: 'PT', en: 'EN', fr: 'FR', es: 'ES' }
 
+/**
+ * Só chamada no cliente (dentro de um efeito, nunca no initializer do
+ * useState nem durante o render). Olha navigator.languages em ordem de
+ * preferência do usuário e usa a primeira que bater com 'pt' ou com um dos
+ * idiomas ativados pra esse cardápio — sem isso, um estabelecimento que só
+ * ativou 'es' não deveria mudar o idioma pra alguém com o navegador em
+ * inglês, por exemplo.
+ */
+function detectarIdiomaNavegador(idiomasAtivos: string[]): IdiomaCardapio | null {
+  if (typeof navigator === 'undefined') return null
+  const candidatos = navigator.languages && navigator.languages.length > 0 ? navigator.languages : [navigator.language]
+
+  for (const cand of candidatos) {
+    if (!cand) continue
+    const base = cand.slice(0, 2).toLowerCase()
+    if (base === 'pt') return 'pt'
+    if ((IDIOMAS_SUPORTADOS as readonly string[]).includes(base) && idiomasAtivos.includes(base)) {
+      return base as IdiomaCardapio
+    }
+  }
+  return null
+}
+
 export interface TraducaoRow {
   tipo_registro: 'item' | 'categoria'
   registro_id: string
@@ -41,9 +64,11 @@ const TraducaoContext = createContext<TraducaoContextValue | null>(null)
  * Envolve a página pública do cardápio. Guarda a escolha de idioma em
  * localStorage com chave por slug (não misturar preferência entre
  * estabelecimentos diferentes). Primeira renderização é sempre 'pt' — o
- * valor salvo só é lido depois de montar no cliente, então pode haver uma
- * troca visível logo após o carregamento; é o comportamento esperado pra
- * uma preferência guardada só no navegador.
+ * valor salvo (ou, na ausência dele, o idioma detectado do navegador) só é
+ * lido depois de montar no cliente, então pode haver uma troca visível
+ * logo após o carregamento; é o comportamento esperado pra uma preferência
+ * guardada/detectada só no navegador, sem existir no servidor pra
+ * renderizar de primeira.
  */
 export function TraducaoProvider({
   slug,
@@ -62,15 +87,28 @@ export function TraducaoProvider({
   const chave = `idioma-cardapio:${slug}`
 
   useEffect(() => {
-    // Leitura de localStorage não pode ir num initializer de useState (não
-    // existe 'window' no servidor) — precisa ser depois de montar, senão a
-    // primeira renderização no cliente diverge da renderização do servidor
-    // (hydration mismatch). O flash de 'pt' até essa leitura rodar é
-    // esperado, é o preço de guardar a preferência só no navegador.
+    // Leitura de localStorage/navigator não pode ir num initializer de
+    // useState (não existe 'window'/'navigator' no servidor) — precisa ser
+    // depois de montar, senão a primeira renderização no cliente diverge
+    // da renderização do servidor (hydration mismatch). O flash de 'pt'
+    // até esse efeito rodar é esperado, é o preço de decidir isso só no
+    // navegador.
     const salvo = window.localStorage.getItem(chave)
     if (salvo === 'pt' || (salvo && idiomasAtivos.includes(salvo))) {
+      // Preferência salva manualmente sempre vence a detecção — quem já
+      // escolheu uma vez não deve ser sobrescrito nas próximas visitas.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIdiomaState(salvo as IdiomaCardapio)
+      return
+    }
+
+    // Sem preferência salva: detecta pelo navegador e usa só como idioma
+    // inicial dessa visita — não grava em localStorage sozinho, pra não
+    // virar uma "escolha manual" antes que o usuário realmente escolha
+    // alguma coisa pelo SeletorIdioma.
+    const detectado = detectarIdiomaNavegador(idiomasAtivos)
+    if (detectado) {
+      setIdiomaState(detectado)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave])
