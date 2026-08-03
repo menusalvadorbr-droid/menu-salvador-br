@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Check, ZoomIn, EyeOff } from 'lucide-react'
+import { Check, ZoomIn, EyeOff, ChevronRight } from 'lucide-react'
 import { obterFonteTema } from '@/lib/fontesTema'
 import { gradienteHeroImagem } from '@/lib/temaHero'
 import { CONFIG_TEMA_PADRAO } from './PreviewTemaCardapio'
@@ -32,6 +32,7 @@ interface TemaEditorProps {
 const ITENS_PREVIEW = [
   {
     id: '1',
+    categoria: 'Pratos principais',
     nome: 'Salmão Grelhado',
     descricao: 'Salmão grelhado com legumes salteados e molho de ervas.',
     preco: 45.0,
@@ -43,6 +44,7 @@ const ITENS_PREVIEW = [
   },
   {
     id: '2',
+    categoria: 'Sobremesas',
     nome: 'Mousse de Feta',
     descricao: 'Mousse leve de queijo feta com mel e nozes.',
     preco: 34.0,
@@ -61,6 +63,7 @@ const ITENS_PREVIEW = [
   },
   {
     id: '3',
+    categoria: 'Pratos principais',
     nome: 'Risoto de Cogumelos',
     descricao: 'Risoto cremoso com cogumelos frescos e parmesão.',
     preco: 52.0,
@@ -71,6 +74,11 @@ const ITENS_PREVIEW = [
     preco_promocional: null,
   },
 ]
+
+// Ordem fixa (não derivada de ITENS_PREVIEW) pra não depender da ordem de
+// declaração dos itens acima — só pra agrupar o preview por categoria e
+// mostrar a Navegação de categoria (pílulas/faixas) refletindo a escolha.
+const CATEGORIAS_PREVIEW = ['Pratos principais', 'Sobremesas'] as const
 
 const DEFAULT_CONFIG: CardapioConfig = {
   foto_posicao: 'left',
@@ -100,6 +108,12 @@ export default function TemaEditor({
   const [formato, setFormato] = useState<'lista' | 'catalogo'>('lista')
   const [navegacaoCategoria, setNavegacaoCategoria] = useState<'pilulas' | 'faixas'>('pilulas')
   const [cfgDirty, setCfgDirty] = useState(false)
+
+  // Só do preview — qual categoria está "ativa" (pílulas) ou "aberta"
+  // (faixas), pra Navegação de categoria também aparecer refletida aqui,
+  // igual as outras opções. Não é salvo em lugar nenhum.
+  const [categoriaAtivaPreview, setCategoriaAtivaPreview] = useState<string>(CATEGORIAS_PREVIEW[0])
+  const [categoriaAbertaPreview, setCategoriaAbertaPreview] = useState<string>(CATEGORIAS_PREVIEW[0])
 
   // Carregar temas + config do estabelecimento
   useEffect(() => {
@@ -199,6 +213,111 @@ export default function TemaEditor({
 
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+  // Extraído pra reaproveitar nos dois modos de Navegação de categoria
+  // (pílulas filtram por categoria ativa, faixas mostram por categoria
+  // aberta) sem duplicar o JSX do card duas vezes cada um.
+  function renderCardCatalogo(item: (typeof ITENS_PREVIEW)[number]) {
+    const temVariacoes = !!item.variacoes && item.variacoes.length > 0
+    const precoBaseValido = item.preco > 0
+    const menorPrecoVariacao = temVariacoes ? Math.min(...item.variacoes!.map(v => v.preco)) : null
+
+    return (
+      <div key={item.id} className="overflow-hidden shadow-sm"
+        style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}>
+        <div className="relative h-20 bg-gray-100">
+          <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+          {item.promocao_ativa && (
+            <span className="absolute top-1 left-1 text-xs text-white px-1.5 py-0.5 rounded-full font-semibold"
+              style={{ backgroundColor: corP }}>
+              -{Math.round((1 - item.preco_promocional! / item.preco) * 100)}%
+            </span>
+          )}
+        </div>
+        <div className="p-2 text-center">
+          <p className="text-xs font-semibold truncate" style={{ color: corT }}>{item.nome}</p>
+          {item.promocao_ativa ? (
+            <>
+              <p className="text-xs text-gray-400 line-through mt-1">R$ {fmt(item.preco)}</p>
+              <div className="inline-block rounded-full px-2 py-0.5 text-xs font-bold text-white mt-0.5"
+                style={{ backgroundColor: corP }}>
+                R$ {fmt(item.preco_promocional!)}
+              </div>
+            </>
+          ) : (
+            <div className="inline-block rounded-full px-2 py-0.5 text-xs font-bold text-white mt-1"
+              style={{ backgroundColor: corP }}>
+              {temVariacoes && precoBaseValido && (
+                <span className="mr-0.5 text-[9px] font-normal opacity-80">a partir de</span>
+              )}
+              R$ {fmt(temVariacoes ? (precoBaseValido ? item.preco : menorPrecoVariacao!) : item.preco)}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  function renderLinhaLista(item: (typeof ITENS_PREVIEW)[number]) {
+    const fp = cfg.foto_posicao
+    const flexDir = fp === 'right' ? 'flex-row-reverse' : fp === 'top' ? 'flex-col' : 'flex-row'
+    const fotoSz  = fp === 'top' ? 'w-full h-28' : 'w-20 h-20'
+
+    return (
+      <div key={item.id} className="p-3 shadow-sm"
+        style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}>
+        <div className={`flex ${flexDir} gap-3 items-start`}>
+          {fp !== 'none' && (
+            <div className={`flex-shrink-0 ${fotoSz} relative rounded-lg overflow-hidden bg-gray-100`}>
+              <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+              <button onClick={() => setModalItem(item)}
+                className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center">
+                <ZoomIn className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-1">
+              <div className="flex flex-wrap items-center gap-1">
+                {cfg.mostrar_codigo && (
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: `${corP}18`, color: corP }}>
+                    #{item.codigo}
+                  </span>
+                )}
+                <span className="text-xs font-medium" style={{ color: corT }}>{item.nome}</span>
+                {item.promocao_ativa && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full text-white"
+                    style={{ backgroundColor: corP }}>🔥</span>
+                )}
+              </div>
+              <div className="text-right flex-shrink-0">
+                {item.promocao_ativa && item.preco_promocional ? (
+                  <>
+                    <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
+                    <div className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</div>
+                  </>
+                ) : (
+                  <div className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco)}</div>
+                )}
+              </div>
+            </div>
+            <p className="text-xs opacity-60 mt-1 line-clamp-2" style={{ color: corT }}>{item.descricao}</p>
+            {cfg.mostrar_alergenos && item.alergenos.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {item.alergenos.map(a => (
+                  <span key={a} className="text-xs px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                    {a}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) return <div className="py-10 text-center text-gray-400">Carregando temas…</div>
 
   if (temas.length === 0) return (
@@ -227,7 +346,7 @@ export default function TemaEditor({
           {/* Seleção de tema */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">🎨 Tema de cores</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {temas.map(tema => {
                 const c = tema.config || {}
                 const sel = selecionado === tema.id
@@ -236,26 +355,22 @@ export default function TemaEditor({
                     key={tema.id}
                     onClick={() => selecionarTema(tema.id)}
                     disabled={readOnly || salvando}
-                    className={`relative p-3 rounded-xl border-2 text-left transition-all
+                    title={tema.nome}
+                    className={`relative flex items-center gap-2 rounded-lg border-2 p-1.5 text-left transition-all
                       ${sel ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}
                       ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
-                    <div className="flex items-center gap-3">
-                      {/* Prévia de cores */}
-                      <div className="flex gap-0.5 flex-shrink-0">
-                        <div className="w-5 h-8 rounded-l-md border border-gray-200"
-                          style={{ backgroundColor: c.cor_fundo || '#f9fafb' }} />
-                        <div className="w-5 h-8 border-t border-b border-gray-200"
-                          style={{ backgroundColor: c.cor_secundaria || '#ffffff' }} />
-                        <div className="w-5 h-8 rounded-r-md border border-gray-200"
-                          style={{ backgroundColor: c.cor_primaria || '#f97316' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-800 truncate">{tema.nome}</p>
-                        <p className="text-xs text-gray-400 truncate">{c.cor_primaria || ''}</p>
-                      </div>
-                      {sel && <Check className="w-4 h-4 text-orange-500 flex-shrink-0" />}
+                    {/* Prévia de cores */}
+                    <div className="flex gap-0.5 flex-shrink-0">
+                      <div className="w-3 h-6 rounded-l-sm border border-gray-200"
+                        style={{ backgroundColor: c.cor_fundo || '#f9fafb' }} />
+                      <div className="w-3 h-6 border-t border-b border-gray-200"
+                        style={{ backgroundColor: c.cor_secundaria || '#ffffff' }} />
+                      <div className="w-3 h-6 rounded-r-sm border border-gray-200"
+                        style={{ backgroundColor: c.cor_primaria || '#f97316' }} />
                     </div>
+                    <p className="flex-1 min-w-0 truncate text-xs font-medium text-gray-800">{tema.nome}</p>
+                    {sel && <Check className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />}
                   </button>
                 )
               })}
@@ -410,41 +525,27 @@ export default function TemaEditor({
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">📱 Preview do cardápio</span>
-              <div className="flex items-center gap-2">
-                {/* Mesmo formato usado em "Opções do cardápio" à esquerda —
-                    um só estado (`formato`), não uma prévia à parte, senão
-                    os dois ficam fora de sincronia (era exatamente esse o
-                    bug: escolher "Lista" na aba de opções não refletia
-                    aqui, porque essa prévia tinha um estado separado que
-                    nunca mudava). */}
-                <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
-                  <button
-                    onClick={() => updFormato('lista')}
-                    disabled={readOnly}
-                    className={`px-2 py-1 text-xs font-medium rounded-md transition ${
-                      formato === 'lista' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Lista
-                  </button>
-                  <button
-                    onClick={() => updFormato('catalogo')}
-                    disabled={readOnly}
-                    className={`px-2 py-1 text-xs font-medium rounded-md transition ${
-                      formato === 'catalogo' ? 'bg-orange-100 text-orange-700' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Catálogo
-                  </button>
-                </div>
-                <span className="text-xs text-gray-400">tema: {temaAtual?.nome}</span>
-              </div>
+              {/* Formato, navegação de categoria etc. já se controlam em
+                  "Opções do cardápio" à esquerda — não repete o controle
+                  aqui, só mostra o que está selecionado (evita os dois
+                  ficarem fora de sincronia, ou o dono clicar em dois
+                  lugares diferentes pra mudar a mesma coisa). */}
+              <span className="text-xs text-gray-400">
+                {temaAtual?.nome} · {formato === 'catalogo' ? 'Catálogo' : 'Lista'}
+              </span>
             </div>
-            <div className="p-4">
-              <div
-                className={`mx-auto max-w-sm rounded-2xl overflow-hidden shadow-lg border ${fonteTema.className}`}
-                style={{ backgroundColor: corF, color: corT, borderColor: corBd }}
-              >
+            <div className="flex justify-center p-4">
+              {/* Moldura de celular — tamanho sempre fixo (largura e
+                  altura), pra não esticar/encolher conforme a seleção
+                  (formato, navegação de categoria etc. mudam quanto
+                  conteúdo cabe). O que muda de tamanho rola por dentro da
+                  "tela", como um celular de verdade. */}
+              <div className="relative w-[300px] shrink-0 rounded-[2.5rem] border-[10px] border-neutral-900 bg-neutral-900 shadow-xl">
+                <div className="absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-xl bg-neutral-900" />
+                <div
+                  className={`h-[600px] overflow-y-auto rounded-[1.75rem] ${fonteTema.className}`}
+                  style={{ backgroundColor: corF, color: corT }}
+                >
                 {/* Cabeçalho / hero — cor sólida (padrão) ou foto + degradê
                     até cor_fundo, conforme configurado no tema em
                     /admin/temas. Mesmo comportamento da página pública. */}
@@ -496,116 +597,74 @@ export default function TemaEditor({
                   </div>
                 )}
 
-                {/* Itens */}
-                {formato === 'catalogo' ? (
-                  <div className="p-3 grid grid-cols-2 gap-3">
-                    {ITENS_PREVIEW.map(item => {
-                      const temVariacoes = !!item.variacoes && item.variacoes.length > 0
-                      const precoBaseValido = item.preco > 0
-                      const menorPrecoVariacao = temVariacoes
-                        ? Math.min(...item.variacoes!.map(v => v.preco))
-                        : null
-
+                {/* Itens — agrupados por categoria, mostrando a Navegação
+                    de categoria escolhida em "Opções do cardápio"
+                    (pílulas fixas vs. faixas expansíveis), igual o
+                    cardápio público faz de verdade. */}
+                {navegacaoCategoria === 'pilulas' ? (
+                  <>
+                    <div className="flex gap-1.5 overflow-x-auto px-3 pt-3">
+                      {CATEGORIAS_PREVIEW.map(catNome => (
+                        <button
+                          key={catNome}
+                          onClick={() => setCategoriaAtivaPreview(catNome)}
+                          className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition"
+                          style={
+                            categoriaAtivaPreview === catNome
+                              ? { backgroundColor: corP, color: '#ffffff' }
+                              : { backgroundColor: corS, color: corT, border: `1px solid ${corBd}` }
+                          }
+                        >
+                          {catNome}
+                        </button>
+                      ))}
+                    </div>
+                    {formato === 'catalogo' ? (
+                      <div className="p-3 grid grid-cols-2 gap-3">
+                        {ITENS_PREVIEW.filter(i => i.categoria === categoriaAtivaPreview).map(renderCardCatalogo)}
+                      </div>
+                    ) : (
+                      <div className="p-3 space-y-3">
+                        {ITENS_PREVIEW.filter(i => i.categoria === categoriaAtivaPreview).map(renderLinhaLista)}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-3 space-y-2">
+                    {CATEGORIAS_PREVIEW.map(catNome => {
+                      const aberta = categoriaAbertaPreview === catNome
+                      const itensCategoria = ITENS_PREVIEW.filter(i => i.categoria === catNome)
                       return (
-                        <div key={item.id} className="overflow-hidden shadow-sm"
-                          style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}>
-                          <div className="relative h-20 bg-gray-100">
-                            <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
-                            {item.promocao_ativa && (
-                              <span className="absolute top-1 left-1 text-xs text-white px-1.5 py-0.5 rounded-full font-semibold"
-                                style={{ backgroundColor: corP }}>
-                                -{Math.round((1 - item.preco_promocional! / item.preco) * 100)}%
-                              </span>
-                            )}
-                          </div>
-                          <div className="p-2 text-center">
-                            <p className="text-xs font-semibold truncate" style={{ color: corT }}>{item.nome}</p>
-                            {item.promocao_ativa ? (
-                              <>
-                                <p className="text-xs text-gray-400 line-through mt-1">R$ {fmt(item.preco)}</p>
-                                <div className="inline-block rounded-full px-2 py-0.5 text-xs font-bold text-white mt-0.5"
-                                  style={{ backgroundColor: corP }}>
-                                  R$ {fmt(item.preco_promocional!)}
-                                </div>
-                              </>
-                            ) : (
-                              <div className="inline-block rounded-full px-2 py-0.5 text-xs font-bold text-white mt-1"
-                                style={{ backgroundColor: corP }}>
-                                {temVariacoes && precoBaseValido && (
-                                  <span className="mr-0.5 text-[9px] font-normal opacity-80">a partir de</span>
-                                )}
-                                R$ {fmt(temVariacoes ? (precoBaseValido ? item.preco : menorPrecoVariacao!) : item.preco)}
+                        <div key={catNome} className="overflow-hidden" style={{ border: `1px solid ${corBd}`, borderRadius: raioCard }}>
+                          <button
+                            onClick={() => setCategoriaAbertaPreview(aberta ? '' : catNome)}
+                            className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold transition"
+                            style={{ backgroundColor: corS, color: corT }}
+                          >
+                            {catNome}
+                            <ChevronRight
+                              className={`h-3.5 w-3.5 transition-transform ${aberta ? 'rotate-90' : ''}`}
+                              style={{ color: corP }}
+                            />
+                          </button>
+                          {aberta && (
+                            formato === 'catalogo' ? (
+                              <div className="grid grid-cols-2 gap-3 p-3">
+                                {itensCategoria.map(renderCardCatalogo)}
                               </div>
-                            )}
-                          </div>
+                            ) : (
+                              <div className="space-y-3 p-3">
+                                {itensCategoria.map(renderLinhaLista)}
+                              </div>
+                            )
+                          )}
                         </div>
                       )
                     })}
                   </div>
-                ) : (
-                <div className="p-3 space-y-3">
-                  {ITENS_PREVIEW.map(item => {
-                    const fp = cfg.foto_posicao
-                    const flexDir = fp === 'right' ? 'flex-row-reverse' : fp === 'top' ? 'flex-col' : 'flex-row'
-                    const fotoSz  = fp === 'top' ? 'w-full h-28' : 'w-20 h-20'
-
-                    return (
-                      <div key={item.id} className="p-3 shadow-sm"
-                        style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}>
-                        <div className={`flex ${flexDir} gap-3 items-start`}>
-                          {fp !== 'none' && (
-                            <div className={`flex-shrink-0 ${fotoSz} relative rounded-lg overflow-hidden bg-gray-100`}>
-                              <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
-                              <button onClick={() => setModalItem(item)}
-                                className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center">
-                                <ZoomIn className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline justify-between gap-1">
-                              <div className="flex flex-wrap items-center gap-1">
-                                {cfg.mostrar_codigo && (
-                                  <span className="text-xs font-mono px-1.5 py-0.5 rounded"
-                                    style={{ backgroundColor: `${corP}18`, color: corP }}>
-                                    #{item.codigo}
-                                  </span>
-                                )}
-                                <span className="text-xs font-medium" style={{ color: corT }}>{item.nome}</span>
-                                {item.promocao_ativa && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded-full text-white"
-                                    style={{ backgroundColor: corP }}>🔥</span>
-                                )}
-                              </div>
-                              <div className="text-right flex-shrink-0">
-                                {item.promocao_ativa && item.preco_promocional ? (
-                                  <>
-                                    <div className="text-xs text-gray-400 line-through">R$ {fmt(item.preco)}</div>
-                                    <div className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</div>
-                                  </>
-                                ) : (
-                                  <div className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco)}</div>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-xs opacity-60 mt-1 line-clamp-2" style={{ color: corT }}>{item.descricao}</p>
-                            {cfg.mostrar_alergenos && item.alergenos.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {item.alergenos.map(a => (
-                                  <span key={a} className="text-xs px-1.5 py-0.5 rounded-full"
-                                    style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-                                    {a}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
                 )}
+                </div>
+                <div className="absolute bottom-1.5 left-1/2 h-1 w-24 -translate-x-1/2 rounded-full bg-neutral-600" />
               </div>
             </div>
           </div>
