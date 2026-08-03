@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { ChevronRight, Plus, Download, Upload, Globe } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import ImageUpload from '@/app/(dashboard)/painel/components/ImageUpload'
@@ -146,10 +147,46 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [gruposExtrasPorOpcao, setGruposExtrasPorOpcao] = useState<Record<string, string[]>>({})
   const [opcoesExtraExpandidas, setOpcoesExtraExpandidas] = useState<string[]>([])
 
-  // UI – nova categoria
+  // UI – nova categoria (campo fica escondido atrás de um botão, só
+  // aparece quando o dono clica "Adicionar categoria" — layout pensado
+  // pra celular, onde um formulário sempre visível ocupa espaço demais)
   const [novaCategoria, setNovaCategoria]       = useState('')
   const [criandoCategoria, setCriandoCategoria] = useState(false)
   const [erroCategoria, setErroCategoria]       = useState<string | null>(null)
+  const [mostrarFormCategoria, setMostrarFormCategoria] = useState(false)
+
+  // UI – novo item: primeiro escolhe a categoria (campo compacto atrás de
+  // um botão), só depois abre o modal completo com os dados do item.
+  const [mostrarSeletorItemCategoria, setMostrarSeletorItemCategoria] = useState(false)
+  const [categoriaParaNovoItem, setCategoriaParaNovoItem] = useState('')
+
+  // UI – categorias expansíveis: por padrão todas fechadas (menos rolagem
+  // em cardápios com muita categoria/item); cada uma abre/fecha
+  // independente pelo próprio cabeçalho, e os chips de atalho logo acima
+  // da lista abrem + rolam até a categoria escolhida.
+  const [categoriasExpandidas, setCategoriasExpandidas] = useState<Set<string>>(new Set())
+  const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  // Comportamento de acordeão: abrir uma categoria fecha a que estava
+  // aberta antes — só uma fica expandida por vez ao clicar. "Expandir
+  // todas" continua existindo como ação explícita à parte, que quebra essa
+  // regra de propósito quando o dono realmente quer ver tudo de uma vez.
+  function toggleCategoriaExpandida(id: string) {
+    setCategoriasExpandidas((prev) => (prev.has(id) ? new Set() : new Set([id])))
+  }
+
+  function irParaCategoria(id: string) {
+    setCategoriasExpandidas(new Set([id]))
+    categoriaRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function expandirTodas() {
+    setCategoriasExpandidas(new Set(categorias.map((c) => c.id)))
+  }
+
+  function recolherTodas() {
+    setCategoriasExpandidas(new Set())
+  }
 
   // UI – planilha (baixar/subir cardápio em massa)
   const [modalPlanilhaAberto, setModalPlanilhaAberto] = useState(false)
@@ -366,12 +403,14 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   useEffect(() => { carregarDados() }, [carregarDados])
 
   // ── CRIAR CATEGORIA ──────────────────────
-  async function criarCategoria() {
+  // Retorna se deu certo — o botão "Salvar" do formulário revelável usa
+  // isso pra só fechar o campo quando a categoria realmente foi criada.
+  async function criarCategoria(): Promise<boolean> {
     const nome = novaCategoria.trim()
-    if (!nome) return
+    if (!nome) return false
     if (!menuId) {
       setErroCategoria('Menu não carregado ainda. Aguarde.')
-      return
+      return false
     }
 
     setCriandoCategoria(true)
@@ -385,14 +424,17 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         ordem: categorias.length,
       })
 
+    let sucesso = false
     if (error) {
       logSupabaseError('Erro ao criar categoria', error)
       setErroCategoria('Erro ao criar: ' + error.message)
     } else {
       setNovaCategoria('')
       await carregar()
+      sucesso = true
     }
     setCriandoCategoria(false)
+    return sucesso
   }
 
   async function deletarCategoria(id: string) {
@@ -535,13 +577,16 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   }
 
   // ── ABRIR MODAL ──────────────────────────
-  async function abrirModal(item?: ItemCardapio) {
+  // `categoriaPadrao` é usada pelo fluxo "+ Item" da toolbar, que pede a
+  // categoria antes de abrir o formulário — sem isso o modal sempre
+  // cairia na primeira categoria da lista.
+  async function abrirModal(item?: ItemCardapio, categoriaPadrao?: string) {
     setItemEditando(item || null)
     setFNome(item?.nome || '')
     setFDesc(item?.descricao || '')
     setFPreco(item?.preco?.toString().replace('.', ',') || '')
     setFCodigo(item?.codigo || '')
-    setFCatId(item?.categoria_id || (categorias[0]?.id ?? ''))
+    setFCatId(item?.categoria_id || categoriaPadrao || (categorias[0]?.id ?? ''))
     setFDisponivel(item?.disponivel !== false)
     setFDelivery(item?.delivery_disponivel || false)
     setFotoUrl(item?.foto_url || '')
@@ -1050,82 +1095,175 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         </div>
       )}
 
-      {/* TOOLBAR */}
+      {/* TOOLBAR — pensada pra celular: linhas empilhadas, e as duas ações
+          que abrem formulário (categoria/item) ficam escondidas atrás de
+          um botão em vez de campo sempre visível ocupando espaço. */}
       {!readOnly && (
-        <div className="flex flex-wrap items-end gap-3">
-          {/* Criar categoria */}
-          <div className="flex flex-col gap-1">
-            <div className="flex gap-2">
-              <input
-                value={novaCategoria}
-                onChange={e => setNovaCategoria(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && criarCategoria()}
-                placeholder="Nome da categoria…"
-                disabled={!menuId || criandoCategoria}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-36 sm:w-48 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50 bg-white text-gray-900"
-              />
-              <button
-                onClick={criarCategoria}
-                disabled={criandoCategoria || !novaCategoria.trim() || !menuId}
-                className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition whitespace-nowrap"
-              >
-                {criandoCategoria ? '…' : '+ Categoria'}
-              </button>
-            </div>
-            {erroCategoria && (
-              <p className="text-xs text-red-500">{erroCategoria}</p>
-            )}
-            {!menuId && !loading && (
-              <p className="text-xs text-yellow-600">⚠️ Menu não localizado — recarregue a página</p>
+        <div className="space-y-3">
+          {/* Planilha (cardápio + tradução) */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={baixarPlanilha}
+              className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition whitespace-nowrap"
+            >
+              <Download className="h-4 w-4" /> Baixar planilha
+            </button>
+            <button
+              onClick={() => setModalPlanilhaAberto(true)}
+              disabled={!menuId}
+              className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+            >
+              <Upload className="h-4 w-4" /> Subir planilha
+            </button>
+
+            {/* Planilha de tradução — só faz sentido com pelo menos um
+                idioma ativado em Configurações → Idiomas. */}
+            {idiomasAtivos.length > 0 && (
+              <>
+                <button
+                  onClick={baixarPlanilhaDeTraducao}
+                  disabled={carregandoPlanilhaTraducao}
+                  className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+                >
+                  <Globe className="h-4 w-4" /> Baixar traduções
+                </button>
+                <button
+                  onClick={abrirModalPlanilhaTraducao}
+                  disabled={!menuId || carregandoPlanilhaTraducao}
+                  className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+                >
+                  <Globe className="h-4 w-4" /> Subir traduções
+                </button>
+              </>
             )}
           </div>
 
-          <div className="flex-1" />
-
-          {/* Planilha */}
-          <button
-            onClick={baixarPlanilha}
-            className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition whitespace-nowrap"
-          >
-            ⬇️ Baixar planilha
-          </button>
-          <button
-            onClick={() => setModalPlanilhaAberto(true)}
-            disabled={!menuId}
-            className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
-          >
-            ⬆️ Subir planilha
-          </button>
-
-          {/* Planilha de tradução — só faz sentido com pelo menos um
-              idioma ativado em Configurações → Idiomas. */}
-          {idiomasAtivos.length > 0 && (
-            <>
+          {/* Categoria (esquerda) e item (direita) na mesma linha — só
+              quebram pra linha de baixo se a tela não comportar as duas. */}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            {/* Nova categoria — botão revela o campo de nome */}
+            {!mostrarFormCategoria ? (
               <button
-                onClick={baixarPlanilhaDeTraducao}
-                disabled={carregandoPlanilhaTraducao}
-                className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
+                onClick={() => setMostrarFormCategoria(true)}
+                disabled={!menuId}
+                className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition"
               >
-                🌐⬇️ Baixar traduções
+                <Plus className="h-4 w-4" /> Adicionar categoria
               </button>
-              <button
-                onClick={abrirModalPlanilhaTraducao}
-                disabled={!menuId || carregandoPlanilhaTraducao}
-                className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
-              >
-                🌐⬆️ Subir traduções
-              </button>
-            </>
-          )}
+            ) : (
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    value={novaCategoria}
+                    onChange={e => setNovaCategoria(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') criarCategoria().then(ok => ok && setMostrarFormCategoria(false))
+                    }}
+                    placeholder="Nome da categoria…"
+                    autoFocus
+                    disabled={!menuId || criandoCategoria}
+                    className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50 bg-white text-gray-900"
+                  />
+                  <button
+                    onClick={() => criarCategoria().then(ok => ok && setMostrarFormCategoria(false))}
+                    disabled={criandoCategoria || !novaCategoria.trim() || !menuId}
+                    className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition whitespace-nowrap"
+                  >
+                    {criandoCategoria ? 'Salvando…' : 'Salvar'}
+                  </button>
+                  <button
+                    onClick={() => { setMostrarFormCategoria(false); setNovaCategoria(''); setErroCategoria(null) }}
+                    className="text-sm text-gray-500 hover:underline px-1"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                {erroCategoria && (
+                  <p className="text-xs text-red-500">{erroCategoria}</p>
+                )}
+                {!menuId && !loading && (
+                  <p className="text-xs text-yellow-600">⚠️ Menu não localizado — recarregue a página</p>
+                )}
+              </div>
+            )}
 
-          {/* Novo item */}
-          <button
-            onClick={() => abrirModal()}
-            disabled={categorias.length === 0}
-            title={categorias.length === 0 ? 'Crie uma categoria primeiro' : ''}
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition flex items-center gap-2 whitespace-nowrap"
+            {/* Novo item — primeiro escolhe a categoria, só depois abre o
+                formulário completo com os dados do item */}
+            {!mostrarSeletorItemCategoria ? (
+              <button
+                onClick={() => {
+                  setCategoriaParaNovoItem(categorias[0]?.id || '')
+                  setMostrarSeletorItemCategoria(true)
+                }}
+                disabled={categorias.length === 0}
+                title={categorias.length === 0 ? 'Crie uma categoria primeiro' : ''}
+                className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition"
+              >
+                <Plus className="h-4 w-4" /> Adicionar item
+              </button>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <select
+                  value={categoriaParaNovoItem}
+                  onChange={(e) => setCategoriaParaNovoItem(e.target.value)}
+                  autoFocus
+                  className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                >
+                  {categorias.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.nome}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    setMostrarSeletorItemCategoria(false)
+                    abrirModal(undefined, categoriaParaNovoItem)
+                  }}
+                  disabled={!categoriaParaNovoItem}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition whitespace-nowrap"
+                >
+                  Continuar
+                </button>
+                <button
+                  onClick={() => setMostrarSeletorItemCategoria(false)}
+                  className="text-sm text-gray-500 hover:underline px-1"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ATALHO DE CATEGORIA — fica fixo e visível no topo ao rolar o
+          cardápio, pra achar rápido numa lista grande sem perder a
+          referência de onde se está. */}
+      {categorias.length > 1 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white/95 py-2 backdrop-blur">
+          <select
+            value=""
+            onChange={(e) => { if (e.target.value) irParaCategoria(e.target.value) }}
+            className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-700"
           >
-            <span className="text-base leading-none">+</span> Adicionar item
+            <option value="">Ir para categoria…</option>
+            {categorias.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.nome} ({itensDaCategoria(cat.id).length})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={expandirTodas}
+            className="text-xs font-medium text-gray-500 hover:text-orange-600 hover:underline whitespace-nowrap"
+          >
+            Expandir todas
+          </button>
+          <span className="text-gray-300">·</span>
+          <button
+            onClick={recolherTodas}
+            className="text-xs font-medium text-gray-500 hover:text-orange-600 hover:underline whitespace-nowrap"
+          >
+            Recolher todas
           </button>
         </div>
       )}
@@ -1140,12 +1278,25 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       ) : (
         categorias.map(cat => {
           const catItens = itensDaCategoria(cat.id)
+          const expandida = categoriasExpandidas.has(cat.id)
           return (
-            <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div
+              key={cat.id}
+              ref={(el) => { categoriaRefs.current[cat.id] = el }}
+              className="border border-gray-200 rounded-xl overflow-hidden shadow-sm scroll-mt-4"
+            >
               {/* cabeçalho */}
               <div className="bg-gray-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200">
                 {/* esquerda: nome + ações sobre a categoria em si */}
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <button
+                    onClick={() => toggleCategoriaExpandida(cat.id)}
+                    aria-label={expandida ? 'Recolher categoria' : 'Expandir categoria'}
+                    aria-expanded={expandida}
+                    className="shrink-0 rounded-lg p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-600"
+                  >
+                    <ChevronRight className={`h-4 w-4 transition-transform ${expandida ? 'rotate-90' : ''}`} />
+                  </button>
                   {catEditandoNome === cat.id ? (
                     <>
                       <input
@@ -1170,7 +1321,12 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                       </button>
                     </>
                   ) : (
-                    <span className="font-semibold text-gray-800">{cat.nome}</span>
+                    <button
+                      onClick={() => toggleCategoriaExpandida(cat.id)}
+                      className="font-semibold text-gray-800 transition hover:text-orange-600"
+                    >
+                      {cat.nome}
+                    </button>
                   )}
                   <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
                     {catItens.length} {catItens.length === 1 ? 'item' : 'itens'}
@@ -1205,7 +1361,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                 {/* direita: ação separada — adicionar algo dentro da categoria */}
                 {!readOnly && (
                   <button
-                    onClick={() => { setFCatId(cat.id); abrirModal() }}
+                    onClick={() => abrirModal(undefined, cat.id)}
                     className="shrink-0 text-orange-600 hover:underline font-medium text-xs"
                   >
                     + item
@@ -1241,25 +1397,27 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                 </div>
               )}
 
-              {/* itens */}
-              {catItens.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-gray-400 text-center">
-                  Nenhum item — clique em &quot;+ item&quot; para adicionar
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {catItens.map(item => (
-                    <ItemRow
-                      key={item.id}
-                      item={item}
-                      readOnly={!!readOnly}
-                      onEditar={() => abrirModal(item)}
-                      onToggleDisponivel={() => toggleDisponivel(item)}
-                      onTogglePromo={() => marcarPromo(item)}
-                      onDeletar={() => deletarItem(item.id)}
-                    />
-                  ))}
-                </div>
+              {/* itens — só renderiza quando a categoria está expandida */}
+              {expandida && (
+                catItens.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-gray-400 text-center">
+                    Nenhum item — clique em &quot;+ item&quot; para adicionar
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {catItens.map(item => (
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        readOnly={!!readOnly}
+                        onEditar={() => abrirModal(item)}
+                        onToggleDisponivel={() => toggleDisponivel(item)}
+                        onTogglePromo={() => marcarPromo(item)}
+                        onDeletar={() => deletarItem(item.id)}
+                      />
+                    ))}
+                  </div>
+                )
               )}
             </div>
           )
