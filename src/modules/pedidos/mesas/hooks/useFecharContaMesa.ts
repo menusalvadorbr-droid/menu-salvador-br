@@ -66,8 +66,9 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
           await baixarEstoquePorItens(
             pedido.items.map((item) => ({ itemCardapioId: item.id, quantidade: item.quantidade }))
           )
-        } catch {
+        } catch (err) {
           // Não trava o fechamento — mesmo comportamento do fluxo individual.
+          console.error('Falha ao dar baixa no estoque ao fechar a conta da mesa:', err)
         }
       }
 

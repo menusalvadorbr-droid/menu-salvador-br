@@ -2,23 +2,88 @@
 
 import { useState } from 'react'
 import { useInsumos } from '../hooks/useInsumos'
-import type { UnidadeInsumo } from '../types'
+import type { UnidadeInsumo, Insumo } from '../types'
+import type { DadosInsumo } from '../estoqueRepository'
+
+const UNIDADES: UnidadeInsumo[] = ['un', 'kg', 'g', 'l', 'ml']
+
+const FORM_VAZIO = {
+  nome: '',
+  unidade: 'un' as UnidadeInsumo,
+  estoqueAtual: '',
+  estoqueMinimo: '',
+  custoUnitario: '',
+  validadeDiasAlerta: '',
+  alergenoIds: [] as string[],
+  equivalenciaQtd: '',
+  equivalenciaUnidade: '' as UnidadeInsumo | '',
+}
 
 export default function InsumosManager({ estabelecimentoId }: { estabelecimentoId: string }) {
-  const { insumos, carregando, emFalta, adicionar, ajustar, remover } = useInsumos(estabelecimentoId)
+  const { insumos, alergenos, carregando, emFalta, adicionar, atualizar, ajustar, remover, listarAlergenosDoInsumo } =
+    useInsumos(estabelecimentoId)
   const [mostrarForm, setMostrarForm] = useState(false)
-  const [nome, setNome] = useState('')
-  const [unidade, setUnidade] = useState<UnidadeInsumo>('un')
-  const [estoqueAtual, setEstoqueAtual] = useState('')
-  const [estoqueMinimo, setEstoqueMinimo] = useState('')
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [form, setForm] = useState(FORM_VAZIO)
+  const [enviando, setEnviando] = useState(false)
 
-  async function handleAdicionar() {
-    if (!nome.trim()) return
-    await adicionar(nome.trim(), unidade, Number(estoqueAtual) || 0, Number(estoqueMinimo) || 0)
-    setNome('')
-    setEstoqueAtual('')
-    setEstoqueMinimo('')
+  function fecharForm() {
     setMostrarForm(false)
+    setEditandoId(null)
+    setForm(FORM_VAZIO)
+  }
+
+  function toggleAlergeno(id: string) {
+    setForm((prev) => ({
+      ...prev,
+      alergenoIds: prev.alergenoIds.includes(id) ? prev.alergenoIds.filter((a) => a !== id) : [...prev.alergenoIds, id],
+    }))
+  }
+
+  async function iniciarEdicao(insumo: Insumo) {
+    setEditandoId(insumo.id)
+    setMostrarForm(true)
+    const alergenosDoInsumo = await listarAlergenosDoInsumo(insumo.id)
+    setForm({
+      nome: insumo.nome,
+      unidade: insumo.unidade,
+      estoqueAtual: String(insumo.estoque_atual),
+      estoqueMinimo: String(insumo.estoque_minimo),
+      custoUnitario: String(insumo.custo_unitario).replace('.', ','),
+      validadeDiasAlerta: insumo.validade_dias_alerta != null ? String(insumo.validade_dias_alerta) : '',
+      alergenoIds: alergenosDoInsumo.map((a) => a.id),
+      equivalenciaQtd: insumo.equivalencia_qtd != null ? String(insumo.equivalencia_qtd).replace('.', ',') : '',
+      equivalenciaUnidade: insumo.equivalencia_unidade || '',
+    })
+  }
+
+  async function handleSalvar() {
+    if (!form.nome.trim()) return
+    setEnviando(true)
+    const dados: DadosInsumo = {
+      nome: form.nome.trim(),
+      unidade: form.unidade,
+      estoqueAtual: Number(form.estoqueAtual) || 0,
+      estoqueMinimo: Number(form.estoqueMinimo) || 0,
+      custoUnitario: parseFloat(form.custoUnitario.replace(',', '.')) || 0,
+      validadeDiasAlerta: form.validadeDiasAlerta.trim() ? Number(form.validadeDiasAlerta) : null,
+      alergenoIds: form.alergenoIds,
+      equivalenciaQtd:
+        form.equivalenciaUnidade && form.equivalenciaQtd.trim()
+          ? parseFloat(form.equivalenciaQtd.replace(',', '.')) || null
+          : null,
+      equivalenciaUnidade: form.equivalenciaUnidade || null,
+    }
+    try {
+      if (editandoId) {
+        await atualizar(editandoId, dados)
+      } else {
+        await adicionar(dados)
+      }
+      fecharForm()
+    } finally {
+      setEnviando(false)
+    }
   }
 
   if (carregando) {
@@ -36,7 +101,7 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-neutral-500">{insumos.length} insumos cadastrados</p>
         <button
-          onClick={() => setMostrarForm((v) => !v)}
+          onClick={() => (mostrarForm ? fecharForm() : setMostrarForm(true))}
           className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
         >
           {mostrarForm ? 'Cancelar' : '+ Novo insumo'}
@@ -44,64 +109,141 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
       </div>
 
       {mostrarForm && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-neutral-200 p-4">
-          <label className="flex flex-col gap-1 text-xs text-neutral-500">
-            Nome
-            <input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex: Queijo mussarela"
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-neutral-500">
-            Unidade
-            <select
-              value={unidade}
-              onChange={(e) => setUnidade(e.target.value as UnidadeInsumo)}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
-            >
-              <option value="un">un</option>
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="l">l</option>
-              <option value="ml">ml</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-neutral-500">
-            Estoque atual
-            <input
-              type="number"
-              value={estoqueAtual}
-              onChange={(e) => setEstoqueAtual(e.target.value)}
-              className="w-24 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-neutral-500">
-            Estoque mínimo
-            <input
-              type="number"
-              value={estoqueMinimo}
-              onChange={(e) => setEstoqueMinimo(e.target.value)}
-              className="w-24 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
-            />
-          </label>
+        <div className="mb-4 space-y-3 rounded-xl border border-neutral-200 p-4">
+          <p className="text-sm font-semibold text-neutral-700">{editandoId ? 'Editar insumo' : 'Novo insumo'}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Nome
+              <input
+                value={form.nome}
+                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                placeholder="Ex: Queijo mussarela"
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Unidade
+              <select
+                value={form.unidade}
+                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value as UnidadeInsumo }))}
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              >
+                {UNIDADES.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </label>
+            {!editandoId && (
+              <label className="flex flex-col gap-1 text-xs text-neutral-500">
+                Estoque atual
+                <input
+                  type="number"
+                  value={form.estoqueAtual}
+                  onChange={(e) => setForm((f) => ({ ...f, estoqueAtual: e.target.value }))}
+                  className="w-24 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+                />
+              </label>
+            )}
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Estoque mínimo
+              <input
+                type="number"
+                value={form.estoqueMinimo}
+                onChange={(e) => setForm((f) => ({ ...f, estoqueMinimo: e.target.value }))}
+                className="w-24 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Custo por {form.unidade}
+              <input
+                type="text"
+                inputMode="decimal"
+                value={form.custoUnitario}
+                onChange={(e) => setForm((f) => ({ ...f, custoUnitario: e.target.value }))}
+                placeholder="Ex: 3,50"
+                className="w-28 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Alerta de validade (dias)
+              <input
+                type="number"
+                value={form.validadeDiasAlerta}
+                onChange={(e) => setForm((f) => ({ ...f, validadeDiasAlerta: e.target.value }))}
+                placeholder="Opcional"
+                className="w-32 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">
+              Equivalência <span className="font-normal text-neutral-400">(opcional — só é preciso se alguma ficha técnica for usar esse insumo numa unidade diferente da de cima, ex: comprado em unidade mas usado em gramas)</span>
+            </label>
+            <div className="flex items-center gap-2 text-sm text-neutral-600">
+              1 {form.unidade} equivale a
+              <input
+                type="text"
+                inputMode="decimal"
+                value={form.equivalenciaQtd}
+                onChange={(e) => setForm((f) => ({ ...f, equivalenciaQtd: e.target.value }))}
+                placeholder="Ex: 50"
+                className="w-20 rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900"
+              />
+              <select
+                value={form.equivalenciaUnidade}
+                onChange={(e) => setForm((f) => ({ ...f, equivalenciaUnidade: e.target.value as UnidadeInsumo | '' }))}
+                className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900"
+              >
+                <option value="">nenhuma</option>
+                {UNIDADES.filter((u) => u !== form.unidade).map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Alérgenos</label>
+            <div className="flex flex-wrap gap-2">
+              {alergenos.map((a) => {
+                const sel = form.alergenoIds.includes(a.id)
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => toggleAlergeno(a.id)}
+                    className={`flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-xs font-medium transition ${
+                      sel ? 'border-red-400 bg-red-50 text-red-700' : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+                    }`}
+                  >
+                    {a.icone && <span className="text-sm leading-none">{a.icone}</span>}
+                    {a.nome}
+                    {sel && <span className="ml-0.5 text-xs text-red-500">✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <button
-            onClick={handleAdicionar}
-            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+            onClick={handleSalvar}
+            disabled={enviando || !form.nome.trim()}
+            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
           >
-            Adicionar
+            {enviando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Adicionar'}
           </button>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-neutral-100 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-100 bg-neutral-50 text-left text-xs uppercase text-neutral-400">
             <tr>
               <th className="px-4 py-2">Insumo</th>
               <th className="px-4 py-2">Estoque atual</th>
               <th className="px-4 py-2">Mínimo</th>
+              <th className="px-4 py-2">Custo unitário</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -113,6 +255,11 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
                   <td className="px-4 py-2 text-neutral-900">
                     {baixo && '⚠️ '}
                     {insumo.nome}
+                    {insumo.equivalencia_qtd != null && insumo.equivalencia_unidade && (
+                      <span className="ml-1 text-xs text-neutral-400">
+                        (1 {insumo.unidade} = {insumo.equivalencia_qtd} {insumo.equivalencia_unidade})
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     <input
@@ -126,10 +273,16 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
                   <td className="px-4 py-2 text-neutral-500">
                     {insumo.estoque_minimo} {insumo.unidade}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-neutral-500">
+                    R$ {insumo.custo_unitario.toFixed(2)} / {insumo.unidade}
+                  </td>
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                    <button onClick={() => iniciarEdicao(insumo)} className="text-xs text-neutral-500 hover:underline">
+                      Editar
+                    </button>{' '}
                     <button
                       onClick={() => confirm(`Remover ${insumo.nome}?`) && remover(insumo.id)}
-                      className="text-xs text-red-500 hover:underline"
+                      className="ml-2 text-xs text-red-500 hover:underline"
                     >
                       Remover
                     </button>
@@ -139,7 +292,7 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
             })}
             {insumos.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-sm text-neutral-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-neutral-400">
                   Nenhum insumo cadastrado ainda.
                 </td>
               </tr>

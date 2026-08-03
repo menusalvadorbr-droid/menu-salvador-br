@@ -3,11 +3,11 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import InsumosManager from '@/modules/estoque/components/InsumosManager'
-import ReceitaEditor from '@/modules/estoque/components/ReceitaEditor'
+import FichaTecnicaManager from '@/modules/estoque/components/FichaTecnicaManager'
 
 export default function EstoquePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [aba, setAba] = useState<'insumos' | 'receitas'>('insumos')
+  const [aba, setAba] = useState<'insumos' | 'fichas'>('insumos')
 
   return (
     <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
@@ -20,8 +20,8 @@ export default function EstoquePage({ params }: { params: Promise<{ id: string }
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-neutral-900">Estoque</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          Cadastre os insumos e vincule cada item do cardápio ao que ele consome — o estoque desconta
-          sozinho quando um pedido entra em preparo.
+          Cadastre os insumos e monte a ficha técnica de cada prato — o estoque desconta sozinho quando
+          um pedido entra em preparo.
         </p>
 
         <div className="mt-4 flex gap-2">
@@ -34,12 +34,12 @@ export default function EstoquePage({ params }: { params: Promise<{ id: string }
             Insumos
           </button>
           <button
-            onClick={() => setAba('receitas')}
+            onClick={() => setAba('fichas')}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              aba === 'receitas' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
+              aba === 'fichas' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
             }`}
           >
-            Receitas (o que cada prato consome)
+            Fichas técnicas
           </button>
         </div>
 
@@ -47,7 +47,7 @@ export default function EstoquePage({ params }: { params: Promise<{ id: string }
           {aba === 'insumos' ? (
             <InsumosManager estabelecimentoId={id} />
           ) : (
-            <ReceitaEditor estabelecimentoId={id} />
+            <FichaTecnicaManager estabelecimentoId={id} />
           )}
         </div>
       </div>

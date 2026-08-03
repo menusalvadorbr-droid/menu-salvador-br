@@ -73,9 +73,10 @@ export function usePedidosEstabelecimento(estabelecimentoId: string) {
               quantidade: item.quantidade,
             }))
           )
-        } catch {
+        } catch (err) {
           // Falha ao dar baixa não deve travar o andamento do pedido —
           // o estoque pode ser ajustado manualmente depois se precisar.
+          console.error('Falha ao dar baixa no estoque ao entrar em preparo:', err)
         }
       }
 

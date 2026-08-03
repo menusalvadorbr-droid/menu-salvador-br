@@ -155,8 +155,11 @@ export default function LancarPedidoGarcom({
         // aqui, uma vez, incondicionalmente.
         try {
           await baixarEstoquePorItens(sacola.itens.map((item) => ({ itemCardapioId: item.id, quantidade: item.quantidade })))
-        } catch {
+        } catch (err) {
           // Não trava a venda — mesmo comportamento do fechamento de mesa.
+          // Loga pra dar pra investigar depois (item sem ficha vinculada,
+          // erro de conversão de unidade, tabela não exposta no Supabase etc.)
+          console.error('Falha ao dar baixa no estoque da venda balcão:', err)
         }
         try {
           await vincularPedidoASessaoAberta(estabelecimentoId, resposta.pedidoId)

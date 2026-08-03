@@ -2,16 +2,28 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { listarInsumos, criarInsumo, ajustarEstoque, removerInsumo } from '../estoqueRepository'
-import type { Insumo, UnidadeInsumo } from '../types'
+import {
+  listarInsumos,
+  criarInsumo,
+  atualizarInsumo,
+  ajustarEstoque,
+  removerInsumo,
+  listarTodosAlergenos,
+  listarAlergenosDoInsumo,
+  type DadosInsumo,
+} from '../estoqueRepository'
+import type { Insumo, Alergeno } from '../types'
 
 export function useInsumos(estabelecimentoId: string) {
   const [insumos, setInsumos] = useState<Insumo[]>([])
+  const [alergenos, setAlergenos] = useState<Alergeno[]>([])
   const [carregando, setCarregando] = useState(true)
 
   const carregar = useCallback(async () => {
     try {
-      setInsumos(await listarInsumos(estabelecimentoId))
+      const [listaInsumos, listaAlergenos] = await Promise.all([listarInsumos(estabelecimentoId), listarTodosAlergenos()])
+      setInsumos(listaInsumos)
+      setAlergenos(listaAlergenos)
     } finally {
       setCarregando(false)
     }
@@ -35,12 +47,21 @@ export function useInsumos(estabelecimentoId: string) {
     }
   }, [estabelecimentoId, carregar])
 
-  async function adicionar(nome: string, unidade: UnidadeInsumo, estoqueAtual: number, estoqueMinimo: number) {
+  async function adicionar(dados: DadosInsumo) {
     try {
-      await criarInsumo(estabelecimentoId, nome, unidade, estoqueAtual, estoqueMinimo)
+      await criarInsumo(estabelecimentoId, dados)
       await carregar()
     } catch (err) {
       alert(`Não foi possível criar o insumo: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    }
+  }
+
+  async function atualizar(insumoId: string, dados: DadosInsumo) {
+    try {
+      await atualizarInsumo(insumoId, dados)
+      await carregar()
+    } catch (err) {
+      alert(`Não foi possível atualizar o insumo: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
     }
   }
 
@@ -68,5 +89,5 @@ export function useInsumos(estabelecimentoId: string) {
 
   const emFalta = insumos.filter((i) => i.estoque_atual <= i.estoque_minimo)
 
-  return { insumos, carregando, emFalta, adicionar, ajustar, remover }
+  return { insumos, alergenos, carregando, emFalta, adicionar, atualizar, ajustar, remover, listarAlergenosDoInsumo }
 }
