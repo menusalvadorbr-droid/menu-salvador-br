@@ -140,6 +140,26 @@ export async function atualizarStatusPedido(pedidoId: string, novoStatus: Status
 }
 
 /**
+ * Pedidos avulsos (balcão/retirada/entrega — sem mesa) que já chegaram até
+ * "entregue" e ainda não foram pagos. Usados pela tela "Mesas e pedidos" do
+ * Caixa pra listar o que falta fechar — pedido de mesa fecha pelo mapa de
+ * mesas (FecharContaMesaModal); esses aqui não têm outro lugar pra fechar.
+ */
+export async function listarPedidosAvulsosAguardandoPagamento(estabelecimentoId: string): Promise<Pedido[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('estabelecimento_id', estabelecimentoId)
+    .eq('status', 'entregue')
+    .is('mesa_id', null)
+    .order('created_at', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data || []) as Pedido[]
+}
+
+/**
  * Fecha uma venda avulsa (venda balcão registrada direto no caixa) já com
  * o pagamento confirmado — grava o desconto aplicado, o total já com
  * desconto, a forma de pagamento, e marca como pago numa ação só. Distinto

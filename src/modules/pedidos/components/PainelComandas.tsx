@@ -1,17 +1,21 @@
 'use client'
 
+import Link from 'next/link'
 import { usePedidosEstabelecimento } from '../hooks/usePedidosEstabelecimento'
 import { useChamadosGarcom } from '../hooks/useChamadosGarcom'
 import { ETIQUETA_STATUS, ETIQUETA_TIPO_PEDIDO, type StatusPedido } from '../types'
 
 const COLUNAS: StatusPedido[] = ['recebido', 'aprovado', 'em_preparo', 'pronto', 'entregue']
 
+// "entregue" não avança sozinho pra "pago" — pagamento precisa de forma de
+// pagamento/desconto/troco e checar se o caixa está aberto, nada disso dá
+// pra fazer com um clique cego aqui. Fecha pelo mapa de mesas (pedido de
+// mesa) ou pelo Caixa (avulso — balcão/retirada/entrega), ver botão abaixo.
 const PROXIMO_STATUS: Partial<Record<StatusPedido, StatusPedido>> = {
   recebido: 'aprovado',
   aprovado: 'em_preparo',
   em_preparo: 'pronto',
   pronto: 'entregue',
-  entregue: 'pago',
 }
 
 export default function PainelComandas({ estabelecimentoId }: { estabelecimentoId: string }) {
@@ -99,6 +103,18 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
                         >
                           Marcar como {ETIQUETA_STATUS[proximo]}
                         </button>
+                      )}
+                      {pedido.status === 'entregue' && (
+                        <Link
+                          href={
+                            pedido.mesa_id
+                              ? `/painel/estabelecimento/${estabelecimentoId}/pedidos/mesas`
+                              : `/painel/estabelecimento/${estabelecimentoId}/caixa`
+                          }
+                          className="mt-2 block w-full rounded-lg bg-green-600 py-1.5 text-center text-xs font-semibold text-white hover:bg-green-700"
+                        >
+                          💳 Fechar conta {pedido.mesa_id ? 'no mapa de mesas' : 'no Caixa'} →
+                        </Link>
                       )}
                     </div>
                   )
