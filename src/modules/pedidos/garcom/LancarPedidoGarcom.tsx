@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { X, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
 import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
@@ -8,10 +9,11 @@ import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepositor
 import { useSacola } from '../customer/useSacola'
 import { criarPedido, finalizarVendaImediata } from '../ordersRepository'
 import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
+import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
 import type { Mesa } from '../mesas/types'
 import type { TipoPedido } from '../types'
 
-const METODOS_PAGAMENTO = ['Dinheiro', 'Cartão de débito', 'Cartão de crédito', 'Pix']
+const LIMITE_CATEGORIAS_VISIVEIS = 5
 
 // Mesmo princípio do FecharContaMesaModal: claro é o padrão (mapa de mesas
 // e "Venda no balcão" em /pedidos, inalterados); escuro só quando aberto
@@ -95,11 +97,20 @@ export default function LancarPedidoGarcom({
   const [enviando, setEnviando] = useState(false)
   const [modoContingencia, setModoContingencia] = useState(false)
   const [vendaConfirmada, setVendaConfirmada] = useState<number | null>(null)
-  const [formaPagamento, setFormaPagamento] = useState(METODOS_PAGAMENTO[0])
+  const [formaPagamento, setFormaPagamento] = useState<string>(METODOS_PAGAMENTO[0])
+  const [valorRecebido, setValorRecebido] = useState('')
   const [tipoDesconto, setTipoDesconto] = useState<TipoDesconto>('valor')
   const [descontoInput, setDescontoInput] = useState('')
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null)
   const [buscaItem, setBuscaItem] = useState('')
+  // Linha do carrinho com o controle de −/+/remover aberto — só uma por
+  // vez, escondido atrás do ícone de lápis pra não poluir a lista com três
+  // botões em toda linha o tempo todo.
+  const [linhaEmEdicao, setLinhaEmEdicao] = useState<string | null>(null)
+  // Grade de categorias começa mostrando só as 5 primeiras — cardápio com
+  // muita categoria virava uma parede de blocos antes de chegar nos itens;
+  // "+ mais" revela o resto sob demanda.
+  const [mostrarTodasCategorias, setMostrarTodasCategorias] = useState(false)
   const sacola = useSacola()
 
   const tipoPedido: TipoPedido = mesa ? 'mesa' : 'balcao'
@@ -107,6 +118,8 @@ export default function LancarPedidoGarcom({
 
   const descontoNum = calcularDesconto(sacola.total, tipoDesconto, parseFloat(descontoInput.replace(',', '.')) || 0)
   const totalComDesconto = Math.max(0, sacola.total - descontoNum)
+  const troco = calcularTroco(formaPagamento, valorRecebido, totalComDesconto)
+  const trocoInsuficiente = troco !== null && troco < 0
 
   const termoBusca = buscaItem.trim().toLowerCase()
   const categoriasFiltradas = categorias
@@ -117,14 +130,27 @@ export default function LancarPedidoGarcom({
     }))
     .filter((cat) => cat.itens.length > 0)
 
+  const categoriasNaGrade = mostrarTodasCategorias ? categorias : categorias.slice(0, LIMITE_CATEGORIAS_VISIVEIS)
+  const categoriasEscondidas = categorias.length - categoriasNaGrade.length
+
   useEffect(() => {
     listarCardapioParaGarcom(estabelecimentoId)
       .then(setCategorias)
       .finally(() => setCarregando(false))
   }, [estabelecimentoId])
 
+  function cancelarVenda() {
+    if (sacola.itens.length > 0 && !confirm('Cancelar essa venda e limpar os itens já lançados?')) return
+    sacola.limparSacola()
+    setDescontoInput('')
+    setValorRecebido('')
+    setFormaPagamento(METODOS_PAGAMENTO[0])
+    setLinhaEmEdicao(null)
+  }
+
   async function lancarPedido() {
     if (sacola.itens.length === 0) return
+    if (trocoInsuficiente) return
     setEnviando(true)
 
     // Registra quem lançou o pedido — usado no demonstrativo de caixa como
@@ -172,6 +198,8 @@ export default function LancarPedidoGarcom({
           sacola.limparSacola()
           setVendaConfirmada(null)
           setDescontoInput('')
+          setValorRecebido('')
+          setLinhaEmEdicao(null)
           onPedidoLancado()
         }, 1500)
         return
@@ -179,6 +207,7 @@ export default function LancarPedidoGarcom({
         setEnviando(false)
         alert(`Pedido criado, mas não foi possível confirmar o pagamento: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
         sacola.limparSacola()
+        setLinhaEmEdicao(null)
         onPedidoLancado()
         return
       }
@@ -193,10 +222,12 @@ export default function LancarPedidoGarcom({
       setTimeout(() => {
         sacola.limparSacola()
         setModoContingencia(false)
+        setLinhaEmEdicao(null)
         onPedidoLancado()
       }, 1800)
     } else {
       sacola.limparSacola()
+      setLinhaEmEdicao(null)
       onPedidoLancado()
     }
   }
@@ -207,30 +238,55 @@ export default function LancarPedidoGarcom({
         type="text"
         value={buscaItem}
         onChange={(e) => setBuscaItem(e.target.value)}
-        placeholder="🔎 Buscar item…"
+        placeholder="🔎 Buscar item ou código…"
         className={`w-full rounded-lg border px-3 py-2 text-sm ${c.input}`}
       />
+      {/* Grade de categorias em vez de pílulas — alvo de toque maior,
+          melhor pra um terminal de caixa usado com o dedo. */}
       {categorias.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <button
             onClick={() => setCategoriaAtiva(null)}
-            className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
-              !categoriaAtiva ? c.botaoToggleAtivo : `border ${c.borda} ${c.label}`
+            className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
+              !categoriaAtiva ? c.botaoToggleAtivo : `${c.itemBotao}`
             }`}
           >
             Todas
+            <span className="mt-0.5 block text-xs font-normal opacity-70">
+              {categorias.reduce((soma, cat) => soma + cat.itens.length, 0)} itens
+            </span>
           </button>
-          {categorias.map((cat) => (
+          {categoriasNaGrade.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setCategoriaAtiva(cat.id)}
-              className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
-                categoriaAtiva === cat.id ? c.botaoToggleAtivo : `border ${c.borda} ${c.label}`
+              className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
+                categoriaAtiva === cat.id ? c.botaoToggleAtivo : c.itemBotao
               }`}
             >
               {cat.nome}
+              <span className="mt-0.5 block text-xs font-normal opacity-70">{cat.itens.length} itens</span>
             </button>
           ))}
+          {categoriasEscondidas > 0 ? (
+            <button
+              onClick={() => setMostrarTodasCategorias(true)}
+              className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${c.itemBotao}`}
+            >
+              + {categoriasEscondidas} mais
+              <span className="mt-0.5 block text-xs font-normal opacity-70">ver categorias</span>
+            </button>
+          ) : (
+            mostrarTodasCategorias &&
+            categorias.length > LIMITE_CATEGORIAS_VISIVEIS && (
+              <button
+                onClick={() => setMostrarTodasCategorias(false)}
+                className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${c.itemBotao}`}
+              >
+                Mostrar menos
+              </button>
+            )
+          )}
         </div>
       )}
     </div>
@@ -311,27 +367,59 @@ export default function LancarPedidoGarcom({
               {sacola.itens.length === 0 ? (
                 <p className={`text-sm ${c.vazio}`}>Toque num item do cardápio pra adicionar.</p>
               ) : (
-                sacola.itens.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-2">
-                    <span className={`truncate ${c.sacolaTexto}`}>
-                      {item.quantidade}x {item.nome}
-                    </span>
-                    <div className="flex flex-shrink-0 items-center gap-1.5">
-                      <button
-                        onClick={() => sacola.alterarQuantidade(item.id, item.quantidade - 1)}
-                        className={`h-6 w-6 rounded-full border text-xs ${c.qtdBotao}`}
-                      >
-                        −
-                      </button>
-                      <button
-                        onClick={() => sacola.alterarQuantidade(item.id, item.quantidade + 1)}
-                        className={`h-6 w-6 rounded-full border text-xs ${c.qtdBotao}`}
-                      >
-                        +
-                      </button>
+                sacola.itens.map((item) => {
+                  const linhaId = item.linhaId || item.id
+                  const preco = item.preco_promocional ?? item.preco
+                  const editando = linhaEmEdicao === linhaId
+                  return (
+                    <div key={linhaId}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`truncate ${c.sacolaTexto}`}>
+                          {item.quantidade}x {item.nome}
+                        </span>
+                        <div className="flex flex-shrink-0 items-center gap-2">
+                          <span className={`font-semibold ${c.itemPreco}`}>R$ {(preco * item.quantidade).toFixed(2)}</span>
+                          <button
+                            onClick={() => setLinhaEmEdicao(editando ? null : linhaId)}
+                            title="Alterar quantidade"
+                            className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs transition ${
+                              editando ? c.botaoToggleAtivo : c.qtdBotao
+                            }`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                      {editando && (
+                        <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => sacola.alterarQuantidade(linhaId, -1)}
+                            className={`h-6 w-6 rounded-full border text-xs ${c.qtdBotao}`}
+                          >
+                            −
+                          </button>
+                          <span className={`w-5 text-center text-xs ${c.sacolaTexto}`}>{item.quantidade}</span>
+                          <button
+                            onClick={() => sacola.alterarQuantidade(linhaId, 1)}
+                            className={`h-6 w-6 rounded-full border text-xs ${c.qtdBotao}`}
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => {
+                              sacola.removerItem(linhaId)
+                              setLinhaEmEdicao(null)
+                            }}
+                            title="Remover item"
+                            className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-red-500 transition hover:bg-red-500/10"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
 
@@ -369,35 +457,56 @@ export default function LancarPedidoGarcom({
                   </div>
                 </div>
 
-                <div>
-                  <label className={`mb-1 block text-xs font-medium ${c.label}`}>Forma de pagamento</label>
-                  <select
-                    value={formaPagamento}
-                    onChange={(e) => setFormaPagamento(e.target.value)}
-                    className={`w-full rounded-lg border px-3 py-2 ${c.input}`}
-                  >
-                    {METODOS_PAGAMENTO.map((metodo) => (
-                      <option key={metodo}>{metodo}</option>
-                    ))}
-                  </select>
+                <SeletorFormaPagamento
+                  formaPagamento={formaPagamento}
+                  onChangeFormaPagamento={setFormaPagamento}
+                  valorRecebido={valorRecebido}
+                  onChangeValorRecebido={setValorRecebido}
+                  total={totalComDesconto}
+                  tema={tema}
+                />
+
+                <div className={`space-y-1 border-t pt-3 text-sm ${c.borda}`}>
+                  <div className={`flex justify-between ${c.label}`}>
+                    <span>Subtotal</span>
+                    <span>R$ {sacola.total.toFixed(2)}</span>
+                  </div>
+                  {descontoNum > 0 && (
+                    <div className={`flex justify-between ${c.label}`}>
+                      <span>Desconto</span>
+                      <span>− R$ {descontoNum.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className={`flex justify-between text-base font-bold ${c.total}`}>
+                    <span>Total a pagar</span>
+                    <span>R$ {totalComDesconto.toFixed(2)}</span>
+                  </div>
                 </div>
 
-                <div className={`flex justify-between text-base font-bold ${c.total}`}>
-                  <span>Total</span>
-                  <span>
-                    {descontoNum > 0 && (
-                      <span className="mr-2 text-sm font-normal line-through opacity-50">R$ {sacola.total.toFixed(2)}</span>
-                    )}
-                    R$ {totalComDesconto.toFixed(2)}
-                  </span>
+                {trocoInsuficiente && (
+                  <p className="text-xs font-medium text-red-500">Valor recebido menor que o total — confira antes de confirmar.</p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancelarVenda}
+                    disabled={enviando}
+                    title="F2 — Cancelar"
+                    className={`rounded-lg border px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${c.borda} ${c.label} ${
+                      tema === 'escuro' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-50'
+                    }`}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={lancarPedido}
+                    disabled={enviando || trocoInsuficiente}
+                    title="F10 — Pagamento / Finalizar"
+                    className={`flex-1 rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
+                  >
+                    {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${totalComDesconto.toFixed(2)}`}
+                  </button>
                 </div>
-                <button
-                  onClick={lancarPedido}
-                  disabled={enviando}
-                  className={`w-full rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
-                >
-                  {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${totalComDesconto.toFixed(2)}`}
-                </button>
               </div>
             )}
           </div>
@@ -409,27 +518,59 @@ export default function LancarPedidoGarcom({
           {sacola.itens.length > 0 && (
             <div className={`border-t ${c.borda} p-4`}>
               <div className="mb-3 max-h-32 space-y-1 overflow-y-auto text-sm">
-                {sacola.itens.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between">
-                    <span className={c.sacolaTexto}>
-                      {item.quantidade}x {item.nome}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => sacola.alterarQuantidade(item.id, item.quantidade - 1)}
-                        className={`h-6 w-6 rounded-full border ${c.qtdBotao}`}
-                      >
-                        −
-                      </button>
-                      <button
-                        onClick={() => sacola.alterarQuantidade(item.id, item.quantidade + 1)}
-                        className={`h-6 w-6 rounded-full border ${c.qtdBotao}`}
-                      >
-                        +
-                      </button>
+                {sacola.itens.map((item) => {
+                  const linhaId = item.linhaId || item.id
+                  const preco = item.preco_promocional ?? item.preco
+                  const editando = linhaEmEdicao === linhaId
+                  return (
+                  <div key={linhaId}>
+                    <div className="flex items-center justify-between">
+                      <span className={c.sacolaTexto}>
+                        {item.quantidade}x {item.nome}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold ${c.itemPreco}`}>R$ {(preco * item.quantidade).toFixed(2)}</span>
+                        <button
+                          onClick={() => setLinhaEmEdicao(editando ? null : linhaId)}
+                          title="Alterar quantidade"
+                          className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs transition ${
+                            editando ? c.botaoToggleAtivo : c.qtdBotao
+                          }`}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
+                    {editando && (
+                      <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => sacola.alterarQuantidade(linhaId, -1)}
+                          className={`h-6 w-6 rounded-full border ${c.qtdBotao}`}
+                        >
+                          −
+                        </button>
+                        <span className={`w-5 text-center text-xs ${c.sacolaTexto}`}>{item.quantidade}</span>
+                        <button
+                          onClick={() => sacola.alterarQuantidade(linhaId, 1)}
+                          className={`h-6 w-6 rounded-full border ${c.qtdBotao}`}
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={() => {
+                            sacola.removerItem(linhaId)
+                            setLinhaEmEdicao(null)
+                          }}
+                          title="Remover item"
+                          className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-red-500 transition hover:bg-red-500/10"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
 
               <div className={`mb-3 flex justify-between text-base font-bold ${c.total}`}>

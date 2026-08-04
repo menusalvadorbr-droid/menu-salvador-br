@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { useFecharContaMesa } from '../hooks/useFecharContaMesa'
 import { ETIQUETA_STATUS } from '../../types'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
+import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../../components/SeletorFormaPagamento'
 import type { Mesa } from '../types'
-
-const METODOS_PAGAMENTO = ['Dinheiro', 'Cartão de débito', 'Cartão de crédito', 'Pix']
 
 // Compartilhado com o resto do mapa de mesas (tema="claro", padrão — não
 // mexe no visual de lá). Aberto a partir da área de Caixa, que foi
@@ -77,7 +76,8 @@ export default function FecharContaMesaModal({
   const c = ESTILOS[tema]
   const { pedidos, total, saldo, carregando, enviando, erro, caixaAberto, registrarPagamento, fecharTudo } =
     useFecharContaMesa(mesa, estabelecimentoId)
-  const [formaPagamento, setFormaPagamento] = useState(METODOS_PAGAMENTO[0])
+  const [formaPagamento, setFormaPagamento] = useState<string>(METODOS_PAGAMENTO[0])
+  const [valorRecebido, setValorRecebido] = useState('')
   const [nomePagador, setNomePagador] = useState('')
   const [valorParcial, setValorParcial] = useState('')
   const [tipoDesconto, setTipoDesconto] = useState<TipoDesconto>('valor')
@@ -86,6 +86,8 @@ export default function FecharContaMesaModal({
   const totalPago = total - saldo
   const descontoNum = calcularDesconto(saldo, tipoDesconto, parseFloat(descontoInput.replace(',', '.')) || 0)
   const valorACobrar = Math.max(0, saldo - descontoNum)
+  const troco = calcularTroco(formaPagamento, valorRecebido, valorACobrar)
+  const trocoInsuficiente = troco !== null && troco < 0
 
   async function handleRegistrar(valor: number) {
     const resultado = await registrarPagamento(valor, formaPagamento, nomePagador)
@@ -94,10 +96,12 @@ export default function FecharContaMesaModal({
     } else if (resultado.ok) {
       setValorParcial('')
       setNomePagador('')
+      setValorRecebido('')
     }
   }
 
   async function handleFecharTudo() {
+    if (trocoInsuficiente) return
     const resultado = await fecharTudo(formaPagamento, nomePagador, descontoNum)
     if (resultado.ok) onContaFechada()
   }
@@ -149,23 +153,6 @@ export default function FecharContaMesaModal({
               )}
               {erro && <p className={`rounded-lg px-3 py-2 text-sm ${c.erro}`}>{erro}</p>}
 
-              <div className="space-y-1 text-sm">
-                <div className={`flex justify-between ${c.labelTotal}`}>
-                  <span>Total da mesa</span>
-                  <span>R$ {total.toFixed(2)}</span>
-                </div>
-                {totalPago > 0 && (
-                  <div className={`flex justify-between ${c.totalPago}`}>
-                    <span>Já pago</span>
-                    <span>R$ {totalPago.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className={`flex justify-between text-base font-bold ${c.faltaPagar}`}>
-                  <span>Falta pagar</span>
-                  <span>R$ {Math.max(0, saldo).toFixed(2)}</span>
-                </div>
-              </div>
-
               <div>
                 <label className={`mb-1 block text-xs font-medium ${c.label}`}>
                   Nome de quem pagou <span className="font-normal opacity-70">(opcional)</span>
@@ -179,18 +166,14 @@ export default function FecharContaMesaModal({
                 />
               </div>
 
-              <div>
-                <label className={`mb-1 block text-xs font-medium ${c.label}`}>Forma de pagamento</label>
-                <select
-                  value={formaPagamento}
-                  onChange={(e) => setFormaPagamento(e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2 ${c.input}`}
-                >
-                  {METODOS_PAGAMENTO.map((metodo) => (
-                    <option key={metodo}>{metodo}</option>
-                  ))}
-                </select>
-              </div>
+              <SeletorFormaPagamento
+                formaPagamento={formaPagamento}
+                onChangeFormaPagamento={setFormaPagamento}
+                valorRecebido={valorRecebido}
+                onChangeValorRecebido={setValorRecebido}
+                total={valorACobrar}
+                tema={tema}
+              />
 
               <div>
                 <label className={`mb-1 block text-xs font-medium ${c.label}`}>
@@ -222,16 +205,43 @@ export default function FecharContaMesaModal({
                     className={`flex-1 rounded-lg border px-3 py-2 ${c.input}`}
                   />
                 </div>
-                {descontoNum > 0 && (
-                  <p className={`mt-1 text-xs ${c.totalPago}`}>
-                    Desconto de R$ {descontoNum.toFixed(2)} — total a cobrar: R$ {valorACobrar.toFixed(2)}
-                  </p>
-                )}
               </div>
+
+              <div className={`space-y-1 border-t pt-3 text-sm ${c.borda}`}>
+                <div className={`flex justify-between ${c.labelTotal}`}>
+                  <span>Total da mesa</span>
+                  <span>R$ {total.toFixed(2)}</span>
+                </div>
+                {totalPago > 0 && (
+                  <div className={`flex justify-between ${c.totalPago}`}>
+                    <span>Já pago</span>
+                    <span>R$ {totalPago.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className={`flex justify-between ${c.labelTotal}`}>
+                  <span>Subtotal a cobrar</span>
+                  <span>R$ {Math.max(0, saldo).toFixed(2)}</span>
+                </div>
+                {descontoNum > 0 && (
+                  <div className={`flex justify-between ${c.labelTotal}`}>
+                    <span>Desconto</span>
+                    <span>− R$ {descontoNum.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className={`flex justify-between text-base font-bold ${c.faltaPagar}`}>
+                  <span>Total a cobrar</span>
+                  <span>R$ {valorACobrar.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {trocoInsuficiente && (
+                <p className="text-xs font-medium text-red-500">Valor recebido menor que o total — confira antes de fechar.</p>
+              )}
 
               <button
                 onClick={handleFecharTudo}
-                disabled={enviando || !caixaAberto}
+                disabled={enviando || !caixaAberto || trocoInsuficiente}
+                title="F10 — Pagamento / Finalizar"
                 className={`w-full rounded-lg py-2.5 font-semibold transition disabled:opacity-50 ${c.botaoVerde}`}
               >
                 {enviando ? 'Processando...' : `Fechar tudo agora — R$ ${valorACobrar.toFixed(2)}`}

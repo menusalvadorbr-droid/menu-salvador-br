@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Clock, Receipt, UtensilsCrossed, AlertTriangle, Play, Square, BarChart3 } from 'lucide-react'
+import { Clock, Receipt, UtensilsCrossed, AlertTriangle, Play, Square, BarChart3, UserRound } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { useCaixa } from '../hooks/useCaixa'
 import MesasComContaAberta from './MesasComContaAberta'
+import PedidosAvulsosPendentes from './PedidosAvulsosPendentes'
 import MovimentacoesCaixa from './MovimentacoesCaixa'
 import InputMoeda from './InputMoeda'
 import ConfirmarAcaoModal from './ConfirmarAcaoModal'
@@ -38,10 +40,23 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
   // regra de pureza de render do React (podia dar resultado diferente a
   // cada chamada, inclusive no double-render do StrictMode).
   const [agoraMs, setAgoraMs] = useState(() => Date.now())
+  // Quem está no terminal agora — não necessariamente quem abriu o turno
+  // (pode ter passado o caixa pra outra pessoa no meio do dia), então
+  // busca o usuário logado, não sessaoAberta.aberto_por.
+  const [operadorNome, setOperadorNome] = useState<string | null>(null)
 
   useEffect(() => {
     const intervalo = setInterval(() => setAgoraMs(Date.now()), 30000)
     return () => clearInterval(intervalo)
+  }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: perfil } = await supabase.from('profiles').select('nome, email').eq('id', user.id).maybeSingle()
+      setOperadorNome(perfil?.nome || perfil?.email || null)
+    })
   }, [])
 
   const valorEsperado =
@@ -165,8 +180,15 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
                 </span>
               )}
             </p>
-            <p className="flex items-center gap-1 text-xs text-neutral-500">
-              <Clock className="h-3 w-3" /> {formatarDuracao(sessaoAberta.aberto_em, agoraMs)}
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-500">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" /> {formatarDuracao(sessaoAberta.aberto_em, agoraMs)}
+              </span>
+              {operadorNome && (
+                <span className="flex items-center gap-1">
+                  <UserRound className="h-3 w-3" /> {operadorNome}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -201,6 +223,7 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
       ) : (
         <div className="space-y-4">
           <MesasComContaAberta estabelecimentoId={estabelecimentoId} />
+          <PedidosAvulsosPendentes estabelecimentoId={estabelecimentoId} caixaAberto={!!sessaoAberta} onFechado={atualizar} />
           <MovimentacoesCaixa
             estabelecimentoId={estabelecimentoId}
             caixaSessaoId={sessaoAberta.id}
