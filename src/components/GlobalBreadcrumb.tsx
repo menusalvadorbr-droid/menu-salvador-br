@@ -52,6 +52,18 @@ function useNomesReais(segments: string[]) {
         if (data) novosNomes[1] = data.nome_fantasia || data.nome
       }
 
+      // /cardapio/[slug]/categoria/[categoriaId] — sem isso, o último
+      // segmento (um uuid puro) cai no fallback genérico e vira um texto
+      // sem sentido, tipo "3a210713 B794 4078 A0c1 432c72c946b2".
+      if (segments[0] === 'cardapio' && segments[2] === 'categoria' && segments[3]) {
+        const { data } = await supabase
+          .from('categorias')
+          .select('nome')
+          .eq('id', segments[3])
+          .maybeSingle()
+        if (data) novosNomes[3] = data.nome
+      }
+
       // /painel/estabelecimento/[id]/...
       if (segments[0] === 'painel' && segments[1] === 'estabelecimento' && segments[2]) {
         const { data } = await supabase
