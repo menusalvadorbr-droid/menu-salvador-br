@@ -52,7 +52,12 @@ export default function ItemCatalogoCard({
 
   return (
     <div
-      className="overflow-hidden shadow-sm transition hover:scale-105 hover:shadow-lg"
+      // active:* dá o mesmo feedback do hover:* pra quem usa toque (celular
+      // não tem hover de verdade — sem isso, tocar no card não mostrava
+      // reação visual nenhuma). scale-95 (encolhe) em vez de replicar o
+      // scale-105 do hover pra ficar claramente diferente: "pressionando"
+      // vs. "sobre o mouse".
+      className="overflow-hidden shadow-sm transition hover:scale-105 hover:shadow-lg active:scale-95"
       style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: cardRaio }}
     >
       <ItemClicavel

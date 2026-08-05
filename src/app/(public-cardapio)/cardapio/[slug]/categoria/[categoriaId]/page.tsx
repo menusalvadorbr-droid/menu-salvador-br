@@ -140,13 +140,20 @@ export default async function CategoriaCardapioPage({
     <div className={`min-h-screen ${fonteTema.className}`} style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 
+        {/* ── BOTÃO "← CATEGORIAS" — sticky, sempre visível ao rolar,
+            mais fácil de notar/tocar no celular que um link de texto. ── */}
+        <Link
+          href={`/cardapio/${est.slug}`}
+          className="sticky top-3 z-20 mb-3 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold shadow-md transition hover:shadow-lg"
+          style={{ backgroundColor: corF, color: corP, border: `1px solid ${corBd}` }}
+        >
+          ← <TextoInterface chave="voltar_categorias">Categorias</TextoInterface>
+        </Link>
+
         {/* ── CABEÇALHO ── */}
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <Link href={`/cardapio/${est.slug}`} className="text-sm hover:underline" style={{ color: corP }}>
-              ← <TextoInterface chave="voltar_categorias">Categorias</TextoInterface>
-            </Link>
-            <h1 className="mt-1 text-xl font-bold truncate" style={{ color: corP }}>
+            <h1 className="text-xl font-bold truncate" style={{ color: corP }}>
               <Texto tipo="categoria" id={categoria.id} campo="nome">{categoria.nome}</Texto>
             </h1>
             <p className="text-xs opacity-50 truncate">{nomeEstabelecimento}</p>

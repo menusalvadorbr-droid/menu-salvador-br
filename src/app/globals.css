@@ -3,6 +3,15 @@
 :root {
   color-scheme: light;
 
+  /* Elimina o atraso de ~300ms que navegadores mobile aplicam a todo toque,
+     esperando confirmar que não é duplo-toque de zoom. O viewport meta tag
+     (width=device-width) que o Next.js já injeta sozinho cobre a maioria
+     dos casos em Chrome/Safari recentes, mas isso aqui garante o mesmo em
+     navegadores embutidos mais antigos/inconsistentes (ex: in-app browser
+     do Instagram/WhatsApp, comuns em link de cardápio vindo de bio/story) —
+     sem custo nenhum onde já não fazia efeito. */
+  touch-action: manipulation;
+
   /* Cores de marca da plataforma (fora do cardápio de cada estabelecimento).
      Valor real vem de platform_settings.paleta_plataforma, injetado pelo
      src/app/(public)/layout.tsx. Os valores aqui são só fallback, caso essa

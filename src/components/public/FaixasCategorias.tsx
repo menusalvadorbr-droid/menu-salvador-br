@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Texto } from './TraducaoCardapio'
 import ItemCatalogoCard from './ItemCatalogoCard'
 import ItemListaLinha from './ItemListaLinha'
-import { buscarItensCategoriaPublica } from '@/app/(public)/cardapio/[slug]/buscarItensCategoria'
+import { buscarItensCategoriaPublica } from '@/app/(public-cardapio)/cardapio/[slug]/buscarItensCategoria'
 import type { ItemCardapioBruto } from '@/lib/resolverItemCardapio'
 
 interface CategoriaFaixa {
