@@ -35,6 +35,7 @@ export const GRUPOS_CHAVES: GrupoChaves[] = [
       { chave: 'itens_label', textoPt: 'itens' },
       { chave: 'categorias_label', textoPt: 'categorias' },
       { chave: 'voltar_perfil', textoPt: 'Voltar ao perfil' },
+      { chave: 'voltar_categorias', textoPt: 'Categorias' },
       { chave: 'reivindicar_texto_cardapio', textoPt: 'Reivindique pra editar o cardápio.' },
       { chave: 'promocoes_hoje', textoPt: 'Promoções de hoje' },
       { chave: 'nenhum_item_disponivel', textoPt: 'Nenhum item disponível' },

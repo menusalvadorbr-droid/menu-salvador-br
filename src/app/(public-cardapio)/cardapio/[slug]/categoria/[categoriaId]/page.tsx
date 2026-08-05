@@ -1,11 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import ItemCatalogoCard from '@/components/public/ItemCatalogoCard'
 import ItemListaLinha from '@/components/public/ItemListaLinha'
+import BotaoVoltarCategorias from '@/components/public/BotaoVoltarCategorias'
 import { obterFonteTema } from '@/lib/fontesTema'
 import { buscarItensCategoriaPublica } from '../../buscarItensCategoria'
 
@@ -142,13 +142,7 @@ export default async function CategoriaCardapioPage({
 
         {/* ── BOTÃO "← CATEGORIAS" — sticky, sempre visível ao rolar,
             mais fácil de notar/tocar no celular que um link de texto. ── */}
-        <Link
-          href={`/cardapio/${est.slug}`}
-          className="sticky top-3 z-20 mb-3 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold shadow-md transition hover:shadow-lg"
-          style={{ backgroundColor: corF, color: corP, border: `1px solid ${corBd}` }}
-        >
-          ← <TextoInterface chave="voltar_categorias">Categorias</TextoInterface>
-        </Link>
+        <BotaoVoltarCategorias href={`/cardapio/${est.slug}`} corF={corF} corP={corP} corBd={corBd} />
 
         {/* ── CABEÇALHO ── */}
         <div className="mb-4 flex items-start justify-between gap-3">
