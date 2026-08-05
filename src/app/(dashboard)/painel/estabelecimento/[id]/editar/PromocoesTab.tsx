@@ -3,7 +3,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/app/(dashboard)/painel/components/ImageUpload'
-import type { SpecialOfferRow } from '@/lib/specialOffers'
+import type { SpecialOfferRow, SpecialOfferItemRow } from '@/lib/specialOffers'
+import { CONFIG_TEMA_PADRAO } from '@/components/tema/PreviewTemaCardapio'
+import GerarPostInstagramModal from './GerarPostInstagramModal'
+
+interface ItemCardapioSimples {
+  id: string
+  nome: string
+  preco: number
+  foto_url: string | null
+}
 
 interface ItemCardapio {
   id: string
@@ -50,6 +59,21 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
   const [promocoesContadorAtivado, setPromocoesContadorAtivado] = useState(false)
   const [ofertas, setOfertas] = useState<SpecialOfferRow[]>([])
   const [modalOfertaAberto, setModalOfertaAberto] = useState(false)
+  // Dados só usados pra gerar post pra Instagram (imagem no tema do
+  // estabelecimento + legenda com hashtags de bairro/tipo/"Salvador").
+  const [dadosEstabelecimento, setDadosEstabelecimento] = useState<{
+    nome: string
+    bairro: string | null
+    tipoEstabelecimento: string | null
+  }>({ nome: '', bairro: null, tipoEstabelecimento: null })
+  const [coresTema, setCoresTema] = useState({
+    corPrimaria: CONFIG_TEMA_PADRAO.cor_primaria,
+    corSecundaria: CONFIG_TEMA_PADRAO.cor_secundaria,
+    corFundo: CONFIG_TEMA_PADRAO.cor_fundo,
+    corTexto: CONFIG_TEMA_PADRAO.cor_texto,
+  })
+  const [fonteTemaNome, setFonteTemaNome] = useState(CONFIG_TEMA_PADRAO.fonte)
+  const [ofertaParaPost, setOfertaParaPost] = useState<SpecialOfferRow | null>(null)
   const [ofertaEditando, setOfertaEditando] = useState<SpecialOfferRow | null>(null)
   const [salvandoOferta, setSalvandoOferta] = useState(false)
   const [erroOferta, setErroOferta] = useState<string | null>(null)
@@ -70,6 +94,17 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
   const [ofExibirInicio, setOfExibirInicio] = useState('')
   const [ofExibirFim, setOfExibirFim] = useState('')
   const [ofAlertaMinutos, setOfAlertaMinutos] = useState('30')
+  // "Tem prazo definido?" — Não deixa explícito o que hoje já era possível
+  // de forma implícita (período em branco = sempre ativo, sem contador):
+  // ver calcularEstadoOferta() em src/lib/specialOffers.ts.
+  const [ofTemPrazo, setOfTemPrazo] = useState(true)
+
+  // Compor o combo com itens já cadastrados no cardápio — opcional, só
+  // aparece se o estabelecimento já tiver algum item (special_offer_itens).
+  const [itensCardapioTodos, setItensCardapioTodos] = useState<ItemCardapioSimples[]>([])
+  const [ofComporItens, setOfComporItens] = useState(false)
+  const [ofItensCombo, setOfItensCombo] = useState<{ itemCardapioId: string; nome: string; quantidade: string }[]>([])
+  const [buscaItemCombo, setBuscaItemCombo] = useState('')
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -79,10 +114,34 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     // (estabelecimento sem cardápio ainda pode ter promoção com contador).
     const { data: estConfig } = await supabase
       .from('estabelecimentos')
-      .select('promocoes_contador_ativado')
+      .select('promocoes_contador_ativado, nome, nome_fantasia, bairro, tipo_estabelecimento, tema_atual_id')
       .eq('id', estabelecimentoId)
       .maybeSingle()
     setPromocoesContadorAtivado(!!estConfig?.promocoes_contador_ativado)
+    setDadosEstabelecimento({
+      nome: estConfig?.nome_fantasia || estConfig?.nome || '',
+      bairro: estConfig?.bairro || null,
+      tipoEstabelecimento: estConfig?.tipo_estabelecimento || null,
+    })
+
+    // Tema do estabelecimento — só pro gerador de post pra Instagram usar a
+    // mesma cor/fonte já escolhida em Cardápio → Tema. Sem tema selecionado,
+    // cai no padrão (mesmo fallback usado no preview do TemaEditor).
+    if (estConfig?.tema_atual_id) {
+      const { data: temaData } = await supabase
+        .from('temas')
+        .select('config')
+        .eq('id', estConfig.tema_atual_id)
+        .maybeSingle()
+      const cfg = temaData?.config || {}
+      setCoresTema({
+        corPrimaria: cfg.cor_primaria || CONFIG_TEMA_PADRAO.cor_primaria,
+        corSecundaria: cfg.cor_secundaria || CONFIG_TEMA_PADRAO.cor_secundaria,
+        corFundo: cfg.cor_fundo || CONFIG_TEMA_PADRAO.cor_fundo,
+        corTexto: cfg.cor_texto || CONFIG_TEMA_PADRAO.cor_texto,
+      })
+      setFonteTemaNome(cfg.fonte || CONFIG_TEMA_PADRAO.fonte)
+    }
 
     const { data: ofertasData } = await supabase
       .from('special_offers')
@@ -107,14 +166,14 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
       .limit(1)
 
     const menuId = menus?.[0]?.id
-    if (!menuId) { setLoading(false); return }
+    if (!menuId) { setItensCardapioTodos([]); setLoading(false); return }
 
     const { data: cats } = await supabase
       .from('categorias')
       .select('id')
       .eq('menu_id', menuId)
 
-    if (!cats?.length) { setItens([]); setLoading(false); return }
+    if (!cats?.length) { setItens([]); setItensCardapioTodos([]); setLoading(false); return }
 
     const catIds = cats.map((c: any) => c.id)
     const { data } = await supabase
@@ -125,6 +184,17 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
       .order('nome')
 
     setItens((data as ItemCardapio[]) || [])
+
+    // Todos os itens (sem filtro de promo_status) — base pra "Compor com
+    // itens do cardápio" no combo. Só existe UI pra isso se essa lista não
+    // vier vazia.
+    const { data: todosOsItens } = await supabase
+      .from('itens_cardapio')
+      .select('id, nome, preco, foto_url')
+      .in('categoria_id', catIds)
+      .order('nome')
+    setItensCardapioTodos((todosOsItens as ItemCardapioSimples[]) || [])
+
     setLoading(false)
   }, [estabelecimentoId])
 
@@ -184,48 +254,48 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
 
   // ── pausar ───────────────────────────────
   async function pausarPromocao(item: ItemCardapio) {
-  if (readOnly) return
-  await supabase
-    .from('itens_cardapio')
-    .update({ 
-      promo_status: 'paused',
-      promocao_ativa: false   // ← ADICIONE ESTA LINHA
-    })
-    .eq('id', item.id)
-  mostrarToast(`⏸ Promoção pausada. Configuração mantida.`)
-  carregar()
-}
+    if (readOnly) return
+    await supabase
+      .from('itens_cardapio')
+      .update({
+        promo_status: 'paused',
+        promocao_ativa: false,
+      })
+      .eq('id', item.id)
+    mostrarToast(`⏸ Promoção pausada. Configuração mantida.`)
+    carregar()
+  }
 
   // ── retomar ──────────────────────────────
   async function retomarPromocao(item: ItemCardapio) {
-  if (readOnly) return
-  await supabase
-    .from('itens_cardapio')
-    .update({ 
-      promo_status: 'active',
-      promocao_ativa: true   // ← ADICIONE ESTA LINHA
-    })
-    .eq('id', item.id)
-  mostrarToast(`▶️ Promoção de "${item.nome}" reativada`)
-  carregar()
-}
+    if (readOnly) return
+    await supabase
+      .from('itens_cardapio')
+      .update({
+        promo_status: 'active',
+        promocao_ativa: true,
+      })
+      .eq('id', item.id)
+    mostrarToast(`▶️ Promoção de "${item.nome}" reativada`)
+    carregar()
+  }
 
   // ── remover ──────────────────────────────
   async function removerPromocao(item: ItemCardapio) {
-  if (readOnly || !confirm('Remover a promoção deste item?')) return
-  await supabase
-    .from('itens_cardapio')
-    .update({
-      promo_status: 'none',
-      preco_promocional: null,
-      promo_desconto_pct: null,
-      promo_inicio: null,
-      promo_fim: null,
-      promocao_ativa: false,   // ← ADICIONE ESTA LINHA
-    })
-    .eq('id', item.id)
-  carregar()
-}
+    if (readOnly || !confirm('Remover a promoção deste item?')) return
+    await supabase
+      .from('itens_cardapio')
+      .update({
+        promo_status: 'none',
+        preco_promocional: null,
+        promo_desconto_pct: null,
+        promo_inicio: null,
+        promo_fim: null,
+        promocao_ativa: false,
+      })
+      .eq('id', item.id)
+    carregar()
+  }
 
   // ── PROMOÇÕES COM CONTADOR (special_offers) ──────────────────────
   function paraDatetimeLocal(iso: string | null): string {
@@ -235,7 +305,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
-  function abrirModalOferta(oferta?: SpecialOfferRow) {
+  async function abrirModalOferta(oferta?: SpecialOfferRow) {
     setOfertaEditando(oferta || null)
     setOfNome(oferta?.nome || '')
     setOfDescricao(oferta?.descricao || '')
@@ -253,7 +323,34 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     setOfExibirInicio(paraDatetimeLocal(oferta?.exibir_inicio || null))
     setOfExibirFim(paraDatetimeLocal(oferta?.exibir_fim || null))
     setOfAlertaMinutos(oferta?.alerta_minutos?.toString() || '30')
+    // Sem prazo = a mesma combinação que calcularEstadoOferta() lê como
+    // "sempre" (não recorrente e sem fim_em) — só isso vira "Não" aqui;
+    // qualquer outra coisa (inclusive dado antigo/manual fora desse
+    // padrão) volta marcado "Sim" por segurança.
+    setOfTemPrazo(oferta ? !!(oferta.recorrente || oferta.fim_em) : true)
     setErroOferta(null)
+
+    if (oferta) {
+      const { data: itensDoCombo } = await supabase
+        .from('special_offer_itens')
+        .select('item_cardapio_id, quantidade')
+        .eq('special_offer_id', oferta.id)
+      const linhas = ((itensDoCombo || []) as Pick<SpecialOfferItemRow, 'item_cardapio_id' | 'quantidade'>[]).map((li) => {
+        const item = itensCardapioTodos.find((i) => i.id === li.item_cardapio_id)
+        return {
+          itemCardapioId: li.item_cardapio_id,
+          nome: item?.nome || '(item removido do cardápio)',
+          quantidade: String(li.quantidade).replace('.', ','),
+        }
+      })
+      setOfItensCombo(linhas)
+      setOfComporItens(linhas.length > 0)
+    } else {
+      setOfItensCombo([])
+      setOfComporItens(false)
+    }
+    setBuscaItemCombo('')
+
     setModalOfertaAberto(true)
   }
 
@@ -261,11 +358,38 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     setModalOfertaAberto(false)
     setOfertaEditando(null)
     setErroOferta(null)
+    setOfComporItens(false)
+    setOfItensCombo([])
+    setBuscaItemCombo('')
   }
 
   function toggleDiaSemanaOferta(dia: number) {
     setOfDiasSemana((prev) => (prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia].sort()))
   }
+
+  // ── COMBO: compor com itens do cardápio ──
+  function adicionarItemNoCombo(item: ItemCardapioSimples) {
+    if (ofItensCombo.some((li) => li.itemCardapioId === item.id)) return
+    setOfItensCombo((prev) => [...prev, { itemCardapioId: item.id, nome: item.nome, quantidade: '1' }])
+    setBuscaItemCombo('')
+  }
+
+  function atualizarQuantidadeNoCombo(itemCardapioId: string, quantidade: string) {
+    setOfItensCombo((prev) => prev.map((li) => (li.itemCardapioId === itemCardapioId ? { ...li, quantidade } : li)))
+  }
+
+  function removerItemDoCombo(itemCardapioId: string) {
+    setOfItensCombo((prev) => prev.filter((li) => li.itemCardapioId !== itemCardapioId))
+  }
+
+  // Soma dos itens compostos × quantidade — só uma sugestão pro campo
+  // "Preço de" (comparação "de/por"); o preço do combo em si (Preço "por")
+  // continua sempre digitado manualmente.
+  const somaItensCombo = ofItensCombo.reduce((soma, li) => {
+    const item = itensCardapioTodos.find((i) => i.id === li.itemCardapioId)
+    const qtd = parseFloat(li.quantidade.replace(',', '.')) || 0
+    return soma + (item?.preco || 0) * qtd
+  }, 0)
 
   async function salvarOferta() {
     if (readOnly) return
@@ -274,16 +398,20 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     if (isNaN(precoPorNum) || precoPorNum <= 0) { setErroOferta('Preço inválido.'); return }
     const precoDeNum = ofPrecoDe.trim() ? parseFloat(ofPrecoDe.replace(',', '.')) : null
     if (ofPrecoDe.trim() && (precoDeNum === null || isNaN(precoDeNum))) { setErroOferta('Preço "de" inválido.'); return }
-    if (ofRecorrente && ofDiasSemana.length === 0) { setErroOferta('Selecione ao menos um dia da semana.'); return }
-    if (ofRecorrente && (!ofHoraInicio || !ofHoraFim)) { setErroOferta('Informe hora de início e fim.'); return }
+    // Sem prazo definido: nenhuma das checagens de período abaixo se aplica
+    // — a promoção fica sempre ativa (ver calcularEstadoOferta), então
+    // recorrência/datas nem entram no formulário.
+    if (ofTemPrazo && ofRecorrente && ofDiasSemana.length === 0) { setErroOferta('Selecione ao menos um dia da semana.'); return }
+    if (ofTemPrazo && ofRecorrente && (!ofHoraInicio || !ofHoraFim)) { setErroOferta('Informe hora de início e fim.'); return }
     // "Início" é opcional aqui (ausente = já começou, sem limite inferior);
     // "Fim" é obrigatório — sem ele calcularEstadoOferta não tem como saber
     // quando a promoção conta como "ativa" (ver src/lib/specialOffers.ts).
-    if (!ofRecorrente && !ofFimEm) { setErroOferta('Informe a data/hora de fim.'); return }
+    if (ofTemPrazo && !ofRecorrente && !ofFimEm) { setErroOferta('Informe a data/hora de fim.'); return }
 
     setSalvandoOferta(true)
     setErroOferta(null)
 
+    const temPeriodoDefinido = ofTemPrazo
     const dados = {
       estabelecimento_id: estabelecimentoId,
       nome: ofNome.trim(),
@@ -293,23 +421,60 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
       preco_por: precoPorNum,
       card_largo: ofCardLargo,
       ativo: ofAtivo,
-      recorrente: ofRecorrente,
-      dias_semana: ofRecorrente ? ofDiasSemana : null,
-      hora_inicio: ofRecorrente ? ofHoraInicio : null,
-      hora_fim: ofRecorrente ? ofHoraFim : null,
-      inicio_em: !ofRecorrente && ofInicioEm ? new Date(ofInicioEm).toISOString() : null,
-      fim_em: !ofRecorrente && ofFimEm ? new Date(ofFimEm).toISOString() : null,
+      recorrente: temPeriodoDefinido && ofRecorrente,
+      dias_semana: temPeriodoDefinido && ofRecorrente ? ofDiasSemana : null,
+      hora_inicio: temPeriodoDefinido && ofRecorrente ? ofHoraInicio : null,
+      hora_fim: temPeriodoDefinido && ofRecorrente ? ofHoraFim : null,
+      inicio_em: temPeriodoDefinido && !ofRecorrente && ofInicioEm ? new Date(ofInicioEm).toISOString() : null,
+      fim_em: temPeriodoDefinido && !ofRecorrente && ofFimEm ? new Date(ofFimEm).toISOString() : null,
       exibir_inicio: ofExibirInicio ? new Date(ofExibirInicio).toISOString() : null,
       exibir_fim: ofExibirFim ? new Date(ofExibirFim).toISOString() : null,
       alerta_minutos: parseInt(ofAlertaMinutos) || 30,
     }
 
-    const { error } = ofertaEditando
-      ? await supabase.from('special_offers').update(dados).eq('id', ofertaEditando.id)
-      : await supabase.from('special_offers').insert(dados)
+    let ofertaId = ofertaEditando?.id
+    let error: { message: string } | null = null
+    if (ofertaEditando) {
+      ({ error } = await supabase.from('special_offers').update(dados).eq('id', ofertaEditando.id))
+    } else {
+      const resultado = await supabase.from('special_offers').insert(dados).select('id').single()
+      error = resultado.error
+      ofertaId = resultado.data?.id
+    }
+
+    if (error) {
+      setSalvandoOferta(false)
+      setErroOferta('Erro ao salvar: ' + error.message)
+      return
+    }
+
+    // Itens do combo — apaga tudo e reinsere, mesmo padrão de bridge usado
+    // no resto do projeto. Se "Compor com itens do cardápio" estiver
+    // desligado (ou a lista vazia), só limpa o que houver — a promoção
+    // volta a ser nome/preço/foto livres, sem vínculo nenhum.
+    if (ofertaId) {
+      await supabase.from('special_offer_itens').delete().eq('special_offer_id', ofertaId)
+      if (ofComporItens && ofItensCombo.length > 0) {
+        const linhas = ofItensCombo
+          .map((li) => ({
+            special_offer_id: ofertaId,
+            item_cardapio_id: li.itemCardapioId,
+            quantidade: parseFloat(li.quantidade.replace(',', '.')) || 1,
+          }))
+          .filter((li) => li.item_cardapio_id)
+        if (linhas.length > 0) {
+          const { error: itensError } = await supabase.from('special_offer_itens').insert(linhas)
+          if (itensError) {
+            setSalvandoOferta(false)
+            setErroOferta('Promoção salva, mas houve erro ao salvar os itens do combo: ' + itensError.message)
+            carregar()
+            return
+          }
+        }
+      }
+    }
 
     setSalvandoOferta(false)
-    if (error) { setErroOferta('Erro ao salvar: ' + error.message); return }
     fecharModalOferta()
     mostrarToast(ofertaEditando ? '✅ Promoção atualizada' : '✅ Promoção criada')
     carregar()
@@ -662,31 +827,42 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                     )}
                     <div className="text-sm font-bold text-orange-600">R$ {oferta.preco_por.toFixed(2)}</div>
                   </div>
-                  {!readOnly && (
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => abrirModalOferta(oferta)}
-                        title="Editar"
-                        className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2 py-1.5 rounded-lg transition"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => toggleAtivoOferta(oferta)}
-                        title={oferta.ativo ? 'Pausar' : 'Reativar'}
-                        className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2 py-1.5 rounded-lg transition"
-                      >
-                        {oferta.ativo ? '⏸' : '▶️'}
-                      </button>
-                      <button
-                        onClick={() => excluirOferta(oferta)}
-                        title="Excluir"
-                        className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-2 py-1.5 rounded-lg transition"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex gap-2 flex-shrink-0">
+                    {/* Não é uma ação de edição — não grava nada, só gera
+                        arquivo local — por isso fica fora do !readOnly. */}
+                    <button
+                      onClick={() => setOfertaParaPost(oferta)}
+                      title="Gerar post pra Instagram"
+                      className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2 py-1.5 rounded-lg transition"
+                    >
+                      📸
+                    </button>
+                    {!readOnly && (
+                      <>
+                        <button
+                          onClick={() => abrirModalOferta(oferta)}
+                          title="Editar"
+                          className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2 py-1.5 rounded-lg transition"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => toggleAtivoOferta(oferta)}
+                          title={oferta.ativo ? 'Pausar' : 'Reativar'}
+                          className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2 py-1.5 rounded-lg transition"
+                        >
+                          {oferta.ativo ? '⏸' : '▶️'}
+                        </button>
+                        <button
+                          onClick={() => excluirOferta(oferta)}
+                          title="Excluir"
+                          className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-2 py-1.5 rounded-lg transition"
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -749,6 +925,85 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                 />
               </div>
 
+              {/* Compor com itens do cardápio — só aparece se o
+                  estabelecimento já tiver algum item cadastrado; senão o
+                  formulário segue exatamente como sempre foi (nome/preço/
+                  foto livres). */}
+              {itensCardapioTodos.length > 0 && (
+                <div className="rounded-xl border border-gray-200 p-3 space-y-3">
+                  <Toggle
+                    checked={ofComporItens}
+                    onChange={(v) => { setOfComporItens(v); if (!v) setOfItensCombo([]) }}
+                    label="Compor com itens do cardápio (ex: Combo)"
+                  />
+                  {ofComporItens && (
+                    <div className="space-y-2">
+                      {ofItensCombo.length > 0 && (
+                        <div className="space-y-1.5">
+                          {ofItensCombo.map((li) => (
+                            <div key={li.itemCardapioId} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
+                              <span className="flex-1 text-sm text-gray-700 truncate">{li.nome}</span>
+                              <input
+                                value={li.quantidade}
+                                onChange={(e) => atualizarQuantidadeNoCombo(li.itemCardapioId, e.target.value)}
+                                className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white text-gray-900"
+                              />
+                              <button
+                                onClick={() => removerItemDoCombo(li.itemCardapioId)}
+                                className="text-red-400 hover:text-red-600 text-xs px-1"
+                                title="Remover"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="relative">
+                        <input
+                          value={buscaItemCombo}
+                          onChange={(e) => setBuscaItemCombo(e.target.value)}
+                          placeholder="Buscar item do cardápio…"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
+                        />
+                        {buscaItemCombo.trim() && (
+                          <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                            {itensCardapioTodos
+                              .filter(
+                                (i) =>
+                                  i.nome.toLowerCase().includes(buscaItemCombo.trim().toLowerCase()) &&
+                                  !ofItensCombo.some((li) => li.itemCardapioId === i.id)
+                              )
+                              .slice(0, 8)
+                              .map((i) => (
+                                <button
+                                  key={i.id}
+                                  onClick={() => adicionarItemNoCombo(i)}
+                                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 transition"
+                                >
+                                  {i.nome} <span className="text-gray-400 text-xs">R$ {i.preco.toFixed(2)}</span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                      {somaItensCombo > 0 && (
+                        <p className="text-xs text-gray-500">
+                          Soma dos itens: R$ {somaItensCombo.toFixed(2)}{' '}
+                          <button
+                            type="button"
+                            onClick={() => setOfPrecoDe(somaItensCombo.toFixed(2).replace('.', ','))}
+                            className="text-orange-600 hover:underline font-medium"
+                          >
+                            usar como Preço &quot;de&quot;
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -779,6 +1034,35 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                 <Toggle checked={ofAtivo} onChange={setOfAtivo} label="Ativo" />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Tem prazo definido?</label>
+                <div className="flex gap-2">
+                  {([
+                    { valor: true, label: 'Sim' },
+                    { valor: false, label: 'Não' },
+                  ] as const).map((op) => (
+                    <button
+                      key={String(op.valor)}
+                      type="button"
+                      onClick={() => setOfTemPrazo(op.valor)}
+                      className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition ${
+                        ofTemPrazo === op.valor
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+                {!ofTemPrazo && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Fica sempre disponível, sem contador — ideal pra Combos e itens fixos.
+                  </p>
+                )}
+              </div>
+
+              {ofTemPrazo && (
               <div className="rounded-xl border border-gray-200 p-3 space-y-3">
                 <Toggle checked={ofRecorrente} onChange={setOfRecorrente} label="Recorrente (repete toda semana)" />
 
@@ -854,6 +1138,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                   </div>
                 )}
               </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -921,6 +1206,19 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
         </div>
       )}
 
+      {/* ── GERAR POST PRA INSTAGRAM ── */}
+      {ofertaParaPost && (
+        <GerarPostInstagramModal
+          oferta={ofertaParaPost}
+          cores={coresTema}
+          fonteNome={fonteTemaNome}
+          nomeEstabelecimento={dadosEstabelecimento.nome}
+          bairro={dadosEstabelecimento.bairro}
+          tipoEstabelecimento={dadosEstabelecimento.tipoEstabelecimento}
+          onFechar={() => setOfertaParaPost(null)}
+        />
+      )}
+
     </div>
   )
 }
@@ -980,7 +1278,7 @@ function PromoGrupo({ titulo, hint, cor, itens, readOnly, renderAcoes }: {
       </div>
       <div className="divide-y divide-gray-100">
         {itens.map(item => (
-          <div key={item.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition ${cor === 'paused' ? 'opacity-55' : ''}`}>
+          <div key={item.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition ${cor === 'gray' ? 'opacity-55' : ''}`}>
             <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-100 flex items-center justify-center text-gray-400">
               {item.foto_url ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" /> : '🍽️'}
             </div>

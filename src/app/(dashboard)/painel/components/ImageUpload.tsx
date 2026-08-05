@@ -98,19 +98,26 @@ export default function ImageUpload({
       setProgress(90)
 
       const uploadData = await uploadRes.json()
-      if (!uploadRes.ok) {
-        throw new Error(uploadData.error?.message || 'Erro no upload')
-      }
-      if (!uploadData.secure_url) {
-        throw new Error(uploadData.error || 'URL não retornada pelo Cloudinary')
+      // O erro vem em formatos diferentes dependendo de onde falhou: string
+      // simples nos early-returns da nossa própria rota (ex: "Variáveis de
+      // ambiente não configuradas"), ou objeto {message, http_code} quando
+      // é o Cloudinary mesmo quem rejeitou o upload — sem checar os dois
+      // formatos, a mensagem real virava sempre o fallback genérico
+      // "Erro no upload", escondendo a causa de verdade.
+      if (!uploadRes.ok || !uploadData.secure_url) {
+        const mensagem = typeof uploadData.error === 'string'
+          ? uploadData.error
+          : uploadData.error?.message
+        throw new Error(mensagem || 'Erro no upload')
       }
 
       setPreview(uploadData.secure_url)
       setProgress(100)
       onUpload(uploadData.secure_url)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erro no upload:', err)
-      alert('Erro ao enviar imagem: ' + err.message)
+      const mensagem = err instanceof Error ? err.message : typeof err === 'string' ? err : 'Erro desconhecido'
+      alert('Erro ao enviar imagem: ' + mensagem)
     } finally {
       setUploading(false)
       setProgress(0)

@@ -3,13 +3,14 @@ import { logSupabaseError } from '@/lib/supabase/logError'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { getOptimizedCloudinaryUrl } from '@/lib/cloudinary'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import SpecialOfferCard from '@/components/public/SpecialOfferCard'
+import PromoItemCard from '@/components/public/PromoItemCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
+import NavegacaoCategoriasCards from '@/components/public/NavegacaoCategoriasCards'
 import FaixasCategorias from '@/components/public/FaixasCategorias'
 import ItemCatalogoCard from '@/components/public/ItemCatalogoCard'
 import ItemListaLinha from '@/components/public/ItemListaLinha'
@@ -93,9 +94,14 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   // Navegação de categoria — independente do Formato (Lista/Catálogo).
   // "Faixas" muda só o container de navegação: cada categoria vira uma
   // faixa que busca seus itens sob demanda ao abrir, em vez de tudo já
-  // carregado de uma vez como na navegação em pílulas (padrão).
-  const navegacaoCategoria: 'pilulas' | 'faixas' =
-    est.cardapio_navegacao_categoria === 'faixas' ? 'faixas' : 'pilulas'
+  // carregado de uma vez como na navegação em pílulas (padrão). "Cards"
+  // vai além: nem mostra os itens nesta página — só o grid de categorias
+  // com foto; os itens só são buscados na página própria da categoria
+  // (categoria/[categoriaId]/page.tsx) depois do clique.
+  const navegacaoCategoria: 'pilulas' | 'faixas' | 'cards' =
+    est.cardapio_navegacao_categoria === 'faixas' ? 'faixas'
+    : est.cardapio_navegacao_categoria === 'cards' ? 'cards'
+    : 'pilulas'
 
   // 4. Menu → categorias → itens + alérgenos
   const { data: menus } = await supabase
@@ -119,12 +125,14 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     if (categorias.length > 0) {
       const catIds = categorias.map((c: any) => c.id)
 
-      if (navegacaoCategoria === 'faixas') {
-        // Faixas expansíveis: os itens de cada categoria só são buscados
-        // quando o visitante abre aquela faixa (FaixasCategorias.tsx,
-        // client-side) — aqui busca só a contagem (pro cabeçalho) e os
-        // itens em promoção (pro carrossel do topo), sem trazer o
-        // cardápio inteiro de uma vez como a navegação em pílulas faz.
+      if (navegacaoCategoria === 'faixas' || navegacaoCategoria === 'cards') {
+        // Faixas e Cards: os itens de cada categoria não são buscados
+        // aqui — faixas busca sob demanda ao abrir (FaixasCategorias.tsx),
+        // cards nem mostra item nenhum nesta página, só o grid (os itens
+        // só são buscados na página própria da categoria, depois do
+        // clique). Aqui busca só a contagem (pro cabeçalho) e os itens em
+        // promoção (pro carrossel do topo), sem trazer o cardápio inteiro
+        // de uma vez como a navegação em pílulas faz.
         const [{ count }, { data: promoItens }] = await Promise.all([
           supabase
             .from('itens_cardapio')
@@ -133,7 +141,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             .eq('disponivel', true),
           supabase
             .from('itens_cardapio')
-            .select('id, nome, preco, preco_promocional, foto_url, categoria_id')
+            .select('id, nome, descricao, preco, preco_promocional, foto_url, categoria_id')
             .in('categoria_id', catIds)
             .eq('disponivel', true)
             .eq('promo_status', 'active')
@@ -164,10 +172,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     }
   }
 
-  const totalItens = navegacaoCategoria === 'faixas'
+  const totalItens = navegacaoCategoria === 'faixas' || navegacaoCategoria === 'cards'
     ? totalItensFaixas
     : Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)
-  const fmt = (v: number) => v?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   // Formato do cardápio — campo independente do tema (estabelecimentos.
   // cardapio_formato), escolhido em Configurações → Tema. Desacoplado de
@@ -340,42 +347,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
               )}
             </div>
             <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
-              {itensComPromo.map((item: any) => {
-                const foto = getOptimizedCloudinaryUrl(item.foto_url, 200, 200, 'fill')
-                const pct  = item.preco && item.preco_promocional
-                  ? Math.round((1 - item.preco_promocional / item.preco) * 100) : 0
-                return (
-                  <a key={item.id} href={`#cat-${item.categoria_id}`}
-                    // Altura fixa (não "auto") — sem isso, o align-items:stretch
-                    // padrão do flex do carrossel deixa esse card tão alto
-                    // quanto o vizinho mais alto da linha (o SpecialOfferCard,
-                    // que tem sua própria altura fixa maior), esticando esse
-                    // card de item mesmo sem precisar. Esse valor (h-44) é a
-                    // referência que SpecialOfferCard também usa.
-                    className="flex-shrink-0 w-32 h-44 overflow-hidden border cursor-pointer hover:shadow-md transition"
-                    style={{ backgroundColor: corF, borderColor: corBd, borderRadius: cardRaio }}>
-                    <div className="relative h-20 bg-gray-100">
-                      {foto
-                        ? <Image src={foto} alt={item.nome} fill
-                            className="object-cover" sizes="128px" unoptimized loading="lazy" />
-                        : <div className="w-full h-full flex items-center justify-center text-2xl">🍽️</div>
-                      }
-                      {pct > 0 && (
-                        <span className="absolute top-1 left-1 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ backgroundColor: corP }}>-{pct}%</span>
-                      )}
-                    </div>
-                    <div className="p-2">
-                      {/* Código do produto (#123) fica só na listagem completa do
-                          cardápio — no carrossel, mais compacto, não aparece. */}
-                      <p className="text-xs font-medium leading-tight line-clamp-2"
-                        style={{ color: corT }}><Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto></p>
-                      <p className="text-xs text-gray-400 line-through mt-0.5">R$ {fmt(item.preco)}</p>
-                      <p className="text-xs font-bold" style={{ color: corP }}>R$ {fmt(item.preco_promocional)}</p>
-                    </div>
-                  </a>
-                )
-              })}
+              {itensComPromo.map((item: any) => (
+                <PromoItemCard key={item.id} item={item} corP={corP} corT={corT} corF={corF} corBd={corBd} cardRaio={cardRaio} />
+              ))}
               {itensComPromo.length > 0 && ofertasVisiveis.length > 0 && (
                 <div className="flex-shrink-0 w-px self-stretch my-1" style={{ backgroundColor: corBd }} />
               )}
@@ -387,8 +361,8 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         )}
 
         {/* ── NAVEGAÇÃO POR CATEGORIA ── */}
-        {/* Só na navegação em pílulas — no modo "faixas" a lista de
-            faixas abaixo já É a navegação, as duas são alternativas. */}
+        {/* Pílulas e Cards são as duas navegações "por cima" da lista —
+            no modo "faixas" a lista de faixas abaixo já É a navegação. */}
         {navegacaoCategoria === 'pilulas' && categorias.length > 1 && (
           <NavegacaoCategorias
             categorias={categorias.reduce((acc: { id: string; nome: string }[], cat: any) => {
@@ -400,15 +374,29 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             corBd={corBd}
           />
         )}
+        {navegacaoCategoria === 'cards' && categorias.length > 0 && (
+          <NavegacaoCategoriasCards
+            slug={est.slug}
+            categorias={categorias.map((cat: any) => ({ id: cat.id, nome: cat.nome, foto_url: cat.foto_url || null }))}
+            corS={corS}
+            corBd={corBd}
+            cardRaio={cardRaio}
+          />
+        )}
 
         {/* ── CATEGORIAS E ITENS ── */}
+        {/* No modo Cards não tem lista de itens aqui — de propósito, é
+            exatamente isso que evita carregar o cardápio inteiro de uma
+            vez; os itens só aparecem na página própria de cada
+            categoria, depois do clique no card acima. */}
         {categorias.length === 0 ? (
           <div className="rounded-2xl p-12 text-center shadow"
             style={{ backgroundColor: corS }}>
             <p className="text-lg font-medium"><TextoInterface chave="nenhum_item_disponivel">Nenhum item disponível</TextoInterface></p>
             <p className="text-sm opacity-60 mt-1"><TextoInterface chave="volte_em_breve">Volte em breve!</TextoInterface></p>
           </div>
-        ) : navegacaoCategoria === 'faixas' ? (
+        ) : navegacaoCategoria === 'cards' ? null
+        : navegacaoCategoria === 'faixas' ? (
           <FaixasCategorias
             categorias={categorias}
             layoutCardapio={layoutCardapio}

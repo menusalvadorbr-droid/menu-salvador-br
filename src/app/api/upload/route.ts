@@ -25,8 +25,15 @@ export async function POST(request: Request) {
       body: cloudinaryFormData,
     })
     const data = await res.json()
-    return NextResponse.json(data)
+    // Antes sempre respondia 200 aqui, mesmo quando o Cloudinary recusava o
+    // upload (preset inválido, etc.) — o cliente só descobria pela ausência
+    // de secure_url, sem o status real pra diferenciar os casos. Loga
+    // server-side também, pra aparecer no log do deploy sem depender só do
+    // alert no navegador.
+    if (!res.ok) console.error('Cloudinary recusou o upload:', res.status, data)
+    return NextResponse.json(data, { status: res.status })
   } catch (err) {
+    console.error('Falha na comunicação com Cloudinary:', err)
     return NextResponse.json({ error: 'Falha na comunicação com Cloudinary' }, { status: 500 })
   }
 }

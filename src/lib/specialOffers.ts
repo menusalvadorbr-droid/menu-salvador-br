@@ -29,10 +29,20 @@ export interface SpecialOfferRow {
   alerta_minutos: number
 }
 
+/** Item do cardápio composto num combo (special_offer_itens) — opcional,
+ *  uma promoção com contador continua podendo ser nome/preço/foto livres. */
+export interface SpecialOfferItemRow {
+  id: string
+  special_offer_id: string
+  item_cardapio_id: string
+  quantidade: number
+}
+
 export type EstadoOferta =
   | { tipo: 'fora' }
   | { tipo: 'anuncio'; texto: string }
   | { tipo: 'ativo'; fimIso: string }
+  | { tipo: 'sempre' }
 
 function paraMinutos(hora: string): number {
   const [h, m] = hora.split(':').map(Number)
@@ -86,13 +96,13 @@ export function calcularEstadoOferta(offer: SpecialOfferRow, agora: Date = new D
     return { tipo: 'fora' }
   }
 
-  // Pontual — fim_em é obrigatório (sem ele não dá pra saber quando conta
-  // como "ativo"), mas inicio_em ausente conta como "já começou" (sem
-  // limite inferior) em vez de esconder a promoção inteira. Antes exigia os
-  // dois juntos, o que escondia qualquer promoção cadastrada só com "fim"
-  // preenchido (o caso mais comum de teste rápido: "termina às X", sem se
-  // preocupar em also marcar "começa agora").
-  if (!offer.fim_em) return { tipo: 'fora' }
+  // Pontual sem fim_em = "Tem prazo definido? Não" no formulário — um
+  // combo/item fixo, sempre disponível, sem contador. Diferente de "fora"
+  // (que esconde a oferta inteira): aqui ela aparece sempre, só sem selo de
+  // tempo. Só é possível chegar aqui com inicio_em também vazio (o
+  // formulário zera os dois juntos quando não tem prazo), mas checamos os
+  // dois por segurança — não faz sentido "sempre ativo, mas só depois de X".
+  if (!offer.fim_em) return offer.inicio_em ? { tipo: 'fora' } : { tipo: 'sempre' }
   const fim = new Date(offer.fim_em)
   const inicio = offer.inicio_em ? new Date(offer.inicio_em) : null
 

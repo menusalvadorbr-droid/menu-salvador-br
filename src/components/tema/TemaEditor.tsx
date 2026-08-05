@@ -106,7 +106,7 @@ export default function TemaEditor({
   // Opções por estabelecimento
   const [cfg, setCfg] = useState<CardapioConfig>(DEFAULT_CONFIG)
   const [formato, setFormato] = useState<'lista' | 'catalogo'>('lista')
-  const [navegacaoCategoria, setNavegacaoCategoria] = useState<'pilulas' | 'faixas'>('pilulas')
+  const [navegacaoCategoria, setNavegacaoCategoria] = useState<'pilulas' | 'faixas' | 'cards'>('pilulas')
   const [cfgDirty, setCfgDirty] = useState(false)
 
   // Só do preview — qual categoria está "ativa" (pílulas) ou "aberta"
@@ -136,7 +136,13 @@ export default function TemaEditor({
           titulo:             saved.titulo              ?? (estData.nome_fantasia || estData.nome || ''),
         })
         setFormato(estData.cardapio_formato === 'catalogo' ? 'catalogo' : 'lista')
-        setNavegacaoCategoria(estData.cardapio_navegacao_categoria === 'faixas' ? 'faixas' : 'pilulas')
+        setNavegacaoCategoria(
+          estData.cardapio_navegacao_categoria === 'faixas'
+            ? 'faixas'
+            : estData.cardapio_navegacao_categoria === 'cards'
+              ? 'cards'
+              : 'pilulas'
+        )
       }
       setLoading(false)
     }
@@ -153,7 +159,7 @@ export default function TemaEditor({
     setCfgDirty(true)
   }
 
-  function updNavegacaoCategoria(novo: 'pilulas' | 'faixas') {
+  function updNavegacaoCategoria(novo: 'pilulas' | 'faixas' | 'cards') {
     setNavegacaoCategoria(novo)
     setCfgDirty(true)
   }
@@ -409,11 +415,12 @@ export default function TemaEditor({
                 qualquer combinação funciona. */}
             <div className="mb-5">
               <label className="block text-xs font-medium text-gray-600 mb-2">Navegação de categoria</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {([
                   { value: 'pilulas', label: 'Pílulas fixas no topo' },
                   { value: 'faixas', label: 'Faixas expansíveis' },
-                ] as Array<{ value: 'pilulas' | 'faixas'; label: string }>).map(op => (
+                  { value: 'cards', label: 'Cards de categoria com foto' },
+                ] as Array<{ value: 'pilulas' | 'faixas' | 'cards'; label: string }>).map(op => (
                   <button
                     key={op.value}
                     onClick={() => updNavegacaoCategoria(op.value)}
@@ -429,7 +436,11 @@ export default function TemaEditor({
                 ))}
               </div>
               <p className="mt-1.5 text-[11px] text-gray-400">
-                Faixas expansíveis carregam os itens de cada categoria só quando ela é aberta — mais leve pra cardápios grandes.
+                {navegacaoCategoria === 'faixas'
+                  ? 'Faixas expansíveis carregam os itens de cada categoria só quando ela é aberta — mais leve pra cardápios grandes.'
+                  : navegacaoCategoria === 'cards'
+                    ? 'Mostra um grid de categorias com foto antes da lista; clicar leva pra uma página própria daquela categoria, que carrega só os itens dela — a mais leve pra cardápios grandes.'
+                    : 'Pílulas fixas já carregam o cardápio inteiro de uma vez.'}
               </p>
             </div>
 
@@ -601,7 +612,34 @@ export default function TemaEditor({
                     de categoria escolhida em "Opções do cardápio"
                     (pílulas fixas vs. faixas expansíveis), igual o
                     cardápio público faz de verdade. */}
-                {navegacaoCategoria === 'pilulas' ? (
+                {navegacaoCategoria === 'cards' ? (
+                  // Grid de cards de categoria — no cardápio de verdade,
+                  // clicar leva pra uma página própria daquela categoria
+                  // (que aí sim busca os itens); aqui é só a prévia do
+                  // grid, sem itens embaixo, igual o comportamento real.
+                  <div className="grid grid-cols-2 gap-2 p-3">
+                    {CATEGORIAS_PREVIEW.map(catNome => {
+                      const fotoCategoria = ITENS_PREVIEW.find(i => i.categoria === catNome)?.foto_url
+                      return (
+                        <div
+                          key={catNome}
+                          className="relative aspect-[16/9] overflow-hidden"
+                          style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raioCard }}
+                        >
+                          {fotoCategoria ? (
+                            <img src={fotoCategoria} alt={catNome} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-2xl">🍽️</div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                          <span className="absolute bottom-0 left-0 right-0 p-2 text-xs font-semibold text-white">
+                            {catNome}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : navegacaoCategoria === 'pilulas' ? (
                   <>
                     <div className="flex gap-1.5 overflow-x-auto px-3 pt-3">
                       {CATEGORIAS_PREVIEW.map(catNome => (

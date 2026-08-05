@@ -1,0 +1,205 @@
+import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { Metadata } from 'next'
+import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
+import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
+import ItemCatalogoCard from '@/components/public/ItemCatalogoCard'
+import ItemListaLinha from '@/components/public/ItemListaLinha'
+import { obterFonteTema } from '@/lib/fontesTema'
+import { buscarItensCategoriaPublica } from '../../buscarItensCategoria'
+
+interface TemaConfigParcial {
+  cor_primaria?: string
+  cor_secundaria?: string
+  cor_fundo?: string
+  cor_texto?: string
+  cor_borda?: string
+  fonte?: string
+  card_raio?: number
+}
+
+interface CardapioConfigParcial {
+  foto_posicao?: 'left' | 'right' | 'top' | 'none'
+  mostrar_codigo?: boolean
+  mostrar_alergenos?: boolean
+}
+
+// ─────────────────────────────────────────────────────────────
+// SEO
+// ─────────────────────────────────────────────────────────────
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; categoriaId: string }>
+}): Promise<Metadata> {
+  const { slug, categoriaId } = await params
+  const supabase = await createClient()
+  const [{ data: est }, { data: categoria }] = await Promise.all([
+    supabase.from('estabelecimentos').select('nome, nome_fantasia').eq('slug', slug).eq('status', 'active').eq('ativo', true).limit(1).single(),
+    supabase.from('categorias').select('nome').eq('id', categoriaId).maybeSingle(),
+  ])
+  if (!est) return { title: 'Cardápio Digital' }
+  const nome = est.nome_fantasia || est.nome
+  return {
+    title: categoria ? `${categoria.nome} — ${nome}` : `${nome} — Cardápio Digital`,
+    robots: { index: true, follow: true },
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PÁGINA DE CATEGORIA — busca só os itens dessa categoria, não o cardápio
+// inteiro. Destino da navegação por cards (Configurações → Tema →
+// Navegação de categoria = Cards): cada categoria vira um card com foto na
+// página principal, e só ao clicar é que os itens dela são buscados —
+// importante pra cardápio grande, onde carregar tudo de uma vez pesaria.
+// ─────────────────────────────────────────────────────────────
+export default async function CategoriaCardapioPage({
+  params,
+}: {
+  params: Promise<{ slug: string; categoriaId: string }>
+}) {
+  const supabase = await createClient()
+  const { slug, categoriaId } = await params
+
+  // 1. Estabelecimento — só os campos que essa página precisa (mais leve
+  // que o select('*') da página principal, que carrega hero/bairro/etc.
+  // que não aparecem aqui).
+  const { data: est, error: estErr } = await supabase
+    .from('estabelecimentos')
+    .select('id, slug, nome, nome_fantasia, tema_atual_id, cardapio_config, cardapio_formato, cardapio_clique_expande_ativado, cardapio_carrinho_ativado, idiomas_ativos, whatsapp')
+    .eq('slug', slug).eq('status', 'active').eq('ativo', true)
+    .limit(1).single()
+  if (estErr || !est) notFound()
+
+  // 2. Tema (cores) — mesmo cálculo da página principal.
+  let temaConfig: TemaConfigParcial = {}
+  if (est.tema_atual_id) {
+    const { data: tema } = await supabase
+      .from('temas').select('config').eq('id', est.tema_atual_id).single()
+    if (tema) temaConfig = tema.config || {}
+  }
+  const corP  = temaConfig.cor_primaria   || '#f97316'
+  const corS  = temaConfig.cor_secundaria || '#ffffff'
+  const corF  = temaConfig.cor_fundo      || '#f9fafb'
+  const corT  = temaConfig.cor_texto      || '#1f2937'
+  const corBd = temaConfig.cor_borda      || `${corP}30`
+  const fonteTema = obterFonteTema(temaConfig.fonte)
+  const cardRaio = `${Number.isFinite(temaConfig.card_raio) ? temaConfig.card_raio : 16}px`
+
+  const cc: CardapioConfigParcial = est.cardapio_config || {}
+  const fotoPosicao      = (cc.foto_posicao      ?? 'left') as 'left' | 'right' | 'top' | 'none'
+  const mostrarCodigo    = cc.mostrar_codigo    !== false
+  const mostrarAlergenos = cc.mostrar_alergenos !== false
+  const layoutCardapio: 'lista' | 'catalogo' = est.cardapio_formato === 'catalogo' ? 'catalogo' : 'lista'
+  const cliqueExpandeAtivado = !!est.cardapio_clique_expande_ativado
+  const carrinhoAtivado = !!est.cardapio_carrinho_ativado
+  const nomeEstabelecimento = est.nome_fantasia || est.nome
+
+  // 3. Categoria — confere que pertence a um menu deste estabelecimento
+  // (não só que o id existe) antes de mostrar qualquer coisa.
+  const { data: menus } = await supabase
+    .from('menus')
+    .select('id')
+    .eq('estabelecimento_id', est.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+  const menu = menus?.[0] ?? null
+
+  const { data: categoria } = await supabase
+    .from('categorias')
+    .select('*')
+    .eq('id', categoriaId)
+    .maybeSingle()
+  if (!menu || !categoria || categoria.menu_id !== menu.id) notFound()
+
+  // 4. Só os itens DESSA categoria — mesma busca usada pelas faixas
+  // expansíveis (buscarItensCategoria.ts), reaproveitada aqui.
+  const itens = await buscarItensCategoriaPublica(categoriaId)
+
+  // 5. Tradução manual do cardápio (EN/FR/ES) — mesmo padrão da página
+  // principal, sem filtrar por categoria (a tabela já é por item).
+  const idiomasAtivos: string[] = est.idiomas_ativos || []
+  let traducoes: TraducaoRow[] = []
+  let traducoesInterface: TraducaoInterfaceRow[] = []
+  if (idiomasAtivos.length > 0) {
+    const [{ data: trads }, { data: tradsInterface }] = await Promise.all([
+      supabase
+        .from('traducoes')
+        .select('tipo_registro, registro_id, idioma, campo, valor')
+        .eq('estabelecimento_id', est.id),
+      supabase.from('traducoes_interface').select('chave, idioma, valor'),
+    ])
+    traducoes = trads || []
+    traducoesInterface = tradsInterface || []
+  }
+
+  return (
+    <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes} traducoesInterface={traducoesInterface}>
+    <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
+    <div className={`min-h-screen ${fonteTema.className}`} style={{ backgroundColor: corF, color: corT }}>
+      <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
+
+        {/* ── CABEÇALHO ── */}
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link href={`/cardapio/${est.slug}`} className="text-sm hover:underline" style={{ color: corP }}>
+              ← <TextoInterface chave="voltar_categorias">Categorias</TextoInterface>
+            </Link>
+            <h1 className="mt-1 text-xl font-bold truncate" style={{ color: corP }}>
+              <Texto tipo="categoria" id={categoria.id} campo="nome">{categoria.nome}</Texto>
+            </h1>
+            <p className="text-xs opacity-50 truncate">{nomeEstabelecimento}</p>
+          </div>
+          <SeletorIdioma idiomasAtivos={idiomasAtivos} />
+        </div>
+
+        {/* ── ITENS ── */}
+        {itens.length === 0 ? (
+          <div className="rounded-2xl p-12 text-center shadow" style={{ backgroundColor: corS }}>
+            <p className="text-lg font-medium"><TextoInterface chave="nenhum_item_disponivel">Nenhum item disponível</TextoInterface></p>
+            <p className="text-sm opacity-60 mt-1"><TextoInterface chave="volte_em_breve">Volte em breve!</TextoInterface></p>
+          </div>
+        ) : layoutCardapio === 'catalogo' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {itens.map((item) => (
+              <ItemCatalogoCard
+                key={item.id}
+                item={item}
+                corP={corP} corT={corT} corS={corS} corBd={corBd}
+                cardRaio={cardRaio}
+                mostrarAlergenos={mostrarAlergenos}
+                cliqueExpandeAtivado={cliqueExpandeAtivado}
+                carrinhoAtivado={carrinhoAtivado}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl overflow-hidden shadow divide-y" style={{ backgroundColor: corS, borderColor: corBd }}>
+            {itens.map((item) => (
+              <ItemListaLinha
+                key={item.id}
+                item={item}
+                corP={corP} corT={corT} corS={corS} corBd={corBd}
+                mostrarCodigo={mostrarCodigo}
+                mostrarAlergenos={mostrarAlergenos}
+                fotoPosicao={fotoPosicao}
+                cliqueExpandeAtivado={cliqueExpandeAtivado}
+                carrinhoAtivado={carrinhoAtivado}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* RODAPÉ */}
+        <p className="mt-8 text-center text-xs opacity-40" style={{ color: corT }}>
+          <TextoInterface chave="rodape_aviso">
+            Cardápio sujeito a alterações. Alérgenos: consulte o atendente em caso de dúvida.
+          </TextoInterface>
+        </p>
+      </div>
+    </div>
+    </CarrinhoProvider>
+    </TraducaoProvider>
+  )
+}

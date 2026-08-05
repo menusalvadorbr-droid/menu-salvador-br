@@ -18,6 +18,7 @@ interface Categoria {
   nome: string
   menu_id: string
   ordem: number
+  foto_url: string | null
 }
 
 interface VariacaoItem {
@@ -132,6 +133,10 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [catEditandoNome, setCatEditandoNome] = useState<string | null>(null)
   const [nomeCategoriaEdicao, setNomeCategoriaEdicao] = useState('')
   const [salvandoNomeCategoria, setSalvandoNomeCategoria] = useState(false)
+  // Foto representativa da categoria — usada pela navegação por categoria
+  // em cards no cardápio público (Configurações → Tema → Navegação de
+  // categoria). Opcional, painel inline igual o de traduções.
+  const [catEditandoFoto, setCatEditandoFoto] = useState<string | null>(null)
   const [gruposEstabelecimento, setGruposEstabelecimento] = useState<GrupoComplemento[]>([])
   const [gruposVinculadosIds, setGruposVinculadosIds] = useState<string[]>([])
   const [grupoEditandoIndex, setGrupoEditandoIndex] = useState<number | null>(null)
@@ -512,6 +517,27 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       await carregar()
     }
     setSalvandoNomeCategoria(false)
+  }
+
+  // ── FOTO DA CATEGORIA (painel inline) ──
+  async function salvarFotoCategoria(id: string, fotoUrl: string) {
+    const { error } = await supabase.from('categorias').update({ foto_url: fotoUrl }).eq('id', id)
+    if (error) {
+      logSupabaseError('Erro ao salvar foto da categoria', error)
+      setErro('Erro ao salvar foto da categoria: ' + error.message)
+      return
+    }
+    await carregar()
+  }
+
+  async function removerFotoCategoria(id: string) {
+    const { error } = await supabase.from('categorias').update({ foto_url: null }).eq('id', id)
+    if (error) {
+      logSupabaseError('Erro ao remover foto da categoria', error)
+      setErro('Erro ao remover foto da categoria: ' + error.message)
+      return
+    }
+    await carregar()
   }
 
   // ── TRADUÇÕES DA CATEGORIA (painel inline) ──
@@ -1340,6 +1366,13 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                       >
                         ✏️ editar nome
                       </button>
+                      <button
+                        onClick={() => setCatEditandoFoto(catEditandoFoto === cat.id ? null : cat.id)}
+                        className="text-gray-500 hover:underline font-medium"
+                        title="Foto da categoria (navegação por cards no cardápio público)"
+                      >
+                        🖼️ {cat.foto_url ? 'foto' : 'add. foto'}
+                      </button>
                       {idiomasAtivos.length > 0 && (
                         <button
                           onClick={() => abrirTraducoesCategoria(cat.id)}
@@ -1368,6 +1401,24 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
                   </button>
                 )}
               </div>
+
+              {/* painel inline da foto da categoria */}
+              {catEditandoFoto === cat.id && (
+                <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                  <p className="text-xs font-medium text-gray-600 mb-2">
+                    🖼️ Foto da categoria — {cat.nome}
+                    <span className="ml-1 font-normal text-gray-400">(usada na navegação por cards no cardápio público)</span>
+                  </p>
+                  <ImageUpload
+                    onUpload={(url) => salvarFotoCategoria(cat.id, url)}
+                    onRemove={() => removerFotoCategoria(cat.id)}
+                    currentImage={cat.foto_url}
+                    label="Foto da categoria"
+                    aspectRatio="16:9"
+                    maxSize={2}
+                  />
+                </div>
+              )}
 
               {/* painel inline de traduções da categoria */}
               {catEditandoTraducoes === cat.id && (
