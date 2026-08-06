@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Texto } from './TraducaoCardapio'
 import ItemCatalogoCard from './ItemCatalogoCard'
 import ItemListaLinha from './ItemListaLinha'
-import { buscarItensCategoriaPublica } from '@/app/(public-cardapio)/cardapio/[slug]/buscarItensCategoria'
+import { buscarItensCategoriaPublica, buscarUltimaAtualizacaoCardapio } from '@/app/(public-cardapio)/cardapio/[slug]/buscarItensCategoria'
 import type { ItemCardapioBruto } from '@/lib/resolverItemCardapio'
 
 interface CategoriaFaixa {
@@ -36,6 +36,15 @@ interface FaixasCategoriasProps {
  * — diferente da navegação em pílulas, que já chega com tudo carregado.
  * Só uma faixa fica aberta por vez: abrir uma fecha a anterior, porque só
  * existe um id guardado em `abertaId`.
+ *
+ * Invalidação do cache: uma checagem leve (updated_at mais recente entre
+ * TODOS os itens do cardápio, uma linha só) roda ao abrir uma faixa já em
+ * cache, ou pra estabelecer o valor de referência na primeira faixa aberta
+ * nesta navegação. Se mudou desde a referência anterior, o cache inteiro
+ * é descartado (não só o dessa categoria) — a categoria clicada busca
+ * fresca, e qualquer outra revisitada depois também, já que não sobrou
+ * nada em cache. Não persiste entre visitas: é só estado em memória,
+ * perdido ao recarregar a página.
  */
 export default function FaixasCategorias({
   categorias,
@@ -54,6 +63,20 @@ export default function FaixasCategorias({
   const [abertaId, setAbertaId] = useState<string | null>(null)
   const [itensPorCategoria, setItensPorCategoria] = useState<Record<string, ItemCardapioBruto[]>>({})
   const [carregandoId, setCarregandoId] = useState<string | null>(null)
+  // Referência pra invalidação do cache — null até a primeira checagem.
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null)
+
+  // Busca o valor de referência atual e compara com o guardado. Se mudou,
+  // descarta o cache inteiro (todas as categorias já vistas, não só a que
+  // disparou a checagem) — retorna se invalidou, pra quem chamou decidir
+  // se ainda pode reaproveitar o que tinha em mãos.
+  async function verificarEAtualizarCache(): Promise<boolean> {
+    const atual = await buscarUltimaAtualizacaoCardapio(categorias.map((c) => c.id))
+    const mudou = ultimaAtualizacao !== null && atual !== ultimaAtualizacao
+    if (mudou) setItensPorCategoria({})
+    setUltimaAtualizacao(atual)
+    return mudou
+  }
 
   async function alternar(categoriaId: string) {
     if (abertaId === categoriaId) {
@@ -61,7 +84,19 @@ export default function FaixasCategorias({
       return
     }
     setAbertaId(categoriaId)
-    if (itensPorCategoria[categoriaId]) return
+
+    if (itensPorCategoria[categoriaId]) {
+      // Já em cache — confirma que nada mudou no cardápio inteiro desde
+      // então antes de reaproveitar. Se mudou, o cache foi descartado
+      // acima e cai pro fetch abaixo, igual uma categoria nova.
+      const invalidou = await verificarEAtualizarCache()
+      if (!invalidou) return
+    } else if (ultimaAtualizacao === null) {
+      // Primeira faixa aberta nesta navegação — só estabelece a
+      // referência (não bloqueia o fetch dela, que vai acontecer de
+      // qualquer forma por ainda não estar em cache).
+      verificarEAtualizarCache()
+    }
 
     setCarregandoId(categoriaId)
     const itens = await buscarItensCategoriaPublica(categoriaId)
