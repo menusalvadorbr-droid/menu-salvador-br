@@ -29,7 +29,7 @@ export async function getPromocoesAtivas(): Promise<PromocaoCarrossel[]> {
       foto_url,
       categorias (
         menus (
-          estabelecimentos ( nome, slug )
+          estabelecimentos ( nome, nome_fantasia, slug )
         )
       )
     `)
@@ -52,7 +52,7 @@ export async function getPromocoesAtivas(): Promise<PromocaoCarrossel[]> {
         preco: item.preco,
         preco_promocional: item.preco_promocional,
         foto_url: item.foto_url,
-        nomeEstabelecimento: estabelecimento?.nome || 'Estabelecimento',
+        nomeEstabelecimento: estabelecimento?.nome_fantasia || estabelecimento?.nome || 'Estabelecimento',
         slug: estabelecimento?.slug || null,
       }
     })
