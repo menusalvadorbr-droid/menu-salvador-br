@@ -3,11 +3,9 @@ import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
-import ItemCatalogoCard from '@/components/public/ItemCatalogoCard'
-import ItemListaLinha from '@/components/public/ItemListaLinha'
 import BotaoVoltarCategorias from '@/components/public/BotaoVoltarCategorias'
+import CategoriaItensClient from '@/components/public/CategoriaItensClient'
 import { obterFonteTema } from '@/lib/fontesTema'
-import { buscarItensCategoriaPublica } from '../../buscarItensCategoria'
 
 interface TemaConfigParcial {
   cor_primaria?: string
@@ -113,9 +111,10 @@ export default async function CategoriaCardapioPage({
     .maybeSingle()
   if (!menu || !categoria || categoria.menu_id !== menu.id) notFound()
 
-  // 4. Só os itens DESSA categoria — mesma busca usada pelas faixas
-  // expansíveis (buscarItensCategoria.ts), reaproveitada aqui.
-  const itens = await buscarItensCategoriaPublica(categoriaId)
+  // 4. Os itens dessa categoria NÃO são buscados aqui — CategoriaItensClient
+  // (client component) cuida disso via useCardapioPublico (cache local +
+  // Realtime), pra reaproveitar entre visitas em vez de bater no banco
+  // de novo toda vez que essa página é aberta.
 
   // 5. Tradução manual do cardápio (EN/FR/ES) — mesmo padrão da página
   // principal, sem filtrar por categoria (a tabela já é por item).
@@ -156,41 +155,18 @@ export default async function CategoriaCardapioPage({
         </div>
 
         {/* ── ITENS ── */}
-        {itens.length === 0 ? (
-          <div className="rounded-2xl p-12 text-center shadow" style={{ backgroundColor: corS }}>
-            <p className="text-lg font-medium"><TextoInterface chave="nenhum_item_disponivel">Nenhum item disponível</TextoInterface></p>
-            <p className="text-sm opacity-60 mt-1"><TextoInterface chave="volte_em_breve">Volte em breve!</TextoInterface></p>
-          </div>
-        ) : layoutCardapio === 'catalogo' ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {itens.map((item) => (
-              <ItemCatalogoCard
-                key={item.id}
-                item={item}
-                corP={corP} corT={corT} corS={corS} corBd={corBd}
-                cardRaio={cardRaio}
-                mostrarAlergenos={mostrarAlergenos}
-                cliqueExpandeAtivado={cliqueExpandeAtivado}
-                carrinhoAtivado={carrinhoAtivado}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl overflow-hidden shadow divide-y" style={{ backgroundColor: corS, borderColor: corBd }}>
-            {itens.map((item) => (
-              <ItemListaLinha
-                key={item.id}
-                item={item}
-                corP={corP} corT={corT} corS={corS} corBd={corBd}
-                mostrarCodigo={mostrarCodigo}
-                mostrarAlergenos={mostrarAlergenos}
-                fotoPosicao={fotoPosicao}
-                cliqueExpandeAtivado={cliqueExpandeAtivado}
-                carrinhoAtivado={carrinhoAtivado}
-              />
-            ))}
-          </div>
-        )}
+        <CategoriaItensClient
+          estabelecimentoId={est.id}
+          categoriaId={categoria.id}
+          layoutCardapio={layoutCardapio}
+          corP={corP} corT={corT} corS={corS} corBd={corBd}
+          cardRaio={cardRaio}
+          mostrarCodigo={mostrarCodigo}
+          mostrarAlergenos={mostrarAlergenos}
+          fotoPosicao={fotoPosicao}
+          cliqueExpandeAtivado={cliqueExpandeAtivado}
+          carrinhoAtivado={carrinhoAtivado}
+        />
 
         {/* RODAPÉ */}
         <p className="mt-8 text-center text-xs opacity-40" style={{ color: corT }}>

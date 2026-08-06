@@ -57,6 +57,7 @@ export interface ItemCardapioBruto {
   promo_status: string | null
   preco_promocional: number | null
   ordem: number
+  updated_at: string
   variacoes_item?: VariacaoItemBruta[] | null
   item_grupo_complemento?: ItemGrupoComplementoBruto[] | null
   item_allergens?: { allergen: AllergenBruto | null }[] | null

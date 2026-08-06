@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { Texto } from './TraducaoCardapio'
 import ItemCatalogoCard from './ItemCatalogoCard'
 import ItemListaLinha from './ItemListaLinha'
-import { buscarItensCategoriaPublica, buscarUltimaAtualizacaoCardapio } from '@/app/(public-cardapio)/cardapio/[slug]/buscarItensCategoria'
-import type { ItemCardapioBruto } from '@/lib/resolverItemCardapio'
+import { useCardapioPublico } from './useCardapioPublico'
 
 interface CategoriaFaixa {
   id: string
@@ -13,6 +12,7 @@ interface CategoriaFaixa {
 }
 
 interface FaixasCategoriasProps {
+  estabelecimentoId: string
   categorias: CategoriaFaixa[]
   layoutCardapio: 'lista' | 'catalogo'
   corP: string
@@ -31,23 +31,19 @@ interface FaixasCategoriasProps {
  * Alternativa à navegação em pílulas (NavegacaoCategorias.tsx) — cada
  * categoria vira uma faixa que expande ao tocar, mostrando os itens no
  * formato já escolhido (Lista ou Catálogo, independente dessa escolha de
- * navegação). Os itens de uma categoria só são buscados na hora em que a
- * faixa é aberta pela primeira vez (fica em cache no estado depois disso)
- * — diferente da navegação em pílulas, que já chega com tudo carregado.
- * Só uma faixa fica aberta por vez: abrir uma fecha a anterior, porque só
- * existe um id guardado em `abertaId`.
+ * navegação). Só uma faixa fica aberta por vez: abrir uma fecha a
+ * anterior, porque só existe um id guardado em `abertaId`.
  *
- * Invalidação do cache: uma checagem leve (updated_at mais recente entre
- * TODOS os itens do cardápio, uma linha só) roda ao abrir uma faixa já em
- * cache, ou pra estabelecer o valor de referência na primeira faixa aberta
- * nesta navegação. Se mudou desde a referência anterior, o cache inteiro
- * é descartado (não só o dessa categoria) — a categoria clicada busca
- * fresca, e qualquer outra revisitada depois também, já que não sobrou
- * nada em cache. Não persiste entre visitas: é só estado em memória,
- * perdido ao recarregar a página.
+ * Dados (categorias + itens de cada faixa aberta) vêm do
+ * useCardapioPublico — cache persistente em localStorage, checado uma
+ * vez na entrada (id+updated_at contra o servidor) e mantido ao vivo via
+ * Realtime pelo resto da visita, ver esse hook pros detalhes. `categorias`
+ * (prop, vinda do servidor) é só o valor exibido até o hook carregar o
+ * dele — evita a lista de nomes sumir/piscar enquanto isso.
  */
 export default function FaixasCategorias({
-  categorias,
+  estabelecimentoId,
+  categorias: categoriasServidor,
   layoutCardapio,
   corP,
   corT,
@@ -61,52 +57,23 @@ export default function FaixasCategorias({
   carrinhoAtivado,
 }: FaixasCategoriasProps) {
   const [abertaId, setAbertaId] = useState<string | null>(null)
-  const [itensPorCategoria, setItensPorCategoria] = useState<Record<string, ItemCardapioBruto[]>>({})
-  const [carregandoId, setCarregandoId] = useState<string | null>(null)
-  // Referência pra invalidação do cache — null até a primeira checagem.
-  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null)
+  const { categorias, itensPorCategoria, carregandoCategoriaId, garantirCategoria } = useCardapioPublico({
+    estabelecimentoId,
+  })
+  const categoriasExibidas = categorias.length > 0 ? categorias : categoriasServidor
 
-  // Busca o valor de referência atual e compara com o guardado. Se mudou,
-  // descarta o cache inteiro (todas as categorias já vistas, não só a que
-  // disparou a checagem) — retorna se invalidou, pra quem chamou decidir
-  // se ainda pode reaproveitar o que tinha em mãos.
-  async function verificarEAtualizarCache(): Promise<boolean> {
-    const atual = await buscarUltimaAtualizacaoCardapio(categorias.map((c) => c.id))
-    const mudou = ultimaAtualizacao !== null && atual !== ultimaAtualizacao
-    if (mudou) setItensPorCategoria({})
-    setUltimaAtualizacao(atual)
-    return mudou
-  }
-
-  async function alternar(categoriaId: string) {
+  function alternar(categoriaId: string) {
     if (abertaId === categoriaId) {
       setAbertaId(null)
       return
     }
     setAbertaId(categoriaId)
-
-    if (itensPorCategoria[categoriaId]) {
-      // Já em cache — confirma que nada mudou no cardápio inteiro desde
-      // então antes de reaproveitar. Se mudou, o cache foi descartado
-      // acima e cai pro fetch abaixo, igual uma categoria nova.
-      const invalidou = await verificarEAtualizarCache()
-      if (!invalidou) return
-    } else if (ultimaAtualizacao === null) {
-      // Primeira faixa aberta nesta navegação — só estabelece a
-      // referência (não bloqueia o fetch dela, que vai acontecer de
-      // qualquer forma por ainda não estar em cache).
-      verificarEAtualizarCache()
-    }
-
-    setCarregandoId(categoriaId)
-    const itens = await buscarItensCategoriaPublica(categoriaId)
-    setItensPorCategoria((prev) => ({ ...prev, [categoriaId]: itens }))
-    setCarregandoId(null)
+    garantirCategoria(categoriaId)
   }
 
   return (
     <div className="space-y-3">
-      {categorias.map((cat) => {
+      {categoriasExibidas.map((cat) => {
         const aberta = abertaId === cat.id
         const itens = itensPorCategoria[cat.id] || []
         return (
@@ -136,7 +103,7 @@ export default function FaixasCategorias({
 
             {aberta && (
               <div className="border-t" style={{ borderColor: corBd }}>
-                {carregandoId === cat.id ? (
+                {carregandoCategoriaId === cat.id ? (
                   <div className="flex items-center justify-center gap-2 p-8 text-sm opacity-60" style={{ color: corT }}>
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                     Carregando…

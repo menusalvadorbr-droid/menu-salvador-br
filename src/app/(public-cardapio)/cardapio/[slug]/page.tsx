@@ -5,15 +5,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
-import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
+import { TraducaoProvider, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import SpecialOfferCard from '@/components/public/SpecialOfferCard'
 import PromoItemCard from '@/components/public/PromoItemCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
 import NavegacaoCategoriasCards from '@/components/public/NavegacaoCategoriasCards'
 import FaixasCategorias from '@/components/public/FaixasCategorias'
-import ItemCatalogoCard from '@/components/public/ItemCatalogoCard'
-import ItemListaLinha from '@/components/public/ItemListaLinha'
+import PilulasCardapioClient from '@/components/public/PilulasCardapioClient'
 import { obterFonteTema } from '@/lib/fontesTema'
 import { gradienteHeroImagem } from '@/lib/temaHero'
 import { SELECT_ITEM_CARDAPIO_PUBLICO } from '@/lib/resolverItemCardapio'
@@ -398,6 +397,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         ) : navegacaoCategoria === 'cards' ? null
         : navegacaoCategoria === 'faixas' ? (
           <FaixasCategorias
+            estabelecimentoId={est.id}
             categorias={categorias}
             layoutCardapio={layoutCardapio}
             corP={corP} corT={corT} corS={corS} corBd={corBd}
@@ -408,72 +408,19 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             cliqueExpandeAtivado={cliqueExpandeAtivado}
             carrinhoAtivado={carrinhoAtivado}
           />
-        ) : layoutCardapio === 'catalogo' ? (
-          <div className="space-y-6">
-            {categorias.map((cat: any) => {
-              const itens = itensPorCat[cat.id] || []
-              if (!itens.length) return null
-              return (
-                <div key={cat.id} id={`cat-${cat.id}`} className="scroll-mt-32">
-                  <h2 className="mb-3 text-base font-semibold" style={{ color: corP }}>
-                    <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
-                    <span className="ml-2 text-sm font-normal opacity-60">({itens.length})</span>
-                  </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {itens.map((item: any) => (
-                      <ItemCatalogoCard
-                        key={item.id}
-                        item={item}
-                        corP={corP} corT={corT} corS={corS} corBd={corBd}
-                        cardRaio={cardRaio}
-                        mostrarAlergenos={mostrarAlergenos}
-                        cliqueExpandeAtivado={cliqueExpandeAtivado}
-                        carrinhoAtivado={carrinhoAtivado}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
         ) : (
-          <div className="space-y-6">
-            {categorias.map((cat: any) => {
-              const itens = itensPorCat[cat.id] || []
-              if (!itens.length) return null
-              return (
-                <div key={cat.id} id={`cat-${cat.id}`}
-                  className="scroll-mt-32 rounded-2xl overflow-hidden shadow"
-                  style={{ backgroundColor: corS }}>
-
-                  {/* Cabeçalho da categoria */}
-                  <div className="px-5 py-3 border-b"
-                    style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
-                    <h2 className="text-base font-semibold" style={{ color: corP }}>
-                      <Texto tipo="categoria" id={cat.id} campo="nome">{cat.nome}</Texto>
-                      <span className="ml-2 text-sm font-normal opacity-60">({itens.length})</span>
-                    </h2>
-                  </div>
-
-                  {/* Itens */}
-                  <div className="divide-y" style={{ borderColor: corBd }}>
-                    {itens.map((item: any) => (
-                      <ItemListaLinha
-                        key={item.id}
-                        item={item}
-                        corP={corP} corT={corT} corS={corS} corBd={corBd}
-                        mostrarCodigo={mostrarCodigo}
-                        mostrarAlergenos={mostrarAlergenos}
-                        fotoPosicao={fotoPosicao}
-                        cliqueExpandeAtivado={cliqueExpandeAtivado}
-                        carrinhoAtivado={carrinhoAtivado}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <PilulasCardapioClient
+            estabelecimentoId={est.id}
+            dadosIniciaisServidor={{ menuId: menu?.id ?? null, categorias, itensPorCategoria: itensPorCat }}
+            layoutCardapio={layoutCardapio}
+            corP={corP} corT={corT} corS={corS} corBd={corBd}
+            cardRaio={cardRaio}
+            mostrarCodigo={mostrarCodigo}
+            mostrarAlergenos={mostrarAlergenos}
+            fotoPosicao={fotoPosicao}
+            cliqueExpandeAtivado={cliqueExpandeAtivado}
+            carrinhoAtivado={carrinhoAtivado}
+          />
         )}
 
         {/* RODAPÉ */}
