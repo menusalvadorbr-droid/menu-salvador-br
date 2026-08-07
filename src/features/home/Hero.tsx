@@ -3,9 +3,10 @@ interface HeroProps {
   fontColor?: string;
   totalScans: number;
   totalEstabs: number;
+  children?: React.ReactNode;
 }
 
-export default function Hero({ backgroundImage, fontColor = '#ffffff', totalScans, totalEstabs }: HeroProps) {
+export default function Hero({ backgroundImage, fontColor = '#ffffff', totalScans, totalEstabs, children }: HeroProps) {
   return (
     <section
       className="relative overflow-hidden py-14 md:py-20"
@@ -48,6 +49,8 @@ export default function Hero({ backgroundImage, fontColor = '#ffffff', totalScan
             🏪 {totalEstabs} estabelecimentos
           </span>
         </div>
+
+        {children}
       </div>
     </section>
   );

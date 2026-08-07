@@ -51,9 +51,14 @@ export async function salvarPaleta(corPrimaria: string, corSecundaria: string) {
 
 export async function salvarConfiguracoesHome(config: {
   hero_ativado: boolean
+  busca_ativado: boolean
   promocoes_ativado: boolean
+  explorar_bairro_ativado: boolean
+  categorias_populares_ativado: boolean
+  recomendados_ativado: boolean
   grid_estabelecimentos_ativado: boolean
   filtros_ativado: boolean
+  cta_donos_ativado: boolean
   botao_flutuante_ativado: boolean
 }) {
   const { supabase, userId } = await checarSuperAdmin()

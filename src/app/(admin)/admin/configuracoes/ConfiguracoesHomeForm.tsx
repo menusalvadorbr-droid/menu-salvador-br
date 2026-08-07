@@ -5,17 +5,27 @@ import { salvarConfiguracoesHome } from './actions'
 
 export interface ConfiguracoesHome {
   hero_ativado: boolean
+  busca_ativado: boolean
   promocoes_ativado: boolean
+  explorar_bairro_ativado: boolean
+  categorias_populares_ativado: boolean
+  recomendados_ativado: boolean
   grid_estabelecimentos_ativado: boolean
   filtros_ativado: boolean
+  cta_donos_ativado: boolean
   botao_flutuante_ativado: boolean
 }
 
 const SECOES: { chave: keyof ConfiguracoesHome; label: string; descricao: string }[] = [
   { chave: 'hero_ativado', label: 'Banner principal', descricao: 'Faixa de topo com o título e os números do dia' },
+  { chave: 'busca_ativado', label: 'Busca por texto', descricao: 'Campo de busca livre (nome, bairro, culinária) dentro do banner' },
   { chave: 'promocoes_ativado', label: 'Carrossel de promoções', descricao: 'Itens com desconto ativo, logo abaixo do banner' },
-  { chave: 'grid_estabelecimentos_ativado', label: 'Grid de estabelecimentos', descricao: 'Lista principal de cards — desligar esconde praticamente a home inteira' },
+  { chave: 'explorar_bairro_ativado', label: 'Explorar por bairro', descricao: 'Grid de bairros com contagem real de estabelecimentos' },
+  { chave: 'categorias_populares_ativado', label: 'Categorias populares', descricao: 'Vitrine de tipos de culinária com mais estabelecimentos' },
+  { chave: 'recomendados_ativado', label: 'Recomendados', descricao: 'Estabelecimentos marcados como destaque, com selo de curadoria' },
+  { chave: 'grid_estabelecimentos_ativado', label: 'Grid de estabelecimentos', descricao: 'Lista geral de cards — desligar esconde praticamente a home inteira' },
   { chave: 'filtros_ativado', label: 'Filtros (bairro e culinária)', descricao: 'Só tem efeito se o grid acima estiver ligado' },
+  { chave: 'cta_donos_ativado', label: 'CTA para donos', descricao: 'Seção de rodapé convidando donos a cadastrar o estabelecimento' },
   { chave: 'botao_flutuante_ativado', label: 'Botão flutuante', descricao: '"Cadastre seu negócio", fixo no canto da tela (mobile)' },
 ]
 

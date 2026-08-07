@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
@@ -7,14 +8,19 @@ import GaleriaEstabelecimento from '@/components/public/GaleriaEstabelecimento'
 import SectionHeading from '@/components/public/SectionHeading'
 import StatusPill from '@/components/public/StatusPill'
 import { isEstabelecimentoAberto } from '@/lib/statusAberto'
-import Hero from '@/features/home/Hero'
-import { PromocoesCarrossel } from '@/features/home/PromocoesCarrossel'
-import ExploradorEstabelecimentos from '@/features/home/ExploradorEstabelecimentos'
+import HeroSecao from '@/features/home/HeroSecao'
+import FiltrosSecao from '@/features/home/FiltrosSecao'
+import PromocoesSecao from '@/features/home/PromocoesSecao'
+import ExplorarBairroSecao from '@/features/home/ExplorarBairroSecao'
+import CategoriasPopularesSecao from '@/features/home/CategoriasPopularesSecao'
+import RecomendadosSecao from '@/features/home/RecomendadosSecao'
+import GridGeralSecao from '@/features/home/GridGeralSecao'
+import CtaDonosSecao from '@/features/home/CtaDonosSecao'
+import { SkeletonHero, SkeletonFiltros, SkeletonCarrossel, SkeletonVitrine, SkeletonGrid, SkeletonCta } from '@/features/home/skeletons'
 import BotaoFlutuante from '@/features/home/BotaoFlutuante'
 import PropagandaCard from '@/components/public/PropagandaCard'
 import SecaoAnimada from '@/components/public/SecaoAnimada'
 import SecaoAvaliacoesGoogle from '@/components/public/SecaoAvaliacoesGoogle'
-import { getPromocoesAtivas } from '@/features/home/getPromocoesAtivas'
 import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import type { Metadata } from 'next'
 
@@ -80,12 +86,19 @@ export async function generateMetadata({
   return {}
 }
 
-export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug?: string[] }>
+  searchParams: Promise<{ q?: string; bairro?: string; tipo?: string }>
+}) {
   const { slug } = await params
 
   // --- HOME ---
   if (!slug || slug.length === 0) {
-    return <HomePage />
+    const sp = await searchParams
+    return <HomePage q={sp.q} bairroId={sp.bairro} tipoCozinhaId={sp.tipo} />
   }
 
   // --- 4 segmentos: estabelecimento ---
@@ -128,75 +141,102 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
 // ============================================================
 
 // -------- HOME --------
-async function HomePage() {
+// Carregamento em camadas: cada seção abaixo é um Server Component
+// assíncrono com sua própria consulta, dentro de <Suspense> — a mais
+// lenta (Grid geral) não trava mais as outras, cada uma aparece assim
+// que a consulta dela termina, na ordem sugerida (mais rápida/importante
+// primeiro): Hero → Busca/Filtros → Promoções → Explorar por bairro /
+// Categorias populares → Recomendados → Grid geral.
+//
+// Só configuracoes_home é buscado aqui, direto — é rápida (uma linha só)
+// e decide quais seções sequer entram na árvore.
+async function HomePage({
+  q,
+  bairroId,
+  tipoCozinhaId,
+}: {
+  q?: string
+  bairroId?: string
+  tipoCozinhaId?: string
+}) {
   const supabase = await createClient()
-
-  const inicioDoDia = new Date()
-  inicioDoDia.setHours(0, 0, 0, 0)
-
-  // Todas as consultas independentes rodam em paralelo — antes eram 5
-  // idas ao banco em série (cada uma esperando a anterior terminar),
-  // o que deixava a home visivelmente mais lenta sem necessidade.
-  const [
-    { count: totalEstabs },
-    { count: scansHoje },
-    { data: destaques },
-    { data: config },
-    { data: bairros },
-    { data: tiposCozinha },
-    promocoes,
-  ] = await Promise.all([
-    supabase.from('estabelecimentos').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('ativo', true),
-    supabase.from('scans_qrcode').select('*', { count: 'exact', head: true }).gte('scanned_at', inicioDoDia.toISOString()),
-    supabase
-      .from('estabelecimentos')
-      .select('*, bairros(nome, slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
-      .eq('status', 'active')
-      .eq('ativo', true)
-      .not('bairro_id', 'is', null)
-      .not('tipo_estabelecimento', 'is', null)
-      .order('destaque', { ascending: false })
-      .limit(30),
-    // Módulos da home, controlados pelo admin geral da plataforma
-    // (tabela configuracoes_home — uma linha única, id=true).
-    supabase.from('configuracoes_home').select('*').eq('id', true).maybeSingle(),
-    supabase.from('bairros').select('id, nome, slug').order('nome'),
-    // id incluído porque o filtro de culinária (ExploradorEstabelecimentos)
-    // consulta a tabela de junção estabelecimento_tipos_cozinha por
-    // tipo_cozinha_id — comparar pelo nome/slug não é mais suficiente.
-    supabase.from('tipos_cozinha').select('id, nome, slug, icone').eq('ativo', true).order('ordem'),
-    getPromocoesAtivas(),
-  ])
+  const { data: config } = await supabase.from('configuracoes_home').select('*').eq('id', true).maybeSingle()
 
   const heroAtivado = config?.hero_ativado ?? true
+  const buscaAtivado = config?.busca_ativado ?? true
   const promocoesAtivado = config?.promocoes_ativado ?? true
+  const explorarBairroAtivado = config?.explorar_bairro_ativado ?? true
+  const categoriasPopularesAtivado = config?.categorias_populares_ativado ?? true
+  const recomendadosAtivado = config?.recomendados_ativado ?? true
   const gridAtivado = config?.grid_estabelecimentos_ativado ?? true
-  const botaoFlutuanteAtivado = config?.botao_flutuante_ativado ?? true
   const filtrosAtivado = config?.filtros_ativado ?? true
+  const ctaDonosAtivado = config?.cta_donos_ativado ?? true
+  const botaoFlutuanteAtivado = config?.botao_flutuante_ativado ?? true
 
   return (
     <div>
       {heroAtivado && (
-        <SecaoAnimada>
-          <Hero totalScans={scansHoje || 0} totalEstabs={totalEstabs || 0} />
-        </SecaoAnimada>
+        <Suspense fallback={<SkeletonHero />}>
+          <HeroSecao buscaAtivado={buscaAtivado} qInicial={q} bairroAtual={bairroId} tipoAtual={tipoCozinhaId} />
+        </Suspense>
       )}
-      {promocoesAtivado && (
-        <SecaoAnimada>
-          <PromocoesCarrossel itens={promocoes} />
-        </SecaoAnimada>
+
+      {gridAtivado && filtrosAtivado && (
+        <Suspense fallback={<SkeletonFiltros />}>
+          <FiltrosSecao />
+        </Suspense>
       )}
+
       <SecaoAnimada className="mx-auto max-w-6xl px-4 pt-6">
         <PropagandaCard />
       </SecaoAnimada>
-      {gridAtivado && (
-        <ExploradorEstabelecimentos
-          estabelecimentosIniciais={destaques || []}
-          bairros={bairros || []}
-          tiposCozinha={tiposCozinha || []}
-          mostrarFiltros={filtrosAtivado}
-        />
+
+      {promocoesAtivado && (
+        <Suspense fallback={<SkeletonCarrossel />}>
+          <SecaoAnimada>
+            <PromocoesSecao />
+          </SecaoAnimada>
+        </Suspense>
       )}
+
+      {explorarBairroAtivado && (
+        <Suspense fallback={<SkeletonVitrine itens={8} />}>
+          <SecaoAnimada>
+            <ExplorarBairroSecao />
+          </SecaoAnimada>
+        </Suspense>
+      )}
+
+      {categoriasPopularesAtivado && (
+        <Suspense fallback={<SkeletonVitrine itens={12} />}>
+          <SecaoAnimada>
+            <CategoriasPopularesSecao />
+          </SecaoAnimada>
+        </Suspense>
+      )}
+
+      {recomendadosAtivado && (
+        <Suspense fallback={<SkeletonGrid cards={3} />}>
+          <SecaoAnimada>
+            <RecomendadosSecao />
+          </SecaoAnimada>
+        </Suspense>
+      )}
+
+      {gridAtivado && (
+        <Suspense fallback={<SkeletonGrid />}>
+          <SecaoAnimada className="container mx-auto px-4 py-10">
+            <GridGeralSecao q={q} bairroId={bairroId} tipoCozinhaId={tipoCozinhaId} />
+          </SecaoAnimada>
+        </Suspense>
+      )}
+
+      {ctaDonosAtivado && (
+        <Suspense fallback={<SkeletonCta />}>
+          <CtaDonosSecao />
+        </Suspense>
+      )}
+
       {botaoFlutuanteAtivado && <BotaoFlutuante />}
     </div>
   )

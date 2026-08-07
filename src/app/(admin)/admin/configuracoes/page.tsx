@@ -6,9 +6,14 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 const CONFIG_HOME_PADRAO: ConfiguracoesHome = {
   hero_ativado: true,
+  busca_ativado: true,
   promocoes_ativado: true,
+  explorar_bairro_ativado: true,
+  categorias_populares_ativado: true,
+  recomendados_ativado: true,
   grid_estabelecimentos_ativado: true,
   filtros_ativado: true,
+  cta_donos_ativado: true,
   botao_flutuante_ativado: true,
 }
 

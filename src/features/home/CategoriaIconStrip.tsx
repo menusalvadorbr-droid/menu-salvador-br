@@ -20,7 +20,7 @@ interface CategoriaIconStripProps {
  *
  * Seleciona por `id` (não por `nome`) porque a filtragem real passa
  * pela tabela de junção estabelecimento_tipos_cozinha, que referencia
- * tipo_cozinha_id — ver ExploradorEstabelecimentos.
+ * tipo_cozinha_id — ver GridGeralSecao/GridClient.
  */
 export default function CategoriaIconStrip({ tiposCozinha, ativoId, onSelecionar }: CategoriaIconStripProps) {
   if (tiposCozinha.length === 0) return null
