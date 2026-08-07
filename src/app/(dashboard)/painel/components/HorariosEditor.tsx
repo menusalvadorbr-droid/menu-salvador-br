@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
+import { horarioAtualSalvador } from '@/lib/horarioSalvador'
 
 interface HorariosEditorProps {
   estabelecimentoId: string
@@ -148,6 +149,11 @@ export default function HorariosEditor({ estabelecimentoId, readOnly = false }: 
 
   if (loading) return <div className="text-gray-500">Carregando...</div>
 
+  // Sempre o dia da semana em Salvador, não no fuso de quem estiver
+  // editando de outro lugar — mesma correção já feita na página pública
+  // (ver src/lib/horarioSalvador.ts).
+  const { diaSemana: diaSemanaHojeSalvador } = horarioAtualSalvador()
+
   return (
     <div>
       <h3 className="text-lg font-semibold mb-4">🕒 Horários de Funcionamento</h3>
@@ -155,7 +161,7 @@ export default function HorariosEditor({ estabelecimentoId, readOnly = false }: 
         {DIAS.map((dia, idx) => {
           const periodos = horarios.filter(h => h.dia_semana === idx)
           const todosFechados = periodos.every(h => h.fechado)
-          const hoje = new Date().getDay() === idx
+          const hoje = diaSemanaHojeSalvador === idx
 
           return (
             <div key={idx} className={`p-4 rounded-xl border ${hoje ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>

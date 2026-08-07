@@ -20,7 +20,11 @@ export default function ContadorRegressivo({ fimIso, alertaMinutos, corP }: Cont
 
   // normal — fora da janela de alerta, mostra só o horário de fim
   if (nivel === 'normal') {
-    const horario = new Date(fimIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    // timeZone explícito — o horário do fim é sempre o de Salvador (é
+    // onde o estabelecimento fica), não o de quem está vendo o cardápio
+    // de outro fuso; sem isso, toLocaleTimeString usa o fuso do
+    // navegador de quem visita.
+    const horario = new Date(fimIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia' })
     return (
       <span className="text-xs opacity-60 whitespace-nowrap" style={{ color: corP }}>
         ✨ até {horario}h

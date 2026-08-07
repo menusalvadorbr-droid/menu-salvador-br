@@ -8,6 +8,7 @@ import GaleriaEstabelecimento from '@/components/public/GaleriaEstabelecimento'
 import SectionHeading from '@/components/public/SectionHeading'
 import StatusPill from '@/components/public/StatusPill'
 import { isEstabelecimentoAberto } from '@/lib/statusAberto'
+import { horarioAtualSalvador } from '@/lib/horarioSalvador'
 import HeroSecao from '@/features/home/HeroSecao'
 import FiltrosSecao from '@/features/home/FiltrosSecao'
 import PromocoesSecao from '@/features/home/PromocoesSecao'
@@ -614,6 +615,11 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
 
   const galeriaFotos: string[] = est.galeria_fotos || []
   const statusAberto = isEstabelecimentoAberto(horarios || [])
+  // Mesmo motivo do fuso corrigido em statusAberto.ts: new Date().getDay()
+  // usa o fuso de onde o código roda (UTC no servidor), não o de Salvador
+  // — marcava o dia errado como "hoje" na lista de horários à noite
+  // (ex: 23h de quinta em Salvador já é sexta em UTC).
+  const { diaSemana: diaSemanaHojeSalvador } = horarioAtualSalvador()
 
   const enderecoCompleto = est.endereco
     ? `${[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')}${est.numero ? ', ' + est.numero : ''}, ${est.bairro}, ${est.cidade || 'Salvador'}, BA`
@@ -820,7 +826,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                             { dia: 'Sábado', chave: 'dia_sabado' },
                           ].map(({ dia, chave: chaveDia }, idx) => {
                             const periodos = horarios.filter((h: any) => h.dia_semana === idx)
-                            const hoje = new Date().getDay() === idx
+                            const hoje = diaSemanaHojeSalvador === idx
                             const todosFechados = periodos.every((h: any) => h.fechado)
                             return (
                               <div
