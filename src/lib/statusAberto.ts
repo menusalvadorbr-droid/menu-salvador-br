@@ -1,5 +1,7 @@
 // src/lib/statusAberto.ts
 
+import { horarioAtualSalvador } from './horarioSalvador'
+
 /**
  * Interface para um horário de funcionamento
  */
@@ -32,9 +34,10 @@ export function isEstabelecimentoAberto(horarios: Horario[]): {
     return { aberto: false, estado: null, exibir: false };
   }
 
-  const agora = new Date();
-  const diaSemana = agora.getDay(); // 0-6
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes(); // minutos desde meia-noite
+  // Sempre no fuso de Salvador, não no fuso de onde o código roda (a
+  // função só é chamada no servidor hoje, que na Vercel roda em UTC —
+  // new Date().getHours() direto dava o status adiantado em 3h).
+  const { diaSemana, minutosDoDia: horaAtual } = horarioAtualSalvador();
 
   // Um dia pode ter mais de um período (ex: almoço 11:00–15:00 e jantar
   // 18:00–22:00 — o editor de horários permite até 3 por dia). Antes o

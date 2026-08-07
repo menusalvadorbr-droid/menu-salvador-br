@@ -7,6 +7,8 @@
 // entrou/saiu da janela ativa, só o contador dentro do estado "ativo" tique
 // (via ContadorRegressivo). Recarregar a página reavalia o estado.
 
+import { horarioAtualSalvador, dataEmSalvador } from './horarioSalvador'
+
 const DIAS_ABREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export interface SpecialOfferRow {
@@ -63,9 +65,11 @@ export function calcularEstadoOferta(offer: SpecialOfferRow, agora: Date = new D
     // Janela que cruza meia-noite (ex: happy hour 22h–02h): fim <= início.
     const cruzaMeiaNoite = minutosFim <= minutosIni
 
-    const hojeDia = agora.getDay()
+    // Sempre no fuso de Salvador, não no fuso de onde o código roda (ver
+    // src/lib/horarioSalvador.ts) — "recorrente" é sempre horário local
+    // do estabelecimento, mesmo rodando no servidor em UTC.
+    const { diaSemana: hojeDia, minutosDoDia: minutosAgora } = horarioAtualSalvador(agora)
     const ontemDia = (hojeDia + 6) % 7
-    const minutosAgora = agora.getHours() * 60 + agora.getMinutes()
 
     const comecouHojeEAindaAtivo = dias.includes(hojeDia) && (cruzaMeiaNoite
       ? minutosAgora >= minutosIni
@@ -73,11 +77,16 @@ export function calcularEstadoOferta(offer: SpecialOfferRow, agora: Date = new D
     const continuandoDeOntem = cruzaMeiaNoite && dias.includes(ontemDia) && minutosAgora < minutosFim
 
     if (comecouHojeEAindaAtivo || continuandoDeOntem) {
-      // Continuando de ontem: o fim é hoje. Começou hoje e cruza meia-noite: o fim é amanhã.
-      const fim = new Date(agora)
-      if (cruzaMeiaNoite && comecouHojeEAindaAtivo) fim.setDate(fim.getDate() + 1)
+      // Continuando de ontem: o fim é hoje. Começou hoje e cruza meia-noite: o
+      // fim é amanhã — soma 24h em vez de setDate() (que usaria o fuso de
+      // onde o código roda pra decidir a virada de dia); já que a diferença
+      // é sempre 24h exatas (Salvador não tem horário de verão), isso já
+      // cai no dia seguinte certo no fuso de Salvador.
+      const dataBaseFim = cruzaMeiaNoite && comecouHojeEAindaAtivo
+        ? new Date(agora.getTime() + 24 * 60 * 60 * 1000)
+        : agora
       const [hFim, mFim] = offer.hora_fim.split(':').map(Number)
-      fim.setHours(hFim, mFim, 0, 0)
+      const fim = dataEmSalvador(dataBaseFim, hFim, mFim)
       return { tipo: 'ativo', fimIso: fim.toISOString() }
     }
 
@@ -109,8 +118,11 @@ export function calcularEstadoOferta(offer: SpecialOfferRow, agora: Date = new D
   if ((!inicio || agora >= inicio) && agora < fim) return { tipo: 'ativo', fimIso: offer.fim_em }
 
   if (inicio && agora < inicio) {
-    const dataFmt = inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-    const horaFmt = inicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    // timeZone explícito pelo mesmo motivo do resto do arquivo — sem isso,
+    // toLocaleDateString/toLocaleTimeString formatam no fuso de onde o
+    // código roda (UTC no servidor), não no de Salvador.
+    const dataFmt = inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Bahia' })
+    const horaFmt = inicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia' })
     return { tipo: 'anuncio', texto: `${dataFmt} às ${horaFmt}` }
   }
 
