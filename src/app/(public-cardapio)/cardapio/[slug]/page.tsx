@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/publicServer'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -10,7 +10,7 @@ import SpecialOfferCard from '@/components/public/SpecialOfferCard'
 import PromoItemCard from '@/components/public/PromoItemCard'
 import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
-import NavegacaoCategoriasCards from '@/components/public/NavegacaoCategoriasCards'
+import NavegacaoCategoriasCardsClient from '@/components/public/NavegacaoCategoriasCardsClient'
 import FaixasCategorias from '@/components/public/FaixasCategorias'
 import PilulasCardapioClient from '@/components/public/PilulasCardapioClient'
 import { obterFonteTema } from '@/lib/fontesTema'
@@ -32,7 +32,7 @@ function algumaOfertaEncerrandoEmBreve(ofertas: { estado: EstadoOferta }[]): boo
 // ─────────────────────────────────────────────────────────────
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { data: est } = await supabase
     .from('estabelecimentos')
     .select('nome, nome_fantasia, descricao, bairro, foto_capa')
@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 // PÁGINA PRINCIPAL
 // ─────────────────────────────────────────────────────────────
 export default async function CardapioPage({ params }: { params: Promise<{ slug: string }> }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { slug } = await params
 
   // 1. Estabelecimento
@@ -374,9 +374,10 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
           />
         )}
         {navegacaoCategoria === 'cards' && categorias.length > 0 && (
-          <NavegacaoCategoriasCards
+          <NavegacaoCategoriasCardsClient
+            estabelecimentoId={est.id}
             slug={est.slug}
-            categorias={categorias.map((cat: any) => ({ id: cat.id, nome: cat.nome, foto_url: cat.foto_url || null }))}
+            categoriasServidor={categorias.map((cat: any) => ({ id: cat.id }))}
             corS={corS}
             corBd={corBd}
             cardRaio={cardRaio}
