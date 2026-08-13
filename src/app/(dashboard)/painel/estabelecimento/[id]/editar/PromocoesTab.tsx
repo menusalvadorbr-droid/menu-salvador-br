@@ -114,14 +114,18 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     // (estabelecimento sem cardápio ainda pode ter promoção com contador).
     const { data: estConfig } = await supabase
       .from('estabelecimentos')
-      .select('promocoes_contador_ativado, nome, nome_fantasia, bairro, tipo_estabelecimento, tema_atual_id')
+      .select('promocoes_contador_ativado, nome, nome_fantasia, bairro, tema_atual_id, tipos_estabelecimento(nome)')
       .eq('id', estabelecimentoId)
       .maybeSingle()
     setPromocoesContadorAtivado(!!estConfig?.promocoes_contador_ativado)
     setDadosEstabelecimento({
       nome: estConfig?.nome_fantasia || estConfig?.nome || '',
       bairro: estConfig?.bairro || null,
-      tipoEstabelecimento: estConfig?.tipo_estabelecimento || null,
+      // Nome de exibição (ex: "Banca de Acarajé"), não o slug técnico
+      // (ex: "banca_acaraje") — vira hashtag na legenda do Instagram
+      // (ver gerarLegendaPost em src/lib/instagramPost.ts).
+      tipoEstabelecimento:
+        (Array.isArray(estConfig?.tipos_estabelecimento) ? estConfig.tipos_estabelecimento[0] : estConfig?.tipos_estabelecimento)?.nome || null,
     })
 
     // Tema do estabelecimento — só pro gerador de post pra Instagram usar a

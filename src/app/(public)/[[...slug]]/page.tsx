@@ -567,7 +567,7 @@ async function EstabelecimentoPage({
   // que a busca só por slug já não resolvesse.)
   const { data: est } = await supabase
     .from('estabelecimentos')
-    .select('*, estabelecimento_tipos_cozinha(tipos_cozinha(nome)), cidades(nome, slug), bairros(nome, slug)')
+    .select('*, estabelecimento_tipos_cozinha(tipos_cozinha(nome)), cidades(nome, slug), bairros(nome, slug), tipos_estabelecimento(nome, slug, icone)')
     .eq('slug', slug)
     .eq('status', 'active')
     .eq('ativo', true)
@@ -762,7 +762,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
             <div className="flex-1 space-y-2">
               <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{nomeExibicao}</h1>
               <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
-                <span className="capitalize">{est.tipo_estabelecimento || <TextoInterface chave="tipo_estabelecimento_fallback">Restaurante</TextoInterface>}</span>
+                <span>{est.tipos_estabelecimento?.nome || <TextoInterface chave="tipo_estabelecimento_fallback">Restaurante</TextoInterface>}</span>
                 {(est.estabelecimento_tipos_cozinha || [])
                   .map((v: any) => v.tipos_cozinha?.nome)
                   .filter(Boolean)
