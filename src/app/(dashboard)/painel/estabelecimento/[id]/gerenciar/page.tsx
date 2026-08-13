@@ -187,6 +187,16 @@ export default function GerenciarEstabelecimentoPage({
           </div>
         )}
 
+        {!emAnalise && !estabelecimento.bairro_id && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            <Clock className="h-5 w-5 shrink-0 text-neutral-400" />
+            <span>
+              Seu estabelecimento já está <strong>ativo</strong> no diretório — o bairro será confirmado pela
+              nossa equipe em breve.
+            </span>
+          </div>
+        )}
+
         <CabecalhoGerenciar
           estabelecimento={estabelecimento}
           usuarioNome={usuarioNome}

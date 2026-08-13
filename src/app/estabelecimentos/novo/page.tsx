@@ -28,8 +28,8 @@ export default async function NovoEstabelecimentoPage({ searchParams }: PageProp
 
   const [{ data: profile }, { data: bairros }, { data: tiposEstabelecimento }] = await Promise.all([
     supabase.from('profiles').select('telefone, whatsapp').eq('id', user.id).maybeSingle(),
-    supabase.from('bairros').select('id, nome').order('nome'),
-    supabase.from('tipos_estabelecimento').select('slug, nome, icone').eq('ativo', true).order('ordem'),
+    supabase.from('bairros').select('id, nome, cidade_id').order('nome'),
+    supabase.from('tipos_estabelecimento').select('id, slug, nome, icone').eq('ativo', true).order('ordem'),
   ])
 
   return (

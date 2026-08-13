@@ -11,10 +11,10 @@ interface Estabelecimento {
   nome_fantasia: string | null
   slug: string
   status: string
-  cidade: string | null
-  tipo_estabelecimento: string | null
   owner_user_id: string | null
   bairros?: { slug: string } | null
+  cidades?: { slug: string } | null
+  tipos_estabelecimento?: { slug: string } | null
 }
 
 const STATUS_BADGE: Record<string, { label: string; bg: string; text: string }> = {
@@ -29,8 +29,8 @@ function getStatusBadge(status: string) {
 }
 
 function linkPublico(est: Estabelecimento) {
-  return est.cidade && est.bairros?.slug && est.tipo_estabelecimento
-    ? `/${est.cidade}/${est.bairros.slug}/${est.tipo_estabelecimento}/${est.slug}`
+  return est.cidades?.slug && est.bairros?.slug && est.tipos_estabelecimento?.slug
+    ? `/${est.cidades.slug}/${est.bairros.slug}/${est.tipos_estabelecimento.slug}/${est.slug}`
     : `/cardapio/${est.slug}`
 }
 

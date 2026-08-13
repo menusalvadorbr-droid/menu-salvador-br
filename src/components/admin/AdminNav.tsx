@@ -14,13 +14,15 @@ const NAV_GERAL: ItemNav[] = [
   { href: '/admin', label: 'Visão geral', icone: '📊' },
   { href: '/admin/estabelecimentos', label: 'Estabelecimentos', icone: '🏪' },
   { href: '/admin/estabelecimentos/importar', label: 'Importar em lote', icone: '📥' },
+  { href: '/admin/estabelecimentos/pendencias', label: 'Bairros pendentes', icone: '📍' },
   { href: '/admin/claims', label: 'Reivindicações', icone: '📋' },
   { href: '/admin/contestacoes', label: 'Contestações', icone: '⚖️' },
   { href: '/admin/planos', label: 'Planos', icone: '💰' },
   { href: '/admin/temas', label: 'Temas', icone: '🎨' },
-  // "Bairros" não tem link próprio — a gestão fica dentro dessa mesma
-  // tela (TiposManager + BairrosManager lado a lado), não em /admin/bairros.
-  { href: '/admin/tipos', label: 'Tipos e bairros', icone: '🏷️' },
+  // "Bairros" e "Cidades" não têm link próprio — a gestão fica dentro
+  // dessa mesma tela (TiposManager + BairrosManager + CidadesManager
+  // lado a lado), não em /admin/bairros ou /admin/cidades.
+  { href: '/admin/tipos', label: 'Tipos, bairros e cidades', icone: '🏷️' },
 ]
 
 const NAV_PLATAFORMA: ItemNav[] = [

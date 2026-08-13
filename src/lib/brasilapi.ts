@@ -44,17 +44,25 @@ export interface SocioCnpj {
   faixaEtaria: string | null
 }
 
-// A Receita Federal devolve nomes/endereços em CAIXA ALTA. Assumi que
-// "minúscula" pedido pelo usuário quer dizer "não gritado" — deixo em
+// A Receita Federal devolve nomes/endereços em CAIXA ALTA. Deixo em
 // Title Case (cada palavra com inicial maiúscula), que fica mais
-// legível pra nome de empresa/rua do que tudo em minúsculo puro. Se
-// preferir minúsculo de verdade, é só trocar essa função.
+// legível pra nome de empresa/rua do que tudo em minúsculo puro —
+// exceto preposições comuns em português, que ficam minúsculas mesmo
+// no meio da frase ("Vitória da Conquista", não "Vitória Da
+// Conquista"). Primeira palavra sempre maiúscula, mesmo se for uma
+// dessas (nome não deveria começar com preposição, mas por garantia).
+const PREPOSICOES_MINUSCULAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e'])
+
 function capitalizarNome(texto: string | null | undefined): string {
   if (!texto) return ''
   return texto
     .toLowerCase()
     .split(' ')
-    .map((palavra) => (palavra ? palavra[0].toUpperCase() + palavra.slice(1) : palavra))
+    .map((palavra, indice) => {
+      if (!palavra) return palavra
+      if (indice > 0 && PREPOSICOES_MINUSCULAS.has(palavra)) return palavra
+      return palavra[0].toUpperCase() + palavra.slice(1)
+    })
     .join(' ')
 }
 

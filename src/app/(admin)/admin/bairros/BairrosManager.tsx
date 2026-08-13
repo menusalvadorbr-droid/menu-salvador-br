@@ -10,27 +10,39 @@ export interface BairroComContagem {
   nome: string
   slug: string
   icone?: string | null
+  cidade_id: string | null
   totalEstabelecimentos: number
 }
 
-export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: BairroComContagem[] }) {
+interface BairrosManagerProps {
+  bairrosIniciais: BairroComContagem[]
+  cidades: { id: string; nome: string }[]
+}
+
+export default function BairrosManager({ bairrosIniciais, cidades }: BairrosManagerProps) {
   const [bairros, setBairros] = useState(bairrosIniciais)
   const [novoNome, setNovoNome] = useState('')
   const [novoIcone, setNovoIcone] = useState('')
+  const [novaCidadeId, setNovaCidadeId] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [nomeEdicao, setNomeEdicao] = useState('')
   const [iconeEdicao, setIconeEdicao] = useState('')
+  const [cidadeIdEdicao, setCidadeIdEdicao] = useState('')
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
 
+  function nomeCidade(cidadeId: string | null) {
+    return cidades.find((c) => c.id === cidadeId)?.nome || '—'
+  }
+
   async function handleAdicionar() {
-    if (!novoNome.trim()) return
+    if (!novoNome.trim() || !novaCidadeId) return
     setEnviando(true)
     setErro(null)
     try {
-      await criarBairro(novoNome.trim(), novoIcone.trim())
+      await criarBairro(novoNome.trim(), novoIcone.trim(), novaCidadeId)
       setBairros((prev) =>
         [
           ...prev,
@@ -39,12 +51,14 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
             nome: novoNome.trim(),
             slug: gerarSlug(novoNome),
             icone: novoIcone.trim() || null,
+            cidade_id: novaCidadeId,
             totalEstabelecimentos: 0,
           },
         ].sort((a, b) => a.nome.localeCompare(b.nome))
       )
       setNovoNome('')
       setNovoIcone('')
+      setNovaCidadeId('')
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao criar bairro')
     } finally {
@@ -56,15 +70,18 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
     setEditandoId(bairro.id)
     setNomeEdicao(bairro.nome)
     setIconeEdicao(bairro.icone || '')
+    setCidadeIdEdicao(bairro.cidade_id || '')
   }
 
   async function salvarEdicao(bairro: BairroComContagem) {
-    if (!nomeEdicao.trim()) return
+    if (!nomeEdicao.trim() || !cidadeIdEdicao) return
     setSalvandoEdicao(true)
     try {
-      await editarBairro(bairro.id, nomeEdicao.trim(), iconeEdicao.trim())
+      await editarBairro(bairro.id, nomeEdicao.trim(), iconeEdicao.trim(), cidadeIdEdicao)
       setBairros((prev) =>
-        prev.map((b) => (b.id === bairro.id ? { ...b, nome: nomeEdicao.trim(), icone: iconeEdicao.trim() || null } : b))
+        prev.map((b) =>
+          b.id === bairro.id ? { ...b, nome: nomeEdicao.trim(), icone: iconeEdicao.trim() || null, cidade_id: cidadeIdEdicao } : b
+        )
       )
       setEditandoId(null)
     } catch (err) {
@@ -113,9 +130,22 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
             <span className="text-xs text-neutral-400">URL: /{gerarSlug(novoNome)}</span>
           )}
         </label>
+        <label className="flex flex-col gap-1 text-xs text-neutral-500">
+          Cidade
+          <select
+            value={novaCidadeId}
+            onChange={(e) => setNovaCidadeId(e.target.value)}
+            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+          >
+            <option value="">Selecione</option>
+            {cidades.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </select>
+        </label>
         <button
           onClick={handleAdicionar}
-          disabled={enviando || !novoNome.trim()}
+          disabled={enviando || !novoNome.trim() || !novaCidadeId}
           className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
         >
           {enviando ? 'Adicionando...' : '+ Adicionar bairro'}
@@ -131,6 +161,7 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
               <th className="px-4 py-2"></th>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">URL (slug)</th>
+              <th className="px-4 py-2">Cidade</th>
               <th className="px-4 py-2">Estabelecimentos</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -153,11 +184,23 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
                           autoFocus
                         />
                       </td>
+                      <td className="px-4 py-2">
+                        <select
+                          value={cidadeIdEdicao}
+                          onChange={(e) => setCidadeIdEdicao(e.target.value)}
+                          className="rounded-lg border border-neutral-200 px-2 py-1 text-sm"
+                        >
+                          <option value="">Selecione</option>
+                          {cidades.map((c) => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-4 py-2 text-neutral-600">{b.totalEstabelecimentos}</td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
                         <button
                           onClick={() => salvarEdicao(b)}
-                          disabled={salvandoEdicao || !nomeEdicao.trim()}
+                          disabled={salvandoEdicao || !nomeEdicao.trim() || !cidadeIdEdicao}
                           className="mr-2 rounded-lg bg-neutral-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
                         >
                           Salvar
@@ -175,6 +218,7 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
                       <td className="px-4 py-2 text-lg">{b.icone || '📍'}</td>
                       <td className="px-4 py-2 text-neutral-900">{b.nome}</td>
                       <td className="px-4 py-2 font-mono text-xs text-neutral-500">/{b.slug}</td>
+                      <td className="px-4 py-2 text-neutral-600">{nomeCidade(b.cidade_id)}</td>
                       <td className="px-4 py-2 text-neutral-600">{b.totalEstabelecimentos}</td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
                         <button onClick={() => iniciarEdicao(b)} className="mr-3 text-xs text-neutral-500 hover:underline">
@@ -191,7 +235,7 @@ export default function BairrosManager({ bairrosIniciais }: { bairrosIniciais: B
             })}
             {bairros.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-neutral-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-400">
                   Nenhum bairro cadastrado ainda.
                 </td>
               </tr>

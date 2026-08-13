@@ -61,7 +61,7 @@ export default function GridClient({
 
     let query = supabase
       .from('estabelecimentos')
-      .select('*, bairros(nome, slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
+      .select('*, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
       .eq('status', 'active')
       .eq('ativo', true)
       .not('bairro_id', 'is', null)

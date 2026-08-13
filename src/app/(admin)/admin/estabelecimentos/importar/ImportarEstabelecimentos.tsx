@@ -16,12 +16,15 @@ interface FilaItem {
   status: StatusItem
   erro?: string
   dados?: any
+  cidadeId?: string
+  cidadeNome?: string
+  bairroId?: string | null
   existente?: { nome_fantasia: string; slug: string }
 }
 
 interface Props {
-  bairros: { id: string; nome: string }[]
-  tiposEstabelecimento: { slug: string; nome: string; icone: string | null }[]
+  bairros: { id: string; nome: string; cidade_id: string | null }[]
+  tiposEstabelecimento: { id: number; slug: string; nome: string; icone: string | null }[]
   tiposCozinha: { id: number; nome: string; icone: string | null }[]
 }
 
@@ -37,8 +40,10 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
 
   // Estado do formulário do item atual
   const [nomeFantasia, setNomeFantasia] = useState('')
+  const [cidadeId, setCidadeId] = useState('')
+  const [cidadeNome, setCidadeNome] = useState('')
   const [bairroId, setBairroId] = useState('')
-  const [tipoEstabelecimento, setTipoEstabelecimento] = useState('')
+  const [tipoEstabelecimentoId, setTipoEstabelecimentoId] = useState('')
   const [culinariaIds, setCulinariaIds] = useState<number[]>([])
   const [whatsapp, setWhatsapp] = useState('')
   const [linkGoogleMaps, setLinkGoogleMaps] = useState('')
@@ -74,8 +79,10 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
 
   function resetarFormulario() {
     setNomeFantasia('')
+    setCidadeId('')
+    setCidadeNome('')
     setBairroId('')
-    setTipoEstabelecimento('')
+    setTipoEstabelecimentoId('')
     setCulinariaIds([])
     setWhatsapp('')
     setLinkGoogleMaps('')
@@ -97,9 +104,18 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
           prev.map((f, idx) => (idx === i ? { ...f, status: 'duplicado', existente: resultado.existente } : f))
         )
       } else {
-        setFila((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'pronto', dados: resultado.dados } : f)))
+        setFila((prev) =>
+          prev.map((f, idx) =>
+            idx === i
+              ? { ...f, status: 'pronto', dados: resultado.dados, cidadeId: resultado.cidadeId, cidadeNome: resultado.cidadeNome, bairroId: resultado.bairroId }
+              : f
+          )
+        )
         resetarFormulario()
         setNomeFantasia(resultado.dados.nomeFantasia || resultado.dados.razaoSocial || '')
+        setCidadeId(resultado.cidadeId)
+        setCidadeNome(resultado.cidadeNome)
+        setBairroId(resultado.bairroId || '')
       }
     } catch (err) {
       setFila((prev) =>
@@ -114,8 +130,12 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
       carregarItem(novoIndice, fila)
     } else if (fila[novoIndice]?.status === 'pronto') {
       resetarFormulario()
-      const d = fila[novoIndice].dados
+      const item = fila[novoIndice]
+      const d = item.dados
       setNomeFantasia(d?.nomeFantasia || d?.razaoSocial || '')
+      setCidadeId(item.cidadeId || '')
+      setCidadeNome(item.cidadeNome || '')
+      setBairroId(item.bairroId || '')
     }
   }
 
@@ -161,6 +181,8 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
   async function inserir() {
     const d = itemAtual?.dados
     if (!d) return
+    const tipoSelecionado = tiposEstabelecimento.find((t) => String(t.id) === tipoEstabelecimentoId)
+    if (!tipoSelecionado) return
     setSalvando(true)
     setErroSalvar(null)
     try {
@@ -175,7 +197,8 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
         endereco: d.logradouro,
         numero: d.numero,
         cep: d.cep,
-        cidade: d.cidade,
+        cidade: cidadeNome,
+        cidadeId,
         dataAbertura: d.dataAbertura,
         opcaoPeloSimples: d.opcaoPeloSimples,
         dataOpcaoPeloSimples: d.dataOpcaoPeloSimples,
@@ -183,7 +206,9 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
         telefone: d.telefone || '',
         whatsapp,
         bairroId: bairroId || null,
-        tipoEstabelecimento,
+        bairroInformado: d.bairro || null,
+        tipoEstabelecimentoId: tipoSelecionado.id,
+        tipoEstabelecimentoSlug: tipoSelecionado.slug,
         culinariaIds,
         linkGoogleMaps,
         horarios,
@@ -342,28 +367,32 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Bairro</label>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">
+                Bairro {cidadeNome && <span className="font-normal text-neutral-400">({cidadeNome})</span>}
+              </label>
               <select
                 value={bairroId}
                 onChange={(e) => setBairroId(e.target.value)}
                 className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm"
               >
                 <option value="">Selecione (confira no Maps)</option>
-                {bairros.map((b) => (
-                  <option key={b.id} value={b.id}>{b.nome}</option>
-                ))}
+                {bairros
+                  .filter((b) => b.cidade_id === cidadeId)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>{b.nome}</option>
+                  ))}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-neutral-700">Tipo de estabelecimento</label>
               <select
-                value={tipoEstabelecimento}
-                onChange={(e) => setTipoEstabelecimento(e.target.value)}
+                value={tipoEstabelecimentoId}
+                onChange={(e) => setTipoEstabelecimentoId(e.target.value)}
                 className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm"
               >
                 <option value="">Selecione o tipo</option>
                 {tiposEstabelecimento.map((t) => (
-                  <option key={t.slug} value={t.slug}>{t.icone ? `${t.icone} ` : ''}{t.nome}</option>
+                  <option key={t.id} value={t.id}>{t.icone ? `${t.icone} ` : ''}{t.nome}</option>
                 ))}
               </select>
             </div>
@@ -461,7 +490,7 @@ export default function ImportarEstabelecimentos({ bairros, tiposEstabelecimento
           <div className="flex flex-wrap gap-2 border-t border-neutral-100 pt-4">
             <button
               onClick={inserir}
-              disabled={salvando || !tipoEstabelecimento}
+              disabled={salvando || !tipoEstabelecimentoId}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {salvando ? 'Inserindo...' : 'Inserir no diretório'}

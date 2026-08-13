@@ -5,12 +5,11 @@ import type { BairroComContagem } from './BairrosManager'
 export default async function AdminBairrosPage() {
   const supabase = await createClient()
 
-  const { data: bairros } = await supabase.from('bairros').select('id, nome, slug, icone').order('nome')
-
-  const { data: contagens } = await supabase
-    .from('estabelecimentos')
-    .select('bairro_id')
-    .not('bairro_id', 'is', null)
+  const [{ data: bairros }, { data: cidades }, { data: contagens }] = await Promise.all([
+    supabase.from('bairros').select('id, nome, slug, icone, cidade_id').order('nome'),
+    supabase.from('cidades').select('id, nome').order('nome'),
+    supabase.from('estabelecimentos').select('bairro_id').not('bairro_id', 'is', null),
+  ])
 
   const contagemPorBairro = new Map<string, number>()
   for (const linha of contagens || []) {
@@ -29,7 +28,7 @@ export default async function AdminBairrosPage() {
         Lista de bairros disponível pra todos os donos de estabelecimento escolherem no cadastro.
       </p>
       <div className="mt-6">
-        <BairrosManager bairrosIniciais={bairrosComContagem} />
+        <BairrosManager bairrosIniciais={bairrosComContagem} cidades={cidades || []} />
       </div>
     </div>
   )

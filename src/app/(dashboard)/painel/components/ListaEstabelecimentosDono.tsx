@@ -20,9 +20,9 @@ interface Estabelecimento {
   foto_capa: string | null
   ativo: boolean | null
   bairro: string | null
-  cidade: string | null
-  tipo_estabelecimento: string | null
   bairros?: { slug: string } | null
+  cidades?: { slug: string } | null
+  tipos_estabelecimento?: { slug: string } | null
   estabelecimento_tipos_cozinha?: { tipos_cozinha: { nome: string } | null }[] | null
 }
 
@@ -100,9 +100,11 @@ function culinariasDe(est: Estabelecimento) {
 // 1 segmento sozinho (/slug) não é rota reconhecida (a rota coringa interpreta
 // como página de cidade e dá 404).
 function linkPublico(est: Estabelecimento) {
+  const cidadeSlug = est.cidades?.slug
   const bairroSlug = est.bairros?.slug
-  return est.cidade && bairroSlug && est.tipo_estabelecimento
-    ? `/${est.cidade}/${bairroSlug}/${est.tipo_estabelecimento}/${est.slug}`
+  const tipoSlug = est.tipos_estabelecimento?.slug
+  return cidadeSlug && bairroSlug && tipoSlug
+    ? `/${cidadeSlug}/${bairroSlug}/${tipoSlug}/${est.slug}`
     : `/cardapio/${est.slug}`
 }
 

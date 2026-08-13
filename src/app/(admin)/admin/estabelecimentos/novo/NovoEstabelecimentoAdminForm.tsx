@@ -5,11 +5,14 @@ import { formatarCnpj, validarCnpj, limparCnpj } from '@/lib/cnpj'
 import type { DadosCnpjCompleto } from '@/lib/brasilapi'
 import { criarEstabelecimentoAdmin } from './actions'
 
+type DadosCnpjComCidade = DadosCnpjCompleto & { cidadeId: string; cidadeNome: string; bairroId: string | null }
+
 export default function NovoEstabelecimentoAdminForm() {
   const [cnpj, setCnpj] = useState('')
   const [consultando, setConsultando] = useState(false)
   const [erroConsulta, setErroConsulta] = useState<string | null>(null)
-  const [dados, setDados] = useState<DadosCnpjCompleto | null>(null)
+  const [foraDeCobertura, setForaDeCobertura] = useState(false)
+  const [dados, setDados] = useState<DadosCnpjComCidade | null>(null)
 
   const [nomeFantasia, setNomeFantasia] = useState('')
   const [telefone, setTelefone] = useState('')
@@ -22,6 +25,7 @@ export default function NovoEstabelecimentoAdminForm() {
 
   async function buscarCnpj() {
     setErroConsulta(null)
+    setForaDeCobertura(false)
     if (!cnpjValido) {
       setErroConsulta('CNPJ inválido.')
       return
@@ -34,7 +38,10 @@ export default function NovoEstabelecimentoAdminForm() {
         body: JSON.stringify({ cnpj: limparCnpj(cnpj) }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Erro ao consultar CNPJ.')
+      if (!res.ok) {
+        if (json?.foraDeCobertura) setForaDeCobertura(true)
+        throw new Error(json.error || 'Erro ao consultar CNPJ.')
+      }
       setDados(json)
       setNomeFantasia(json.nomeFantasia || '')
       setTelefone(json.telefone || '')
@@ -77,7 +84,10 @@ export default function NovoEstabelecimentoAdminForm() {
         endereco: dados.logradouro,
         numero: dados.numero,
         cep: dados.cep,
-        cidade: dados.cidade,
+        cidade: dados.cidadeNome,
+        cidadeId: dados.cidadeId,
+        bairroId: dados.bairroId,
+        bairroInformado: dados.bairro,
         dataAbertura: dados.dataAbertura,
         opcaoPeloSimples: dados.opcaoPeloSimples,
         dataOpcaoPeloSimples: dados.dataOpcaoPeloSimples,
@@ -127,7 +137,14 @@ export default function NovoEstabelecimentoAdminForm() {
           )}
         </div>
         {erroConsulta && (
-          <p className="mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{erroConsulta}</p>
+          <p className="mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+            {erroConsulta}
+            {foraDeCobertura && (
+              <span className="mt-1 block text-xs text-red-500">
+                Cadastre a cidade em Tipos, bairros e cidades → Cidades antes de continuar.
+              </span>
+            )}
+          </p>
         )}
       </div>
 

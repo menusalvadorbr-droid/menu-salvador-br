@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { slugify, formatarCep, limparNumeroEndereco } from '@/lib/utils'
+import { formatarCep, limparNumeroEndereco } from '@/lib/utils'
+import { gerarSlug } from '@/lib/slug'
 import { formatarCnpj, validarCnpj, limparCnpj } from '@/lib/cnpj'
 import { enviarClaim, enviarContestacao } from '@/app/claim/actions'
 import type { DadosCnpj } from '@/lib/brasilapi'
@@ -16,19 +17,8 @@ interface NovoEstabelecimentoFormProps {
    * precisa perguntar de novo em nenhum dos dois fluxos abaixo. */
   perfilTelefone: string
   perfilWhatsapp: string
-  bairros: { id: string; nome: string }[]
-  tiposEstabelecimento: { slug: string; nome: string; icone: string | null }[]
-}
-
-// Remove acentos e normaliza caixa/espaços — usado só pra comparar o
-// bairro solto que vem da Receita com o nome cadastrado na tabela
-// oficial (grafias como "São João" vs "Sao Joao" não deveriam falhar).
-function normalizar(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
+  bairros: { id: string; nome: string; cidade_id: string | null }[]
+  tiposEstabelecimento: { id: number; slug: string; nome: string; icone: string | null }[]
 }
 
 export default function NovoEstabelecimentoForm({
@@ -46,7 +36,10 @@ export default function NovoEstabelecimentoForm({
   const [cnpj, setCnpj] = useState(cnpjInicial)
   const [consultando, setConsultando] = useState(false)
   const [erroConsulta, setErroConsulta] = useState<string | null>(null)
+  const [foraDeCobertura, setForaDeCobertura] = useState(false)
   const [dadosCnpj, setDadosCnpj] = useState<DadosCnpj | null>(null)
+  const [cidadeId, setCidadeId] = useState('')
+  const [cidadeNome, setCidadeNome] = useState('')
   const [estabelecimentoExistente, setEstabelecimentoExistente] = useState<{ id: string; nome: string; slug: string; temDono: boolean } | null>(null)
 
   const [enviandoClaim, setEnviandoClaim] = useState(false)
@@ -60,7 +53,7 @@ export default function NovoEstabelecimentoForm({
 
   const [nomeFantasia, setNomeFantasia] = useState('')
   const [descricao, setDescricao] = useState('')
-  const [tipoEstabelecimento, setTipoEstabelecimento] = useState('')
+  const [tipoEstabelecimentoId, setTipoEstabelecimentoId] = useState('')
 
   const [tipoLogradouro, setTipoLogradouro] = useState('')
   const [logradouro, setLogradouro] = useState('')
@@ -84,6 +77,7 @@ export default function NovoEstabelecimentoForm({
 
   async function buscarCnpj() {
     setErroConsulta(null)
+    setForaDeCobertura(false)
     setEstabelecimentoExistente(null)
     if (!validarCnpj(cnpj)) {
       setErroConsulta('CNPJ inválido. Confira os números digitados.')
@@ -114,9 +108,14 @@ export default function NovoEstabelecimentoForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cnpj: limparCnpj(cnpj) }),
       })
-      const dados: DadosCnpj = await res.json()
+      const corpo = await res.json()
 
-      if (!res.ok) throw new Error((dados as any).error || 'Erro ao consultar CNPJ.')
+      if (!res.ok) {
+        if (corpo?.foraDeCobertura) setForaDeCobertura(true)
+        throw new Error(corpo?.error || 'Erro ao consultar CNPJ.')
+      }
+
+      const dados: DadosCnpj = corpo.dados
 
       // Só permite seguir com empresa ativa na Receita — inapta, baixada
       // ou suspensa não deveria virar estabelecimento no diretório.
@@ -130,18 +129,15 @@ export default function NovoEstabelecimentoForm({
       }
 
       setDadosCnpj(dados)
+      setCidadeId(corpo.cidadeId)
+      setCidadeNome(corpo.cidadeNome)
       setNomeFantasia(dados.nomeFantasia || '')
       setTipoLogradouro(dados.tipoLogradouro || '')
       setLogradouro(dados.logradouro || '')
       setNumero(limparNumeroEndereco(dados.numero))
       setComplemento(dados.complemento || '')
       setCep(dados.cep || '')
-
-      if (dados.bairro) {
-        const normalizado = normalizar(dados.bairro)
-        const encontrado = bairros.find((b) => normalizar(b.nome) === normalizado)
-        setBairroId(encontrado?.id || '')
-      }
+      setBairroId(corpo.bairroId || '')
     } catch (err: any) {
       setErroConsulta(err.message || 'Erro ao consultar CNPJ.')
     } finally {
@@ -151,10 +147,13 @@ export default function NovoEstabelecimentoForm({
 
   function trocarCnpj() {
     setDadosCnpj(null)
+    setCidadeId('')
+    setCidadeNome('')
+    setForaDeCobertura(false)
     setEstabelecimentoExistente(null)
     setNomeFantasia('')
     setDescricao('')
-    setTipoEstabelecimento('')
+    setTipoEstabelecimentoId('')
     setTipoLogradouro('')
     setLogradouro('')
     setNumero('')
@@ -211,8 +210,12 @@ export default function NovoEstabelecimentoForm({
       setError('Informe o nome fantasia.')
       return
     }
-    if (!tipoEstabelecimento) {
+    if (!tipoEstabelecimentoId) {
       setError('Selecione o tipo de estabelecimento.')
+      return
+    }
+    if (!cidadeId) {
+      setError('Cidade fora de cobertura — consulte o CNPJ novamente.')
       return
     }
 
@@ -229,7 +232,9 @@ export default function NovoEstabelecimentoForm({
         throw new Error('Já existe um estabelecimento cadastrado com esse CNPJ.')
       }
 
-      const baseSlug = slugify(nomeFantasia)
+      // Slug único por cidade (não globalmente) — o mesmo nome pode
+      // existir em cidades diferentes sem colidir.
+      const baseSlug = gerarSlug(nomeFantasia)
       let slugFinal = baseSlug
       let tentativa = 0
 
@@ -238,12 +243,15 @@ export default function NovoEstabelecimentoForm({
           .from('estabelecimentos')
           .select('id')
           .eq('slug', slugFinal)
+          .eq('cidade_id', cidadeId)
           .maybeSingle()
 
         if (!existente) break
         tentativa += 1
         slugFinal = `${baseSlug}-${tentativa + 1}`
       }
+
+      const tipoSelecionado = tiposEstabelecimento.find((t) => String(t.id) === tipoEstabelecimentoId)
 
       const { data: novoEstabelecimento, error: insertError } = await supabase
         .from('estabelecimentos')
@@ -252,7 +260,8 @@ export default function NovoEstabelecimentoForm({
           nome_fantasia: nomeFantasia.trim(),
           razao_social: nomeParaRegistro,
           descricao: descricao.trim() || null,
-          tipo_estabelecimento: tipoEstabelecimento,
+          tipo_estabelecimento_id: tipoSelecionado?.id ?? null,
+          tipo_estabelecimento: tipoSelecionado?.slug ?? null,
           cnpj: limparCnpj(cnpj),
           situacao_cadastral: dadosCnpj?.situacaoCadastral || null,
           atividade_economica: dadosCnpj?.atividadeEconomica || null,
@@ -262,6 +271,7 @@ export default function NovoEstabelecimentoForm({
           numero: numero || null,
           complemento: complemento || null,
           bairro_id: bairroId || null,
+          bairro_informado: dadosCnpj?.bairro || null,
           cep: cep || null,
           slug: slugFinal,
           telefone: perfilTelefone || null,
@@ -269,7 +279,8 @@ export default function NovoEstabelecimentoForm({
           owner_user_id: userId,
           status: 'active',
           ativo: true,
-          cidade: dadosCnpj?.cidade || 'Salvador',
+          cidade_id: cidadeId,
+          cidade: cidadeNome,
         })
         .select('id')
         .single()
@@ -325,14 +336,16 @@ export default function NovoEstabelecimentoForm({
         {erroConsulta && (
           <div className="mt-2 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm">
             {erroConsulta}
-            <button
-              type="button"
-              onClick={buscarCnpj}
-              disabled={consultando}
-              className="block mt-1 text-orange-700 font-medium hover:underline disabled:opacity-50"
-            >
-              {consultando ? 'Tentando...' : 'Tentar novamente'}
-            </button>
+            {!foraDeCobertura && (
+              <button
+                type="button"
+                onClick={buscarCnpj}
+                disabled={consultando}
+                className="block mt-1 text-orange-700 font-medium hover:underline disabled:opacity-50"
+              >
+                {consultando ? 'Tentando...' : 'Tentar novamente'}
+              </button>
+            )}
           </div>
         )}
 
@@ -443,7 +456,7 @@ export default function NovoEstabelecimentoForm({
           <label className="block text-sm font-medium text-gray-700 mb-1">Nome fantasia *</label>
           {nomeFantasia.trim() && (
             <p className="mb-1 text-xs text-gray-400 truncate">
-              Endereço da página pública: <span className="text-orange-600 font-medium">/{slugify(nomeFantasia)}</span>
+              Endereço da página pública: <span className="text-orange-600 font-medium">/{gerarSlug(nomeFantasia)}</span>
               <span className="text-gray-300"> (pode ganhar um número no final se já existir)</span>
             </p>
           )}
@@ -459,13 +472,13 @@ export default function NovoEstabelecimentoForm({
           <label className="block text-sm font-medium text-gray-700 mb-1 mt-4">Tipo de estabelecimento *</label>
           <select
             required
-            value={tipoEstabelecimento}
-            onChange={(e) => setTipoEstabelecimento(e.target.value)}
+            value={tipoEstabelecimentoId}
+            onChange={(e) => setTipoEstabelecimentoId(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           >
             <option value="">Selecione o tipo</option>
             {tiposEstabelecimento.map((t) => (
-              <option key={t.slug} value={t.slug}>{t.icone ? `${t.icone} ` : ''}{t.nome}</option>
+              <option key={t.id} value={t.id}>{t.icone ? `${t.icone} ` : ''}{t.nome}</option>
             ))}
           </select>
 
@@ -531,17 +544,13 @@ export default function NovoEstabelecimentoForm({
 
           <div className="grid grid-cols-2 gap-3 mt-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
-              <select
-                value={bairroId}
-                onChange={(e) => setBairroId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="">Selecione o bairro</option>
-                {bairros.map((b) => (
-                  <option key={b.id} value={b.id}>{b.nome}</option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+              <input
+                type="text"
+                value={cidadeNome}
+                disabled
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 text-gray-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
@@ -552,6 +561,27 @@ export default function NovoEstabelecimentoForm({
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100 text-gray-500"
               />
             </div>
+          </div>
+
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+            <select
+              value={bairroId}
+              onChange={(e) => setBairroId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="">Selecione o bairro</option>
+              {bairros
+                .filter((b) => b.cidade_id === cidadeId)
+                .map((b) => (
+                  <option key={b.id} value={b.id}>{b.nome}</option>
+                ))}
+            </select>
+            {bairroId === '' && dadosCnpj?.bairro && (
+              <p className="mt-1 text-xs text-neutral-400">
+                A Receita informou &ldquo;{dadosCnpj.bairro}&rdquo;, mas não achamos esse bairro cadastrado em {cidadeNome} — selecione o mais próximo.
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-gray-400 mt-3">

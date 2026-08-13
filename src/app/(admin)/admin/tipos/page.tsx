@@ -4,6 +4,8 @@ import type { TipoItem } from './TiposManager'
 import { criarTipoEstabelecimento, toggleTipoEstabelecimento, editarTipoEstabelecimento, excluirTipoEstabelecimento, criarTipoCozinha, toggleTipoCozinha, editarTipoCozinha, excluirTipoCozinha } from './actions'
 import BairrosManager from '../bairros/BairrosManager'
 import type { BairroComContagem } from '../bairros/BairrosManager'
+import CidadesManager from '../cidades/CidadesManager'
+import type { CidadeComContagem } from '../cidades/CidadesManager'
 import AdminPageHeader from '@/components/admin/AdminPageHeader'
 import AdminAcordeaoSecao from '@/components/admin/AdminAcordeaoSecao'
 
@@ -17,13 +19,19 @@ export default async function AdminTiposPage() {
     { data: vinculosCozinha },
     { data: bairros },
     { data: estabelecimentosPorBairro },
+    { data: cidades },
+    { data: bairrosPorCidadeRaw },
+    { data: estabelecimentosPorCidadeRaw },
   ] = await Promise.all([
     supabase.from('tipos_estabelecimento').select('id, nome, slug, icone, ativo').order('ordem'),
     supabase.from('tipos_cozinha').select('id, nome, slug, icone, ativo').order('ordem'),
     supabase.from('estabelecimentos').select('tipo_estabelecimento').not('tipo_estabelecimento', 'is', null),
     supabase.from('estabelecimento_tipos_cozinha').select('tipo_cozinha_id'),
-    supabase.from('bairros').select('id, nome, slug, icone').order('nome'),
+    supabase.from('bairros').select('id, nome, slug, icone, cidade_id').order('nome'),
     supabase.from('estabelecimentos').select('bairro_id').not('bairro_id', 'is', null),
+    supabase.from('cidades').select('id, nome, slug').order('nome'),
+    supabase.from('bairros').select('cidade_id').not('cidade_id', 'is', null),
+    supabase.from('estabelecimentos').select('cidade_id').not('cidade_id', 'is', null),
   ])
 
   const contagemPorSlug = new Map<string, number>()
@@ -54,6 +62,20 @@ export default async function AdminTiposPage() {
   const bairrosComContagem: BairroComContagem[] = (bairros || []).map((b) => ({
     ...b,
     totalEstabelecimentos: contagemPorBairro.get(b.id) || 0,
+  }))
+
+  const bairrosPorCidade = new Map<string, number>()
+  for (const linha of bairrosPorCidadeRaw || []) {
+    if (linha.cidade_id) bairrosPorCidade.set(linha.cidade_id, (bairrosPorCidade.get(linha.cidade_id) || 0) + 1)
+  }
+  const estabelecimentosPorCidade = new Map<string, number>()
+  for (const linha of estabelecimentosPorCidadeRaw || []) {
+    if (linha.cidade_id) estabelecimentosPorCidade.set(linha.cidade_id, (estabelecimentosPorCidade.get(linha.cidade_id) || 0) + 1)
+  }
+  const cidadesComContagem: CidadeComContagem[] = (cidades || []).map((c) => ({
+    ...c,
+    totalBairros: bairrosPorCidade.get(c.id) || 0,
+    totalEstabelecimentos: estabelecimentosPorCidade.get(c.id) || 0,
   }))
 
   return (
@@ -91,12 +113,22 @@ export default async function AdminTiposPage() {
         />
       </AdminAcordeaoSecao>
 
+      <AdminAcordeaoSecao titulo="Cidades" contador={`${cidadesComContagem.length} itens`}>
+        <p className="text-xs text-neutral-400">
+          Lista de cobertura do menu.salvador — só cidades cadastradas aqui podem receber estabelecimento novo pelo
+          cadastro por CNPJ.
+        </p>
+        <div className="mt-4">
+          <CidadesManager cidadesIniciais={cidadesComContagem} />
+        </div>
+      </AdminAcordeaoSecao>
+
       <AdminAcordeaoSecao titulo="Bairros" contador={`${bairrosComContagem.length} itens`}>
         <p className="text-xs text-neutral-400">
           Lista de bairros disponível pra todos os donos de estabelecimento escolherem no cadastro.
         </p>
         <div className="mt-4">
-          <BairrosManager bairrosIniciais={bairrosComContagem} />
+          <BairrosManager bairrosIniciais={bairrosComContagem} cidades={cidades || []} />
         </div>
       </AdminAcordeaoSecao>
     </div>

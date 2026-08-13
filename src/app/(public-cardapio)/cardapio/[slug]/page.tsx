@@ -61,7 +61,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   // 1. Estabelecimento
   const { data: est, error: estErr } = await supabase
     .from('estabelecimentos')
-    .select('*, bairros(nome, slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
+    .select('*, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
   if (estErr || !est) notFound()
@@ -301,8 +301,8 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
           <div className="px-5 pb-5" style={{ paddingTop: heroComImagem ? '0.75rem' : undefined }}>
           <Link
             href={
-              est.cidade && est.bairros?.slug && est.tipo_estabelecimento
-                ? `/${est.cidade}/${est.bairros.slug}/${est.tipo_estabelecimento}/${est.slug}`
+              est.cidades?.slug && est.bairros?.slug && est.tipos_estabelecimento?.slug
+                ? `/${est.cidades.slug}/${est.bairros.slug}/${est.tipos_estabelecimento.slug}/${est.slug}`
                 : `/cardapio/${est.slug}`
             }
             className="mt-3 inline-block text-sm hover:underline" style={{ color: corP }}>

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import EstablishmentCard from '@/components/public/EstablishmentCard'
+import EstablishmentCard, { type EstablishmentCardData } from '@/components/public/EstablishmentCard'
 import GaleriaEstabelecimento from '@/components/public/GaleriaEstabelecimento'
 import SectionHeading from '@/components/public/SectionHeading'
 import StatusPill from '@/components/public/StatusPill'
@@ -26,28 +26,45 @@ import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRo
 import type { Metadata } from 'next'
 
 // ============================================================
-// FUNÇÕES DE DETECÇÃO
+// RESOLUÇÃO DE SEGMENTO — por slug contra a tabela de referência, não
+// mais por texto cru nem por "existe estabelecimento com esse valor"
+// (esse segundo método dava falso-negativo pra cidade/tipo válidos sem
+// nenhum estabelecimento ainda).
 // ============================================================
 
-async function isTipo(cidade: string, termo: string) {
-  const supabase = await createClient()
-  const { count } = await supabase
-    .from('estabelecimentos')
-    .select('*', { count: 'exact', head: true })
-    .eq('cidade', cidade)
-    .eq('tipo_estabelecimento', termo)
-    .limit(1)
-  return (count ?? 0) > 0
+interface CidadeRow {
+  id: string
+  nome: string
+  slug: string
 }
 
-async function isCidade(nome: string) {
+interface TipoEstabelecimentoRow {
+  id: number
+  nome: string
+  slug: string
+  icone: string | null
+}
+
+interface EstabelecimentoComTipo extends EstablishmentCardData {
+  id: string
+  slug: string
+  tipos_estabelecimento: TipoEstabelecimentoRow | null
+}
+
+async function resolverCidade(slugCidade: string): Promise<CidadeRow | null> {
   const supabase = await createClient()
-  const { count } = await supabase
-    .from('estabelecimentos')
-    .select('*', { count: 'exact', head: true })
-    .eq('cidade', nome)
-    .limit(1)
-  return (count ?? 0) > 0
+  const { data } = await supabase.from('cidades').select('id, nome, slug').eq('slug', slugCidade).maybeSingle()
+  return data
+}
+
+async function resolverTipoEstabelecimento(slugTipo: string): Promise<TipoEstabelecimentoRow | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('tipos_estabelecimento')
+    .select('id, nome, slug, icone')
+    .eq('slug', slugTipo)
+    .maybeSingle()
+  return data
 }
 
 // ============================================================
@@ -104,33 +121,35 @@ export default async function Page({
 
   // --- 4 segmentos: estabelecimento ---
   if (slug.length === 4) {
-    const [cidade, bairro, tipo, slugEst] = slug
-    return <EstabelecimentoPage cidade={cidade} bairro={bairro} tipo={tipo} slug={slugEst} />
+    const [cidadeSlug, bairroSlug, tipoSlug, slugEst] = slug
+    return <EstabelecimentoPage cidadeSlug={cidadeSlug} bairroSlug={bairroSlug} tipoSlug={tipoSlug} slug={slugEst} />
   }
 
   // --- 3 segmentos: tipo no bairro ---
   if (slug.length === 3) {
-    const [cidade, bairro, tipo] = slug
-    return <TipoNoBairroPage cidade={cidade} bairro={bairro} tipo={tipo} />
+    const [cidadeSlug, bairroSlug, tipoSlug] = slug
+    return <TipoNoBairroPage cidadeSlug={cidadeSlug} bairroSlug={bairroSlug} tipoSlug={tipoSlug} />
   }
 
   // --- 2 segmentos: cidade+tipo ou cidade+bairro ---
   if (slug.length === 2) {
     const [primeiro, segundo] = slug
-    if (await isTipo(primeiro, segundo)) {
-      return <TipoNaCidadePage cidade={primeiro} tipo={segundo} />
+    const tipo = await resolverTipoEstabelecimento(segundo)
+    if (tipo) {
+      return <TipoNaCidadePage cidadeSlug={primeiro} tipo={tipo} />
     } else {
-      return <BairroPage cidade={primeiro} bairro={segundo} />
+      return <BairroPage cidadeSlug={primeiro} bairroSlug={segundo} />
     }
   }
 
   // --- 1 segmento: cidade ou bairro ---
   if (slug.length === 1) {
     const [nome] = slug
-    if (await isCidade(nome)) {
-      return <CidadePage cidade={nome} />
+    const cidade = await resolverCidade(nome)
+    if (cidade) {
+      return <CidadePage cidade={cidade} />
     } else {
-      return <BairroPage bairro={nome} />
+      return <BairroPage bairroSlug={nome} />
     }
   }
 
@@ -244,30 +263,37 @@ async function HomePage({
 }
 
 // -------- CIDADE --------
-async function CidadePage({ cidade }: { cidade: string }) {
+async function CidadePage({ cidade }: { cidade: CidadeRow }) {
   const supabase = await createClient()
   const { data: tipos } = await supabase
     .from('estabelecimentos')
-    .select('tipo_estabelecimento')
-    .eq('cidade', cidade)
+    .select('tipo_estabelecimento_id, tipos_estabelecimento(nome, slug, icone)')
+    .eq('cidade_id', cidade.id)
     .eq('status', 'active')
     .eq('ativo', true)
+    .not('tipo_estabelecimento_id', 'is', null)
 
-  const tiposUnicos = [...new Set(tipos?.map((t: any) => t.tipo_estabelecimento).filter(Boolean))] as string[]
+  const tiposUnicos = Array.from(
+    new Map(
+      ((tipos || []) as unknown as { tipo_estabelecimento_id: number; tipos_estabelecimento: TipoEstabelecimentoRow | null }[])
+        .filter((t) => t.tipos_estabelecimento)
+        .map((t) => [t.tipo_estabelecimento_id, t.tipos_estabelecimento as TipoEstabelecimentoRow])
+    ).values()
+  )
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
-      <SectionHeading title={cidade} subtitle="Explore por categoria" />
+      <SectionHeading title={cidade.nome} subtitle="Explore por categoria" />
       <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3">
         {tiposUnicos.map((tipo) => (
           <Link
-            key={tipo}
-            href={`/${cidade}/${tipo}`}
+            key={tipo.slug}
+            href={`/${cidade.slug}/${tipo.slug}`}
             className="group rounded-2xl border border-neutral-100 bg-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-md hover:border-[var(--brand-primary)]/40"
           >
-            <div className="mb-2 text-3xl">🍽️</div>
-            <h2 className="text-sm font-semibold capitalize text-neutral-800 group-hover:text-[var(--brand-primary)]">
-              {tipo}
+            <div className="mb-2 text-3xl">{tipo.icone || '🍽️'}</div>
+            <h2 className="text-sm font-semibold text-neutral-800 group-hover:text-[var(--brand-primary)]">
+              {tipo.nome}
             </h2>
             <p className="mt-1 text-xs text-neutral-400">Ver estabelecimentos</p>
           </Link>
@@ -283,13 +309,16 @@ async function CidadePage({ cidade }: { cidade: string }) {
 }
 
 // -------- TIPO NA CIDADE (ex: /salvador/restaurante) --------
-async function TipoNaCidadePage({ cidade, tipo }: { cidade: string; tipo: string }) {
+async function TipoNaCidadePage({ cidadeSlug, tipo }: { cidadeSlug: string; tipo: TipoEstabelecimentoRow }) {
   const supabase = await createClient()
+  const cidade = await resolverCidade(cidadeSlug)
+  if (!cidade) notFound()
+
   const { data: estabelecimentos } = await supabase
     .from('estabelecimentos')
     .select('*, bairros(nome, slug)')
-    .eq('cidade', cidade)
-    .eq('tipo_estabelecimento', tipo)
+    .eq('cidade_id', cidade.id)
+    .eq('tipo_estabelecimento_id', tipo.id)
     .eq('status', 'active')
     .eq('ativo', true)
     .not('bairro_id', 'is', null)
@@ -298,7 +327,7 @@ async function TipoNaCidadePage({ cidade, tipo }: { cidade: string; tipo: string
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
       <SectionHeading
-        title={`${tipo} em ${cidade}`}
+        title={`${tipo.nome} em ${cidade.nome}`}
         subtitle={`${estabelecimentos?.length || 0} estabelecimentos encontrados`}
       />
       <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -307,8 +336,8 @@ async function TipoNaCidadePage({ cidade, tipo }: { cidade: string; tipo: string
             key={est.id}
             estabelecimento={est}
             href={
-              cidade && est.bairros?.slug && est.tipo_estabelecimento
-                ? `/${cidade}/${est.bairros.slug}/${est.tipo_estabelecimento}/${est.slug}`
+              est.bairros?.slug
+                ? `/${cidade.slug}/${est.bairros.slug}/${tipo.slug}/${est.slug}`
                 : `/cardapio/${est.slug}`
             }
           />
@@ -323,47 +352,52 @@ async function TipoNaCidadePage({ cidade, tipo }: { cidade: string; tipo: string
   )
 }
 
-const ICONES_TIPO_ESTABELECIMENTO: Record<string, string> = {
-  banca_acaraje: '🫘',
-  bar: '🍺',
-  restaurante: '🍽️',
-  cafeteria: '☕',
-  foodtruck: '🚚',
-  lanchonete: '🥪',
-}
-
-// -------- BAIRRO (com ou sem cidade) --------
-async function BairroPage({ cidade, bairro }: { cidade?: string; bairro: string }) {
+// -------- BAIRRO (com ou sem cidade na URL) --------
+async function BairroPage({ cidadeSlug, bairroSlug }: { cidadeSlug?: string; bairroSlug: string }) {
   const supabase = await createClient()
 
-  // "bairro" aqui é o slug vindo da URL — resolve pro registro real
-  const { data: bairroRow } = await supabase.from('bairros').select('id, nome').eq('slug', bairro).maybeSingle()
+  // Cidade vem sempre do próprio bairro (cidade_id é obrigatório) — não
+  // depende de um segmento de cidade na URL pra existir; se a URL tinha
+  // 2 segmentos, só confere que bate com a cidade real do bairro.
+  const { data: bairroRow } = await supabase
+    .from('bairros')
+    .select('id, nome, cidades(nome, slug)')
+    .eq('slug', bairroSlug)
+    .maybeSingle()
 
   if (!bairroRow) notFound()
+  const cidadeDoBairro = (Array.isArray(bairroRow.cidades) ? bairroRow.cidades[0] : bairroRow.cidades) as
+    | { nome: string; slug: string }
+    | null
+  if (cidadeSlug && cidadeDoBairro?.slug !== cidadeSlug) notFound()
 
   const nomeBairro = bairroRow.nome
+  const cidadeSlugReal = cidadeDoBairro?.slug
+  const nomeCidade = cidadeDoBairro?.nome
 
-  let query = supabase
+  const { data: estabelecimentos } = await supabase
     .from('estabelecimentos')
-    .select('*')
+    .select('*, tipos_estabelecimento(nome, slug, icone)')
     .eq('bairro_id', bairroRow.id)
     .eq('status', 'active')
     .eq('ativo', true)
-    .not('tipo_estabelecimento', 'is', null)
-
-  if (cidade) query = query.eq('cidade', cidade)
-
-  const { data: estabelecimentos } = await query
+    .not('tipo_estabelecimento_id', 'is', null)
     .order('destaque', { ascending: false })
     .order('nome', { ascending: true })
 
-  const baseLink = cidade ? `/${cidade}/${bairro}` : `/${bairro}`
+  const baseLink = cidadeSlugReal ? `/${cidadeSlugReal}/${bairroSlug}` : `/${bairroSlug}`
 
-  const tiposPresentes = [
-    ...new Set((estabelecimentos || []).map((e) => e.tipo_estabelecimento).filter(Boolean)),
-  ] as string[]
+  const estabelecimentosComTipo = (estabelecimentos || []) as unknown as EstabelecimentoComTipo[]
 
-  const total = estabelecimentos?.length || 0
+  const tiposPresentes = Array.from(
+    new Map(
+      estabelecimentosComTipo
+        .filter((e) => e.tipos_estabelecimento)
+        .map((e) => [e.tipos_estabelecimento!.slug, e.tipos_estabelecimento as TipoEstabelecimentoRow])
+    ).values()
+  )
+
+  const total = estabelecimentosComTipo.length
 
   return (
     <div>
@@ -377,9 +411,9 @@ async function BairroPage({ cidade, bairro }: { cidade?: string; bairro: string 
           className="pointer-events-none absolute -top-10 -right-10 h-56 w-56 rounded-full bg-white/10 blur-2xl"
         />
         <div className="relative z-10 mx-auto max-w-2xl">
-          {cidade && (
-            <Link href={`/${cidade}`} className="text-sm text-white/80 hover:underline">
-              ← {cidade}
+          {cidadeSlugReal && (
+            <Link href={`/${cidadeSlugReal}`} className="text-sm text-white/80 hover:underline">
+              ← {nomeCidade}
             </Link>
           )}
           <h1 className="mt-1 text-3xl font-black tracking-tight md:text-4xl">📍 {nomeBairro}</h1>
@@ -395,23 +429,23 @@ async function BairroPage({ cidade, bairro }: { cidade?: string; bairro: string 
           <div className="mb-8 flex flex-wrap gap-2">
             {tiposPresentes.map((tipo) => (
               <Link
-                key={tipo}
-                href={`${baseLink}/${tipo}`}
+                key={tipo.slug}
+                href={`${baseLink}/${tipo.slug}`}
                 className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)]"
               >
-                <span>{ICONES_TIPO_ESTABELECIMENTO[tipo] || '🏪'}</span>
-                <span className="capitalize">{tipo.replace(/_/g, ' ')}</span>
+                <span>{tipo.icone || '🏪'}</span>
+                <span>{tipo.nome}</span>
               </Link>
             ))}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {estabelecimentos?.map((est) => (
+          {estabelecimentosComTipo.map((est) => (
             <EstablishmentCard
               key={est.id}
               estabelecimento={est}
-              href={`${baseLink}/${est.tipo_estabelecimento}/${est.slug}`}
+              href={est.tipos_estabelecimento?.slug ? `${baseLink}/${est.tipos_estabelecimento.slug}/${est.slug}` : `/cardapio/${est.slug}`}
             />
           ))}
         </div>
@@ -420,13 +454,13 @@ async function BairroPage({ cidade, bairro }: { cidade?: string; bairro: string 
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <span className="text-5xl">🔍</span>
             <p className="text-neutral-500">Nenhum estabelecimento encontrado neste bairro ainda.</p>
-            {cidade && (
+            {cidadeSlugReal && (
               <Link
-                href={`/${cidade}`}
+                href={`/${cidadeSlugReal}`}
                 className="text-sm font-medium hover:underline"
                 style={{ color: 'var(--brand-primary)' }}
               >
-                Explorar outros bairros de {cidade} →
+                Explorar outros bairros de {nomeCidade} →
               </Link>
             )}
           </div>
@@ -437,24 +471,29 @@ async function BairroPage({ cidade, bairro }: { cidade?: string; bairro: string 
 }
 
 // -------- TIPO NO BAIRRO (ex: /salvador/pituba/restaurante) --------
-async function TipoNoBairroPage({ cidade, bairro, tipo }: { cidade: string; bairro: string; tipo: string }) {
+async function TipoNoBairroPage({ cidadeSlug, bairroSlug, tipoSlug }: { cidadeSlug: string; bairroSlug: string; tipoSlug: string }) {
   const supabase = await createClient()
 
-  // "bairro" aqui é o slug vindo da URL — resolve pro registro real
-  const { data: bairroRow } = await supabase.from('bairros').select('id, nome').eq('slug', bairro).maybeSingle()
-  const nomeBairro = bairroRow?.nome || bairro
+  const [cidade, tipo, { data: bairroRow }] = await Promise.all([
+    resolverCidade(cidadeSlug),
+    resolverTipoEstabelecimento(tipoSlug),
+    supabase.from('bairros').select('id, nome, cidade_id').eq('slug', bairroSlug).maybeSingle(),
+  ])
+  if (!cidade || !tipo || !bairroRow || bairroRow.cidade_id !== cidade.id) notFound()
+
+  const nomeBairro = bairroRow.nome
 
   const { data: estabelecimentos } = await supabase
     .from('estabelecimentos')
     .select('*')
-    .eq('cidade', cidade)
-    .eq('bairro_id', bairroRow?.id || '00000000-0000-0000-0000-000000000000')
-    .eq('tipo_estabelecimento', tipo)
+    .eq('cidade_id', cidade.id)
+    .eq('bairro_id', bairroRow.id)
+    .eq('tipo_estabelecimento_id', tipo.id)
     .eq('status', 'active')
     .eq('ativo', true)
     .order('destaque', { ascending: false })
 
-  const baseLink = `/${cidade}/${bairro}/${tipo}`
+  const baseLink = `/${cidadeSlug}/${bairroSlug}/${tipoSlug}`
   const total = estabelecimentos?.length || 0
 
   return (
@@ -464,14 +503,14 @@ async function TipoNoBairroPage({ cidade, bairro, tipo }: { cidade: string; bair
         style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
       >
         <div className="relative z-10 mx-auto max-w-2xl">
-          <Link href={`/${cidade}/${bairro}`} className="text-sm text-white/80 hover:underline">
+          <Link href={`/${cidadeSlug}/${bairroSlug}`} className="text-sm text-white/80 hover:underline">
             ← {nomeBairro}
           </Link>
-          <h1 className="mt-1 text-3xl font-black capitalize tracking-tight md:text-4xl">
-            {ICONES_TIPO_ESTABELECIMENTO[tipo] || '🏪'} {tipo.replace(/_/g, ' ')}
+          <h1 className="mt-1 text-3xl font-black tracking-tight md:text-4xl">
+            {tipo.icone || '🏪'} {tipo.nome}
           </h1>
           <p className="mt-2 text-sm text-white/90 md:text-base">
-            {nomeBairro}, {cidade} · {total} {total === 1 ? 'encontrado' : 'encontrados'}
+            {nomeBairro}, {cidade.nome} · {total} {total === 1 ? 'encontrado' : 'encontrados'}
           </p>
         </div>
       </section>
@@ -487,11 +526,11 @@ async function TipoNoBairroPage({ cidade, bairro, tipo }: { cidade: string; bair
             <span className="text-5xl">🔍</span>
             <p className="text-neutral-500">Nenhum estabelecimento encontrado com esses filtros.</p>
             <Link
-              href={`/${cidade}/${bairro}`}
+              href={`/${cidadeSlug}/${bairroSlug}`}
               className="text-sm font-medium hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >
-              Ver todo o bairro {bairro} →
+              Ver todo o bairro {nomeBairro} →
             </Link>
           </div>
         )}
@@ -504,31 +543,31 @@ async function TipoNoBairroPage({ cidade, bairro, tipo }: { cidade: string; bair
 // ESTABELECIMENTO (página completa) – CORRIGIDO
 // ============================================================
 
+// cidadeSlug/bairroSlug/tipoSlug não são desestruturados de propósito —
+// só existem na URL pra formar o link "bonito", não são necessários pra
+// localizar o registro (ver comentário abaixo).
 async function EstabelecimentoPage({
-  cidade,
-  bairro,
-  tipo,
   slug,
 }: {
-  cidade: string
-  bairro: string
-  tipo: string
+  cidadeSlug: string
+  bairroSlug: string
+  tipoSlug: string
   slug: string
 }) {
   const supabase = await createClient()
 
-  // "slug" é único por estabelecimento, então ele sozinho já basta pra
-  // encontrar o registro certo — cidade/bairro/tipo na URL servem só pra
-  // formar o link "bonito", não são necessários pra localizar a linha.
-  // (Antes havia aqui uma cadeia de até 3 buscas em série, incluindo uma
-  // tentativa de detectar "coluna inexistente" — nenhuma das colunas
-  // usadas (cidade, tipo_estabelecimento, bairro_id) deixou de existir;
-  // o motivo real de não achar com todos os filtros era simplesmente um
-  // bairro/tipo desatualizado na URL, então a segunda tentativa nunca
-  // resolvia nada que a busca só por slug já não resolvesse.)
+  // "slug" é único por estabelecimento (dentro da cidade), então ele
+  // sozinho já basta pra encontrar o registro certo — cidade/bairro/tipo
+  // na URL servem só pra formar o link "bonito", não são necessários pra
+  // localizar a linha. (Antes havia aqui uma cadeia de até 3 buscas em
+  // série, incluindo uma tentativa de detectar "coluna inexistente" —
+  // nenhuma das colunas usadas deixou de existir; o motivo real de não
+  // achar com todos os filtros era simplesmente um bairro/tipo
+  // desatualizado na URL, então a segunda tentativa nunca resolvia nada
+  // que a busca só por slug já não resolvesse.)
   const { data: est } = await supabase
     .from('estabelecimentos')
-    .select('*, estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
+    .select('*, estabelecimento_tipos_cozinha(tipos_cozinha(nome)), cidades(nome, slug), bairros(nome, slug)')
     .eq('slug', slug)
     .eq('status', 'active')
     .eq('ativo', true)
@@ -621,9 +660,17 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
   // (ex: 23h de quinta em Salvador já é sexta em UTC).
   const { diaSemana: diaSemanaHojeSalvador } = horarioAtualSalvador()
 
+  // Nome real de cidade/bairro vem do join (cidades/bairros), não mais
+  // do texto solto em estabelecimentos.cidade/bairro — esse texto nunca
+  // é escrito pelos fluxos de cadastro atuais (ver src/lib/
+  // resolverCidadeCadastro.ts), ficaria em branco pra estabelecimento
+  // novo se ainda fosse a fonte usada aqui.
+  const nomeCidadeReal = est.cidades?.nome || 'Salvador'
+  const nomeBairroReal = est.bairros?.nome || null
+
   const enderecoCompleto = est.endereco
-    ? `${[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')}${est.numero ? ', ' + est.numero : ''}, ${est.bairro}, ${est.cidade || 'Salvador'}, BA`
-    : `${est.bairro}, ${est.cidade || 'Salvador'}, BA`
+    ? `${[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')}${est.numero ? ', ' + est.numero : ''}${nomeBairroReal ? `, ${nomeBairroReal}` : ''}, ${nomeCidadeReal}, BA`
+    : `${nomeBairroReal ? `${nomeBairroReal}, ` : ''}${nomeCidadeReal}, BA`
 
   // O admin pode preencher um link de Google Maps manualmente — ele tem
   // prevalência sobre o endereço geocodificado. Só funciona de verdade
@@ -651,8 +698,8 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
       : `https://maps.google.com/maps?q=${encodeURIComponent(enderecoCompleto)}`)
 
   const nomeExibicao = est.nome_fantasia || est.nome
-  const cidade = est.cidade || 'Salvador'
-  const bairro = est.bairro
+  const cidade = nomeCidadeReal
+  const bairro = nomeBairroReal
 
   const ETIQUETA_ESTACIONAMENTO: Record<string, { emoji: string; chave: string; texto: string }> = {
     proprio: { emoji: '🅿️', chave: 'estacionamento_proprio', texto: 'Estacionamento próprio' },
@@ -777,7 +824,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
                             .filter(Boolean)
                             .join(', ') || <TextoInterface chave="endereco_nao_informado">Endereço não informado</TextoInterface>}
                         </p>
-                        <p className="text-xs text-neutral-500">{bairro} - {cidade}, BA</p>
+                        <p className="text-xs text-neutral-500">{bairro ? `${bairro} - ` : ''}{cidade}, BA</p>
                       </div>
                     </div>
                   )

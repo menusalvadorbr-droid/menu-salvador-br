@@ -1,9 +1,10 @@
 'use client'
 
 import EstablishmentCard from '@/components/public/EstablishmentCard'
+import type { EstabelecimentoComJoins } from './tipos'
 
 interface GridEstabelecimentosProps {
-  estabelecimentos: any[]
+  estabelecimentos: EstabelecimentoComJoins[]
 }
 
 /**
@@ -28,9 +29,11 @@ export default function GridEstabelecimentos({ estabelecimentos }: GridEstabelec
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
       {estabelecimentos.map((est) => {
+        const cidadeSlug = est.cidades?.slug
         const bairroSlug = est.bairros?.slug
-        const href = est.cidade && bairroSlug && est.tipo_estabelecimento
-          ? `/${est.cidade}/${bairroSlug}/${est.tipo_estabelecimento}/${est.slug}`
+        const tipoSlug = est.tipos_estabelecimento?.slug
+        const href = cidadeSlug && bairroSlug && tipoSlug
+          ? `/${cidadeSlug}/${bairroSlug}/${tipoSlug}/${est.slug}`
           : `/cardapio/${est.slug}`
         return <EstablishmentCard key={est.id} estabelecimento={est} href={href} />
       })}

@@ -12,10 +12,12 @@ const PREFIXOS_SISTEMA = [
 ]
 
 /**
- * Resolve os nomes reais (nome_fantasia, nome da cidade/bairro/culinária) para
- * exibir no breadcrumb, em vez de derivar um texto aproximado a partir do slug
- * da URL (ex: "bar-do-zeca" virando "Bar Do Zeca" mesmo quando o nome_fantasia
- * cadastrado é diferente, como "Bar do Zezinho").
+ * Resolve os nomes reais (nome_fantasia, nome da cidade/bairro/tipo/
+ * culinária) para exibir no breadcrumb, em vez de derivar um texto
+ * aproximado a partir do slug da URL (ex: "bar-do-zeca" virando
+ * "Bar Do Zeca" mesmo quando o nome_fantasia cadastrado é diferente,
+ * como "Bar do Zezinho", ou "vitoria-da-conquista" virando
+ * "Vitoria Da Conquista" com preposição maiúscula e sem acento).
  */
 function useNomesReais(segments: string[]) {
   const [nomes, setNomes] = useState<Record<number, string>>({})
@@ -74,6 +76,15 @@ function useNomesReais(segments: string[]) {
         if (data) novosNomes[2] = data.nome_fantasia || data.nome
       }
 
+      // Cidade por slug — sempre na posição 0 quando presente no diretório
+      // público (/cidade[/bairro[/tipo[/slug]]]). Se a posição 0 não for
+      // cidade (é bairro sozinho, ex: /pituba), a consulta não acha nada
+      // e cai no texto derivado do slug normalmente, sem problema.
+      if (segments.length <= 4 && !PREFIXOS_SISTEMA.includes(segments[0])) {
+        const { data } = await supabase.from('cidades').select('nome').eq('slug', segments[0]).maybeSingle()
+        if (data) novosNomes[0] = data.nome
+      }
+
       // Bairro por slug — aparece na posição 0 (/bairro) ou 1
       // (/cidade/bairro[/tipo[/slug]]), conforme o padrão de rota pública.
       // Tenta as duas posições; se não for bairro (é cidade, tipo ou
@@ -84,6 +95,22 @@ function useNomesReais(segments: string[]) {
           if (segments[posicao] && novosNomes[posicao] === undefined) {
             const { data } = await supabase
               .from('bairros')
+              .select('nome')
+              .eq('slug', segments[posicao])
+              .maybeSingle()
+            if (data) novosNomes[posicao] = data.nome
+          }
+        }
+      }
+
+      // Tipo de estabelecimento por slug — aparece na posição 1
+      // (/cidade/tipo) ou 2 (/cidade/bairro/tipo[/slug]). Só tenta a
+      // posição se ela ainda não foi resolvida como bairro acima.
+      if (segments.length <= 4 && !PREFIXOS_SISTEMA.includes(segments[0])) {
+        for (const posicao of [1, 2]) {
+          if (segments[posicao] && novosNomes[posicao] === undefined) {
+            const { data } = await supabase
+              .from('tipos_estabelecimento')
               .select('nome')
               .eq('slug', segments[posicao])
               .maybeSingle()
@@ -119,10 +146,10 @@ export default function Breadcrumb() {
   if (segments.length === 0) return null
 
   return (
-    <nav className="text-xs text-gray-400 py-2 px-4 bg-white border-b border-gray-100">
-      <ol className="flex flex-wrap items-center gap-1 max-w-7xl mx-auto">
+    <nav aria-label="Trilha de navegação" className="text-xs text-gray-400 py-2 px-4 bg-white border-b border-gray-100">
+      <ol className="flex flex-wrap items-center gap-1 max-w-7xl mx-auto list-none p-0 m-0">
         <li>
-          <Link href="/" className="hover:text-gray-600 transition">Home</Link>
+          <Link href="/" className="hover:text-gray-600 transition">Início</Link>
         </li>
         {segments.map((seg, i) => {
           const href = '/' + segments.slice(0, i + 1).join('/')
@@ -134,9 +161,9 @@ export default function Breadcrumb() {
 
           return (
             <li key={i} className="flex items-center">
-              <span className="mx-1 text-gray-300">/</span>
+              <span aria-hidden="true" className="mx-1 text-gray-300">/</span>
               {isLast ? (
-                <span className="text-gray-700 font-medium">{label}</span>
+                <span aria-current="page" className="text-gray-700 font-medium">{label}</span>
               ) : (
                 <Link href={href} className="hover:text-gray-600 transition">
                   {label}

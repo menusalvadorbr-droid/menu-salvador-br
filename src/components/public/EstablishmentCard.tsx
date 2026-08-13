@@ -17,7 +17,10 @@ export interface EstablishmentCardData {
   nome_fantasia?: string | null
   slug?: string | null
   bairro?: string | null
+  /** @deprecated coluna solta antiga (denormalizada) — use tipos_estabelecimento via tipo_estabelecimento_id, mantido só como fallback de ícone */
   tipo_estabelecimento?: string | null
+  /** Vem do embed `tipos_estabelecimento(nome, slug, icone)` via tipo_estabelecimento_id. */
+  tipos_estabelecimento?: { nome: string; slug: string; icone: string | null } | null
   /** @deprecated coluna solta antiga — use estabelecimento_tipos_cozinha, mantido só como fallback */
   tipo_cozinha?: string | null
   /** Vem do embed `estabelecimento_tipos_cozinha(tipos_cozinha(nome))` — até 3 culinárias por estabelecimento. */
@@ -50,9 +53,14 @@ export default function EstablishmentCard({
     estabelecimento.foto_capa ||
     null
   const imagem = getOptimizedCloudinaryUrl(imagemBruta, 400, 300, 'fill')
-  const icone = estabelecimento.tipo_estabelecimento
-    ? ICONES_TIPO[estabelecimento.tipo_estabelecimento] || '🏪'
-    : '🏪'
+  // Prefere o ícone real de tipos_estabelecimento (via join) — só cai pro
+  // mapa fixo abaixo se o chamador ainda não busca essa relação; o mapa
+  // fixo é uma cópia congelada dos slugs antigos e não acompanha edição
+  // de ícone nem os slugs corrigidos na migração de canonicalização.
+  const icone =
+    estabelecimento.tipos_estabelecimento?.icone ||
+    (estabelecimento.tipo_estabelecimento ? ICONES_TIPO[estabelecimento.tipo_estabelecimento] : null) ||
+    '🏪'
   const popular = (estabelecimento.scans_qrcode ?? 0) > 50
 
   // Culinárias reais (até 3, via tabela de junção). Se o embed não veio

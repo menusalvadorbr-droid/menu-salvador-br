@@ -13,7 +13,7 @@ export default async function RecomendadosSecao() {
   const supabase = await createClient()
   const { data } = await supabase
     .from('estabelecimentos')
-    .select('*, bairros(nome, slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
+    .select('*, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
     .eq('status', 'active')
     .eq('ativo', true)
     .eq('destaque', true)
@@ -30,9 +30,11 @@ export default async function RecomendadosSecao() {
       <SectionHeading title="⭐ Recomendados" subtitle="Selecionados pela nossa equipe — curadoria, não algoritmo" />
       <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
         {recomendados.map((est) => {
+          const cidadeSlug = est.cidades?.slug
           const bairroSlug = est.bairros?.slug
-          const href = est.cidade && bairroSlug && est.tipo_estabelecimento
-            ? `/${est.cidade}/${bairroSlug}/${est.tipo_estabelecimento}/${est.slug}`
+          const tipoSlug = est.tipos_estabelecimento?.slug
+          const href = cidadeSlug && bairroSlug && tipoSlug
+            ? `/${cidadeSlug}/${bairroSlug}/${tipoSlug}/${est.slug}`
             : `/cardapio/${est.slug}`
           return <EstablishmentCard key={est.id} estabelecimento={est} href={href} />
         })}

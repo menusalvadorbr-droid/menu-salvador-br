@@ -36,7 +36,7 @@ export default async function AdminEstabelecimentosPage({ searchParams }: PagePr
     supabase.from('estabelecimentos').select('*', { count: 'exact', head: true }).eq('status', 'excluido'),
     supabase
       .from('estabelecimentos')
-      .select('*, bairros(slug)', { count: 'exact' })
+      .select('*, bairros(slug), cidades(slug), tipos_estabelecimento(slug)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .order('id', { ascending: true })
       .range(inicio, fim),

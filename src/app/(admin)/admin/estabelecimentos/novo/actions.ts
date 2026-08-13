@@ -2,7 +2,7 @@
 
 import { checarSuperAdmin } from '@/lib/auth/checarSuperAdmin'
 import { limparCnpj } from '@/lib/cnpj'
-import { slugify } from '@/lib/utils'
+import { gerarSlug } from '@/lib/slug'
 import { redirect } from 'next/navigation'
 
 interface CriarEstabelecimentoAdminInput {
@@ -17,6 +17,9 @@ interface CriarEstabelecimentoAdminInput {
   numero: string | null
   cep: string | null
   cidade: string | null
+  cidadeId: string
+  bairroId: string | null
+  bairroInformado: string | null
   dataAbertura: string | null
   opcaoPeloSimples: boolean | null
   dataOpcaoPeloSimples: string | null
@@ -42,7 +45,9 @@ export async function criarEstabelecimentoAdmin(input: CriarEstabelecimentoAdmin
     throw new Error('Já existe um estabelecimento cadastrado com esse CNPJ.')
   }
 
-  const baseSlug = slugify(input.nomeFantasia)
+  // Slug único por cidade (não globalmente) — mesmo nome pode existir em
+  // cidades diferentes sem colidir.
+  const baseSlug = gerarSlug(input.nomeFantasia)
   let slugFinal = baseSlug
   let tentativa = 0
   while (tentativa < 20) {
@@ -50,6 +55,7 @@ export async function criarEstabelecimentoAdmin(input: CriarEstabelecimentoAdmin
       .from('estabelecimentos')
       .select('id')
       .eq('slug', slugFinal)
+      .eq('cidade_id', input.cidadeId)
       .maybeSingle()
     if (!existente) break
     tentativa += 1
@@ -74,6 +80,9 @@ export async function criarEstabelecimentoAdmin(input: CriarEstabelecimentoAdmin
       numero: input.numero,
       cep: input.cep,
       cidade: input.cidade || 'Salvador',
+      cidade_id: input.cidadeId,
+      bairro_id: input.bairroId,
+      bairro_informado: input.bairroInformado,
       data_abertura: input.dataAbertura,
       opcao_pelo_simples: input.opcaoPeloSimples,
       data_opcao_pelo_simples: input.dataOpcaoPeloSimples,
