@@ -50,7 +50,11 @@ export default function PendenciasBairro({ pendentesIniciais, bairros }: Props) 
   }
 
   async function criarNovo(item: EstabelecimentoPendente) {
-    const nome = (nomeNovoBairro[item.id] || '').trim()
+    // Mesmo fallback do valor mostrado no input e do disabled do botão
+    // (nomeNovoBairro[item.id] ?? item.bairro_informado) — sem isso, clicar
+    // direto sem antes editar o campo (que já vem preenchido com o texto da
+    // Receita) lia nomeNovoBairro[item.id] ainda undefined e saía calado.
+    const nome = (nomeNovoBairro[item.id] ?? item.bairro_informado ?? '').trim()
     if (!nome) return
     setProcessandoId(item.id)
     setErro((prev) => ({ ...prev, [item.id]: '' }))
