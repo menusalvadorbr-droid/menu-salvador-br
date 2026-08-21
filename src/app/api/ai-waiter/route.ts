@@ -38,13 +38,43 @@ export async function POST(request: NextRequest) {
 
   const system = montarSystemPrompt(contexto.nome, contexto.itens)
 
+  // Breakpoint 1 — system (prompt fixo + cardápio via RAG): idêntico durante
+  // toda a sessão do estabelecimento, então cacheável turno a turno. Abaixo
+  // de ~4.096 tokens (mínimo cacheável do Haiku 4.5) o cache_control é
+  // ignorado silenciosamente (cache_creation_input_tokens: 0) — sem erro,
+  // só sem economia; ver log de uso abaixo pra conferir.
+  //
+  // Breakpoint 2 — última mensagem do histórico ANTERIOR à pergunta atual:
+  // repete integralmente do turno N pro N+1, então cacheável; a pergunta
+  // nova entra depois, sem cache_control (varia a cada request).
+  const historico = mensagens.slice(0, -1)
+  const perguntaAtual = mensagens[mensagens.length - 1]
+  const messagesParam: Anthropic.MessageParam[] = [
+    ...historico.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+    ...(historico.length > 0
+      ? [
+          {
+            role: historico[historico.length - 1].role,
+            content: [
+              {
+                type: 'text' as const,
+                text: historico[historico.length - 1].content,
+                cache_control: { type: 'ephemeral' as const },
+              },
+            ],
+          },
+        ]
+      : []),
+    { role: perguntaAtual.role, content: perguntaAtual.content },
+  ]
+
   // Haiku 4.5: pergunta simples sobre dado já fornecido no prompt de sistema,
   // sem raciocínio complexo — não justifica o custo de um modelo Opus.
   const stream = client.messages.stream({
     model: 'claude-haiku-4-5',
     max_tokens: 1024,
-    system,
-    messages: mensagens.map((m) => ({ role: m.role, content: m.content })),
+    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+    messages: messagesParam,
   })
 
   const encoder = new TextEncoder()
@@ -60,6 +90,13 @@ export async function POST(request: NextRequest) {
         if (final.stop_reason === 'refusal') {
           controller.enqueue(encoder.encode('\n\nNão consegui responder essa pergunta. Pode reformular?'))
         }
+        console.log('[ai-waiter] cache usage', {
+          slug,
+          input_tokens: final.usage.input_tokens,
+          output_tokens: final.usage.output_tokens,
+          cache_creation_input_tokens: final.usage.cache_creation_input_tokens,
+          cache_read_input_tokens: final.usage.cache_read_input_tokens,
+        })
       } catch {
         controller.enqueue(encoder.encode('\n\nOcorreu um erro ao gerar a resposta. Tente novamente.'))
       } finally {
