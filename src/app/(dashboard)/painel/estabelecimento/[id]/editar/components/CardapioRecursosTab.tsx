@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { planoTemRecurso } from '@/lib/recursosPlano'
 
 interface CardapioRecursosTabProps {
   estabelecimento: {
@@ -13,6 +14,7 @@ interface CardapioRecursosTabProps {
     cardapio_carrinho_ativado?: boolean
   }
   readOnly?: boolean
+  recursosPlano?: string[]
 }
 
 function ToggleRow({
@@ -21,22 +23,25 @@ function ToggleRow({
   titulo,
   descricao,
   readOnly,
+  bloqueadoPlano,
 }: {
   checked: boolean
   onToggle: () => void
   titulo: string
   descricao: string
   readOnly?: boolean
+  bloqueadoPlano?: boolean
 }) {
+  const desativado = readOnly || bloqueadoPlano
   return (
     <div className="py-3 border-b border-gray-100 last:border-0">
       <label className="flex items-center gap-2 cursor-pointer select-none">
         <div
           role="switch"
           aria-checked={checked}
-          onClick={() => !readOnly && onToggle()}
+          onClick={() => !desativado && onToggle()}
           className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-orange-500' : 'bg-gray-200'} ${
-            readOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            desativado ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           }`}
         >
           <div
@@ -46,15 +51,24 @@ function ToggleRow({
           />
         </div>
         <span className="text-sm font-medium text-gray-700">{titulo}</span>
+        {bloqueadoPlano && (
+          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-400">
+            Recurso de plano superior
+          </span>
+        )}
       </label>
       <p className="text-xs text-gray-400 mt-1 ml-11">{descricao}</p>
     </div>
   )
 }
 
-export default function CardapioRecursosTab({ estabelecimento, readOnly }: CardapioRecursosTabProps) {
+export default function CardapioRecursosTab({ estabelecimento, readOnly, recursosPlano }: CardapioRecursosTabProps) {
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
+
+  const temVariacoes = planoTemRecurso(recursosPlano, 'variacoes_tamanho')
+  const temComplementos = planoTemRecurso(recursosPlano, 'grupos_complementos')
+  const temCarrinho = planoTemRecurso(recursosPlano, 'carrinho_pedidos')
 
   const [variacoesAtivado, setVariacoesAtivado] = useState(estabelecimento.cardapio_variacoes_ativado || false)
   const [complementosAtivado, setComplementosAtivado] = useState(estabelecimento.cardapio_complementos_ativado || false)
@@ -99,6 +113,7 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
           salvar(novo, complementosAtivado, promocoesContadorAtivado, cliqueExpandeAtivado, carrinhoAtivado)
         }}
         readOnly={readOnly}
+        bloqueadoPlano={!temVariacoes}
         titulo="Tamanhos/variações de preço"
         descricao='Pra pizzaria (P/M/G/Família) ou marmita (Para 1/Para 2) — adicione tamanhos com preços diferentes em cada item, na aba Cardápio.'
       />
@@ -111,6 +126,7 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
           salvar(variacoesAtivado, novo, promocoesContadorAtivado, cliqueExpandeAtivado, carrinhoAtivado)
         }}
         readOnly={readOnly}
+        bloqueadoPlano={!temComplementos}
         titulo="Grupos de complementos"
         descricao='Pra "monte sua marmita" (proteína + acompanhamentos) ou adicionais de pizza — crie grupos de opções reutilizáveis entre vários itens, na aba Cardápio.'
       />
@@ -147,6 +163,7 @@ export default function CardapioRecursosTab({ estabelecimento, readOnly }: Carda
           salvar(variacoesAtivado, complementosAtivado, promocoesContadorAtivado, cliqueExpandeAtivado, novo)
         }}
         readOnly={readOnly}
+        bloqueadoPlano={!temCarrinho}
         titulo="Carrinho de pedidos"
         descricao="Libera o botão de adicionar ao carrinho no cardápio público (no card comum e no painel de clique expande). Desligado, o cardápio fica só informativo, sem nenhum botão de adicionar."
       />

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
+import { planoTemRecurso } from '@/lib/recursosPlano'
 
 interface Estabelecimento {
   id: string
@@ -15,19 +16,28 @@ const IDIOMAS_DISPONIVEIS = [
   { valor: 'es', label: 'Espanhol (ES)' },
 ]
 
-export default function IdiomasTab({ estabelecimento }: { estabelecimento: Estabelecimento }) {
+export default function IdiomasTab({
+  estabelecimento,
+  recursosPlano,
+}: {
+  estabelecimento: Estabelecimento
+  recursosPlano?: string[]
+}) {
   const supabase = createClient()
+  const temIdiomas = planoTemRecurso(recursosPlano, 'idiomas')
   const [idiomasAtivos, setIdiomasAtivos] = useState<string[]>(estabelecimento.idiomas_ativos || [])
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
 
   function toggleIdioma(idioma: string) {
+    if (!temIdiomas) return
     setIdiomasAtivos((prev) =>
       prev.includes(idioma) ? prev.filter((i) => i !== idioma) : [...prev, idioma]
     )
   }
 
   async function salvar() {
+    if (!temIdiomas) return
     setSalvando(true)
     try {
       const { error } = await supabase
@@ -48,7 +58,14 @@ export default function IdiomasTab({ estabelecimento }: { estabelecimento: Estab
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-1 text-sm font-semibold text-neutral-800">🌐 Idiomas</h3>
+        <div className="mb-1 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-neutral-800">🌐 Idiomas</h3>
+          {!temIdiomas && (
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-400">
+              Recurso de plano superior
+            </span>
+          )}
+        </div>
         <p className="text-xs text-neutral-500">
           Ative os idiomas em que você quer oferecer o cardápio. Depois de ativado, preencha a tradução
           de cada item e categoria na aba Cardápio — sem tradução preenchida, o cardápio mostra o texto
@@ -60,12 +77,15 @@ export default function IdiomasTab({ estabelecimento }: { estabelecimento: Estab
         {IDIOMAS_DISPONIVEIS.map((idioma) => (
           <label
             key={idioma.valor}
-            className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4"
+            className={`flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 ${
+              temIdiomas ? '' : 'opacity-50 cursor-not-allowed'
+            }`}
           >
             <input
               type="checkbox"
               checked={idiomasAtivos.includes(idioma.valor)}
               onChange={() => toggleIdioma(idioma.valor)}
+              disabled={!temIdiomas}
               className="h-4 w-4"
             />
             <span className="text-sm text-neutral-800">{idioma.label}</span>
@@ -76,7 +96,7 @@ export default function IdiomasTab({ estabelecimento }: { estabelecimento: Estab
       <div className="flex items-center gap-3">
         <button
           onClick={salvar}
-          disabled={salvando}
+          disabled={salvando || !temIdiomas}
           className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
         >
           {salvando ? 'Salvando...' : 'Salvar idiomas'}

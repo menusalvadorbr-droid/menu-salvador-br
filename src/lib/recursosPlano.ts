@@ -17,6 +17,26 @@ export const RECURSOS_PLANO: RecursoPlano[] = [
     label: 'QR por mesa',
     descricao: 'Gera um QR Code individual por mesa — o pedido do cliente já chega identificado com a mesa, sem precisar digitar o número.',
   },
+  {
+    slug: 'variacoes_tamanho',
+    label: 'Tamanhos/variações de preço',
+    descricao: 'Permite cadastrar preços diferentes por tamanho (P/M/G) pro mesmo item.',
+  },
+  {
+    slug: 'grupos_complementos',
+    label: 'Grupos de complementos',
+    descricao: 'Acompanhamentos, adicionais e opções com mínimo/máximo de seleção por item.',
+  },
+  {
+    slug: 'carrinho_pedidos',
+    label: 'Carrinho de pedidos',
+    descricao: 'Cliente monta pedido e envia direto pelo cardápio, sem precisar chamar o garçom pra cada item.',
+  },
+  {
+    slug: 'idiomas',
+    label: 'Idiomas (tradução)',
+    descricao: 'Cardápio disponível em inglês, francês e espanhol, além do português.',
+  },
 ]
 
 export function recursoLabel(slug: string): string {
