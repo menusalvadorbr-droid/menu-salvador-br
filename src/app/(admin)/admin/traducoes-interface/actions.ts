@@ -35,7 +35,9 @@ export async function salvarTraducoesInterface(alteracoes: TraducaoInterfaceAlte
 
   revalidatePath('/admin/traducoes-interface')
   // Textos fixos aparecem em qualquer cardápio/perfil — precisa invalidar
-  // os dois padrões de rota pública, não só uma página específica.
+  // os padrões de rota pública, não só uma página específica. Home saiu do
+  // catch-all (virou rota própria) — revalida os dois separadamente.
   revalidatePath('/cardapio/[slug]', 'page')
-  revalidatePath('/[[...slug]]', 'page')
+  revalidatePath('/[...slug]', 'page')
+  revalidatePath('/', 'page')
 }

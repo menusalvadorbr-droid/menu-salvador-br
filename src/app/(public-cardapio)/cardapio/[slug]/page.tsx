@@ -6,9 +6,7 @@ import Image from 'next/image'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import { TraducaoProvider, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
-import SpecialOfferCard from '@/components/public/SpecialOfferCard'
-import PromoItemCard from '@/components/public/PromoItemCard'
-import { calcularEstadoOferta, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
+import PromocoesContador from '@/components/public/PromocoesContador'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
 import NavegacaoCategoriasCardsClient from '@/components/public/NavegacaoCategoriasCardsClient'
 import FaixasCategorias from '@/components/public/FaixasCategorias'
@@ -17,14 +15,24 @@ import { obterFonteTema } from '@/lib/fontesTema'
 import { gradienteHeroImagem } from '@/lib/temaHero'
 import { SELECT_ITEM_CARDAPIO_PUBLICO } from '@/lib/resolverItemCardapio'
 
-// Fora do componente (Server Component roda uma vez por request, mas o
-// lint de pureza não sabe disso e trata new Date()/Date.now() escritos
-// direto no corpo do componente como impuro) — mesmo motivo de
-// calcularEstadoOferta já viver em módulo separado.
-function algumaOfertaEncerrandoEmBreve(ofertas: { estado: EstadoOferta }[]): boolean {
-  return ofertas.some(
-    ({ estado }) => estado.tipo === 'ativo' && (new Date(estado.fimIso).getTime() - Date.now()) / 60000 <= 30
-  )
+// ISR — página inteira cacheada por até 2min no CDN da Vercel, evitando as
+// ~10 consultas ao Supabase em toda visita (inclusive todo scan de QR Code
+// numa mesa). Promoções com contador (special_offers) ficam de fora desse
+// cache de propósito: ver PromocoesContador.tsx e o comentário em
+// src/lib/specialOffers.ts — o estado delas é sensível ao segundo e ao
+// estoque, e um "no-store" isolado nessa consulta forçaria a página inteira
+// a voltar a ser dinâmica (sem Cache Components/PPR habilitado neste
+// projeto, um único fetch sem cache invalida o ISR da rota inteira — não
+// existe granularidade por consulta nesse modelo).
+export const revalidate = 120
+
+// Sem isso (mesmo retornando vazio), o Next 16 trata /[slug] como rota
+// totalmente dinâmica e ignora o revalidate acima por completo — confirmado
+// via x-nextjs-cache (ausente sem isto, MISS→HIT com isto) em teste local
+// com next build + next start. dynamicParams (padrão true) já cobre gerar
+// sob demanda qualquer slug não devolvido aqui.
+export async function generateStaticParams() {
+  return []
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -211,33 +219,10 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     traducoesInterface = tradsInterface || []
   }
 
-  // Promoções com contador (special_offers) — combos/ofertas por tempo
-  // limitado que não são itens do cardápio, feature independente das
-  // promoções de item, opt-in via Configurações → Recursos do cardápio.
-  const ofertasVisiveis: { offer: SpecialOfferRow; estado: EstadoOferta }[] = []
-  if (est.promocoes_contador_ativado) {
-    const { data: ofertasData } = await supabase
-      .from('special_offers')
-      .select('*')
-      .eq('estabelecimento_id', est.id)
-      .eq('ativo', true)
-    for (const offer of (ofertasData as SpecialOfferRow[]) || []) {
-      const estado = calcularEstadoOferta(offer)
-      if (estado.tipo !== 'fora') ofertasVisiveis.push({ offer, estado })
-    }
-    // Mais urgentes primeiro (quem termina mais cedo primeiro — pra uma
-    // oferta "ativo" isso já É a urgência), ofertas só anunciadas (sem
-    // horário ativo agora, logo sem "termina em" de verdade) por último.
-    ofertasVisiveis.sort((a, b) => {
-      const fimA = a.estado.tipo === 'ativo' ? new Date(a.estado.fimIso).getTime() : Infinity
-      const fimB = b.estado.tipo === 'ativo' ? new Date(b.estado.fimIso).getTime() : Infinity
-      return fimA - fimB
-    })
-  }
-
-  // Selo de alerta no cabeçalho da seção — acende se qualquer oferta ativa
-  // (special_offers) estiver a ≤30min do fim.
-  const mostrarAlertaEncerrando = algumaOfertaEncerrandoEmBreve(ofertasVisiveis)
+  // Promoções com contador (special_offers) — busca própria no cliente
+  // agora (PromocoesContador.tsx), fora do ISR desta página. Aqui só decide
+  // se a feature está ligada; a busca de fato acontece no componente.
+  const promocoesContadorAtivado = !!est.promocoes_contador_ativado
 
   return (
     // TraducaoProvider por fora — CarrinhoProvider renderiza sua própria UI
@@ -245,7 +230,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     // irmã de `children`, não descendente; com TraducaoProvider por dentro
     // essa UI nunca conseguiria ler o idioma escolhido pra se traduzir.
     <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes} traducoesInterface={traducoesInterface}>
-    <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
+    <CarrinhoProvider estabelecimentoId={est.id} slug={est.slug} whatsapp={est.whatsapp}>
     <div className={`min-h-screen ${fonteTema.className}`} style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 
@@ -330,34 +315,13 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         </div>
 
         {/* ── CARROSSEL DE PROMOÇÕES ── */}
-        {(itensComPromo.length > 0 || ofertasVisiveis.length > 0) && (
-          <div className="rounded-2xl mb-4 overflow-hidden shadow"
-            style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
-            <div className="px-4 py-3 border-b flex items-center gap-2"
-              style={{ backgroundColor: `${corP}15`, borderColor: corBd }}>
-              <span className="text-base">🔥</span>
-              <span className="text-sm font-semibold" style={{ color: corP }}>
-                <TextoInterface chave="promocoes_hoje">Promoções de hoje</TextoInterface>
-              </span>
-              {mostrarAlertaEncerrando && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 animate-pulse">
-                  ⚠️ <TextoInterface chave="encerrando_breve">Encerrando em breve</TextoInterface>
-                </span>
-              )}
-            </div>
-            <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-none">
-              {itensComPromo.map((item: any) => (
-                <PromoItemCard key={item.id} item={item} corP={corP} corT={corT} corF={corF} corBd={corBd} cardRaio={cardRaio} />
-              ))}
-              {itensComPromo.length > 0 && ofertasVisiveis.length > 0 && (
-                <div className="flex-shrink-0 w-px self-stretch my-1" style={{ backgroundColor: corBd }} />
-              )}
-              {ofertasVisiveis.map(({ offer, estado }) => (
-                <SpecialOfferCard key={offer.id} offer={offer} estado={estado} corP={corP} corT={corT} corF={corF} corBd={corBd} />
-              ))}
-            </div>
-          </div>
-        )}
+        <PromocoesContador
+          estabelecimentoId={est.id}
+          promocoesContadorAtivado={promocoesContadorAtivado}
+          itensComPromo={itensComPromo}
+          corP={corP} corT={corT} corF={corF} corS={corS} corBd={corBd}
+          cardRaio={cardRaio}
+        />
 
         {/* ── NAVEGAÇÃO POR CATEGORIA ── */}
         {/* Pílulas e Cards são as duas navegações "por cima" da lista —

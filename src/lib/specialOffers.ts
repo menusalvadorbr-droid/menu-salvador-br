@@ -2,10 +2,17 @@
 //
 // Estado de exibição de uma "promoção com contador" (tabela special_offers)
 // — combos/happy hour que não são itens do cardápio. Calculado uma vez por
-// request no servidor (mesma filosofia de isEstabelecimentoAberto em
-// statusAberto.ts): não fica reavaliando ao vivo no cliente se a promoção
-// entrou/saiu da janela ativa, só o contador dentro do estado "ativo" tique
-// (via ContadorRegressivo). Recarregar a página reavalia o estado.
+// carregamento (mesma filosofia de isEstabelecimentoAberto em
+// statusAberto.ts): não fica reavaliando ao vivo se a promoção entrou/saiu
+// da janela ativa, só o contador dentro do estado "ativo" tique (via
+// ContadorRegressivo). Recarregar a página reavalia o estado.
+//
+// Calculado no CLIENTE (PromocoesContador.tsx), não no servidor — a página
+// do cardápio tem ISR (revalidate=120), e servidor + cache congelaria esse
+// estado por até 2min pra visitantes diferentes na mesma janela, o que
+// quebraria exatamente a garantia de frescor que este módulo documenta
+// acima. Buscando no navegador a cada carregamento de página, o contrato
+// "recarregar reavalia" continua valendo de verdade.
 
 import { horarioAtualSalvador, dataEmSalvador } from './horarioSalvador'
 
@@ -127,4 +134,12 @@ export function calcularEstadoOferta(offer: SpecialOfferRow, agora: Date = new D
   }
 
   return { tipo: 'fora' } // já passou de fim_em, sem mais ocorrências
+}
+
+/** Selo "Encerrando em breve" no cabeçalho da seção — acende se alguma
+ *  oferta ativa estiver a ≤30min do fim. */
+export function algumaOfertaEncerrandoEmBreve(ofertas: { estado: EstadoOferta }[]): boolean {
+  return ofertas.some(
+    ({ estado }) => estado.tipo === 'ativo' && (new Date(estado.fimIso).getTime() - Date.now()) / 60000 <= 30
+  )
 }

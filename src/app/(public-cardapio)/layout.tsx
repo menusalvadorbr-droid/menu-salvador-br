@@ -1,6 +1,6 @@
 import PublicFooter from '@/components/public/PublicFooter'
 import GlobalBreadcrumb from '@/components/GlobalBreadcrumb'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/publicServer'
 
 /**
  * Layout do cardápio público (/cardapio/[slug] e .../categoria/[categoriaId])
@@ -15,7 +15,9 @@ import { createClient } from '@/lib/supabase/server'
 export default async function PublicCardapioLayout({ children }: { children: React.ReactNode }) {
   // Mesma paleta da plataforma que (public)/layout.tsx usa — PublicFooter
   // depende das variáveis --brand-primary/--brand-secondary pra se estilizar.
-  const supabase = await createClient()
+  // createPublicClient() (sem cookies) pelo mesmo motivo do outro layout —
+  // ver comentário lá.
+  const supabase = createPublicClient()
   const { data: paleta } = await supabase
     .from('platform_settings')
     .select('value')

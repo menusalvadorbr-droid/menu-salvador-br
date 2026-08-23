@@ -1,10 +1,30 @@
+'use client'
+
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
-interface PublicHeaderProps {
-  logado: boolean
-}
+/**
+ * Estado de login checado no cliente (não vem mais do layout via cookies())
+ * — o layout público precisa ficar sem cookies() pra poder entrar no ISR
+ * (revalidate=120 nas páginas de diretório/cardápio; um layout que lê
+ * cookies() força TODA página por baixo dele a renderizar dinâmica, não
+ * importa o revalidate da própria página). Começa como "não logado" (mesmo
+ * texto que a maioria dos visitantes vê) até a checagem no navegador
+ * terminar, evitando esconder o banner promocional por padrão.
+ */
+export default function PublicHeader() {
+  const [logado, setLogado] = useState(false)
 
-export default function PublicHeader({ logado }: PublicHeaderProps) {
+  useEffect(() => {
+    let cancelado = false
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (!cancelado) setLogado(!!data.user)
+    })
+    return () => { cancelado = true }
+  }, [])
+
   return (
     <>
       {/* Banner promocional só faz sentido pra quem ainda não tem conta —

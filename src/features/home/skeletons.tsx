@@ -2,7 +2,7 @@ import CardSkeleton from '@/components/public/CardSkeleton'
 
 // Esqueletos de carregamento — um por seção da home, do tamanho
 // aproximado da seção final, pra segurar o layout enquanto a consulta
-// daquela seção especificamente ainda não terminou (ver [[...slug]]/page.tsx,
+// daquela seção especificamente ainda não terminou (ver (public)/page.tsx,
 // cada seção é um <Suspense> independente).
 
 export function SkeletonHero() {

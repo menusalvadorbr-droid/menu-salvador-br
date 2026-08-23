@@ -25,7 +25,7 @@ async function resolverIdsComCulinaria(supabase: Awaited<ReturnType<typeof creat
 }
 
 /**
- * Última seção a carregar de propósito (ver ordem em [[...slug]]/page.tsx)
+ * Última seção a carregar de propósito (ver ordem em (public)/page.tsx)
  * — é a consulta mais pesada (junções de bairro/culinária, potencialmente
  * muitas linhas), então fica no fim: as seções mais rápidas/importantes já
  * apareceram antes dela terminar.

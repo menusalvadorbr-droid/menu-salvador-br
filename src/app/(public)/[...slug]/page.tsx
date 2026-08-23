@@ -1,5 +1,4 @@
-import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/publicServer'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -9,21 +8,28 @@ import SectionHeading from '@/components/public/SectionHeading'
 import StatusPill from '@/components/public/StatusPill'
 import { isEstabelecimentoAberto } from '@/lib/statusAberto'
 import { horarioAtualSalvador } from '@/lib/horarioSalvador'
-import HeroSecao from '@/features/home/HeroSecao'
-import FiltrosSecao from '@/features/home/FiltrosSecao'
-import PromocoesSecao from '@/features/home/PromocoesSecao'
-import ExplorarBairroSecao from '@/features/home/ExplorarBairroSecao'
-import CategoriasPopularesSecao from '@/features/home/CategoriasPopularesSecao'
-import RecomendadosSecao from '@/features/home/RecomendadosSecao'
-import GridGeralSecao from '@/features/home/GridGeralSecao'
-import CtaDonosSecao from '@/features/home/CtaDonosSecao'
-import { SkeletonHero, SkeletonFiltros, SkeletonCarrossel, SkeletonVitrine, SkeletonGrid, SkeletonCta } from '@/features/home/skeletons'
-import BotaoFlutuante from '@/features/home/BotaoFlutuante'
-import PropagandaCard from '@/components/public/PropagandaCard'
-import SecaoAnimada from '@/components/public/SecaoAnimada'
 import SecaoAvaliacoesGoogle from '@/components/public/SecaoAvaliacoesGoogle'
 import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import type { Metadata } from 'next'
+
+// ISR — troca de createClient() (cookie, sempre dinâmico) pro
+// createPublicClient() (anon key, sem cookies) foi o que tornou isso
+// possível aqui. A Home saiu desta rota (virou (public)/page.tsx própria —
+// ver comentário lá) por causa disso: as seções dela usam o client de
+// cookie e derrubavam a geração estática da rota inteira. As páginas que
+// sobram aqui (cidade/bairro/tipo/estabelecimento, onde cai o scan de QR
+// Code) passam a ser servidas do cache de borda.
+export const revalidate = 120
+
+// Sem isso (mesmo retornando vazio), o Next 16 trata rotas de segmento
+// dinâmico como totalmente dinâmicas e ignora o revalidate acima por
+// completo — confirmado via x-nextjs-cache (ausente sem isto, MISS→HIT com
+// isto) em teste local com next build + next start. dynamicParams (padrão
+// true) já cobre gerar sob demanda qualquer combinação de segmentos não
+// devolvida aqui.
+export async function generateStaticParams() {
+  return []
+}
 
 // ============================================================
 // RESOLUÇÃO DE SEGMENTO — por slug contra a tabela de referência, não
@@ -52,13 +58,13 @@ interface EstabelecimentoComTipo extends EstablishmentCardData {
 }
 
 async function resolverCidade(slugCidade: string): Promise<CidadeRow | null> {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { data } = await supabase.from('cidades').select('id, nome, slug').eq('slug', slugCidade).maybeSingle()
   return data
 }
 
 async function resolverTipoEstabelecimento(slugTipo: string): Promise<TipoEstabelecimentoRow | null> {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { data } = await supabase
     .from('tipos_estabelecimento')
     .select('id, nome, slug, icone')
@@ -75,49 +81,19 @@ async function resolverTipoEstabelecimento(slugTipo: string): Promise<TipoEstabe
 // SEO
 // ============================================================
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>
-}): Promise<Metadata> {
-  const { slug } = await params
-
-  // Home: título e descrição próprios, pensados pra busca ("restaurantes
-  // em Salvador", "cardápio digital"). Antes a home usava só o título
-  // genérico do layout raiz — sem nada otimizado pra SEO.
-  if (!slug || slug.length === 0) {
-    return {
-      title: 'menu.salvador — Cardápios digitais e restaurantes em Salvador',
-      description:
-        'Descubra bares, restaurantes e petiscarias em Salvador. Veja o cardápio digital, promoções do momento e peça direto pelo celular, sem baixar nenhum aplicativo.',
-      openGraph: {
-        title: 'menu.salvador — Cardápios digitais em Salvador',
-        description: 'Descubra onde comer em Salvador e veja o cardápio sem baixar nada.',
-        type: 'website',
-      },
-    }
-  }
-
-  // Demais rotas (cidade, bairro, tipo, estabelecimento) seguem com o
-  // título genérico por enquanto — cada uma pode ganhar metadata própria
-  // depois, sem afetar a home.
+export async function generateMetadata(): Promise<Metadata> {
+  // Home ganhou metadata própria em (public)/page.tsx. Demais rotas (cidade,
+  // bairro, tipo, estabelecimento) seguem com o título genérico por
+  // enquanto — cada uma pode ganhar metadata própria depois.
   return {}
 }
 
 export default async function Page({
   params,
-  searchParams,
 }: {
-  params: Promise<{ slug?: string[] }>
-  searchParams: Promise<{ q?: string; bairro?: string; tipo?: string }>
+  params: Promise<{ slug: string[] }>
 }) {
   const { slug } = await params
-
-  // --- HOME ---
-  if (!slug || slug.length === 0) {
-    const sp = await searchParams
-    return <HomePage q={sp.q} bairroId={sp.bairro} tipoCozinhaId={sp.tipo} />
-  }
 
   // --- 4 segmentos: estabelecimento ---
   if (slug.length === 4) {
@@ -156,115 +132,9 @@ export default async function Page({
   notFound()
 }
 
-// ============================================================
-// PÁGINAS (Home, Cidade, Bairro, Tipo, Estabelecimento)
-// ============================================================
-
-// -------- HOME --------
-// Carregamento em camadas: cada seção abaixo é um Server Component
-// assíncrono com sua própria consulta, dentro de <Suspense> — a mais
-// lenta (Grid geral) não trava mais as outras, cada uma aparece assim
-// que a consulta dela termina, na ordem sugerida (mais rápida/importante
-// primeiro): Hero → Busca/Filtros → Promoções → Explorar por bairro /
-// Categorias populares → Recomendados → Grid geral.
-//
-// Só configuracoes_home é buscado aqui, direto — é rápida (uma linha só)
-// e decide quais seções sequer entram na árvore.
-async function HomePage({
-  q,
-  bairroId,
-  tipoCozinhaId,
-}: {
-  q?: string
-  bairroId?: string
-  tipoCozinhaId?: string
-}) {
-  const supabase = await createClient()
-  const { data: config } = await supabase.from('configuracoes_home').select('*').eq('id', true).maybeSingle()
-
-  const heroAtivado = config?.hero_ativado ?? true
-  const buscaAtivado = config?.busca_ativado ?? true
-  const promocoesAtivado = config?.promocoes_ativado ?? true
-  const explorarBairroAtivado = config?.explorar_bairro_ativado ?? true
-  const categoriasPopularesAtivado = config?.categorias_populares_ativado ?? true
-  const recomendadosAtivado = config?.recomendados_ativado ?? true
-  const gridAtivado = config?.grid_estabelecimentos_ativado ?? true
-  const filtrosAtivado = config?.filtros_ativado ?? true
-  const ctaDonosAtivado = config?.cta_donos_ativado ?? true
-  const botaoFlutuanteAtivado = config?.botao_flutuante_ativado ?? true
-
-  return (
-    <div>
-      {heroAtivado && (
-        <Suspense fallback={<SkeletonHero />}>
-          <HeroSecao buscaAtivado={buscaAtivado} qInicial={q} bairroAtual={bairroId} tipoAtual={tipoCozinhaId} />
-        </Suspense>
-      )}
-
-      {gridAtivado && filtrosAtivado && (
-        <Suspense fallback={<SkeletonFiltros />}>
-          <FiltrosSecao />
-        </Suspense>
-      )}
-
-      <SecaoAnimada className="mx-auto max-w-6xl px-4 pt-6">
-        <PropagandaCard />
-      </SecaoAnimada>
-
-      {promocoesAtivado && (
-        <Suspense fallback={<SkeletonCarrossel />}>
-          <SecaoAnimada>
-            <PromocoesSecao />
-          </SecaoAnimada>
-        </Suspense>
-      )}
-
-      {explorarBairroAtivado && (
-        <Suspense fallback={<SkeletonVitrine itens={8} />}>
-          <SecaoAnimada>
-            <ExplorarBairroSecao />
-          </SecaoAnimada>
-        </Suspense>
-      )}
-
-      {categoriasPopularesAtivado && (
-        <Suspense fallback={<SkeletonVitrine itens={12} />}>
-          <SecaoAnimada>
-            <CategoriasPopularesSecao />
-          </SecaoAnimada>
-        </Suspense>
-      )}
-
-      {recomendadosAtivado && (
-        <Suspense fallback={<SkeletonGrid cards={3} />}>
-          <SecaoAnimada>
-            <RecomendadosSecao />
-          </SecaoAnimada>
-        </Suspense>
-      )}
-
-      {gridAtivado && (
-        <Suspense fallback={<SkeletonGrid />}>
-          <SecaoAnimada className="container mx-auto px-4 py-10">
-            <GridGeralSecao q={q} bairroId={bairroId} tipoCozinhaId={tipoCozinhaId} />
-          </SecaoAnimada>
-        </Suspense>
-      )}
-
-      {ctaDonosAtivado && (
-        <Suspense fallback={<SkeletonCta />}>
-          <CtaDonosSecao />
-        </Suspense>
-      )}
-
-      {botaoFlutuanteAtivado && <BotaoFlutuante />}
-    </div>
-  )
-}
-
 // -------- CIDADE --------
 async function CidadePage({ cidade }: { cidade: CidadeRow }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { data: tipos } = await supabase
     .from('estabelecimentos')
     .select('tipo_estabelecimento_id, tipos_estabelecimento(nome, slug, icone)')
@@ -310,7 +180,7 @@ async function CidadePage({ cidade }: { cidade: CidadeRow }) {
 
 // -------- TIPO NA CIDADE (ex: /salvador/restaurante) --------
 async function TipoNaCidadePage({ cidadeSlug, tipo }: { cidadeSlug: string; tipo: TipoEstabelecimentoRow }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const cidade = await resolverCidade(cidadeSlug)
   if (!cidade) notFound()
 
@@ -354,7 +224,7 @@ async function TipoNaCidadePage({ cidadeSlug, tipo }: { cidadeSlug: string; tipo
 
 // -------- BAIRRO (com ou sem cidade na URL) --------
 async function BairroPage({ cidadeSlug, bairroSlug }: { cidadeSlug?: string; bairroSlug: string }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   // Cidade vem sempre do próprio bairro (cidade_id é obrigatório) — não
   // depende de um segmento de cidade na URL pra existir; se a URL tinha
@@ -472,7 +342,7 @@ async function BairroPage({ cidadeSlug, bairroSlug }: { cidadeSlug?: string; bai
 
 // -------- TIPO NO BAIRRO (ex: /salvador/pituba/restaurante) --------
 async function TipoNoBairroPage({ cidadeSlug, bairroSlug, tipoSlug }: { cidadeSlug: string; bairroSlug: string; tipoSlug: string }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const [cidade, tipo, { data: bairroRow }] = await Promise.all([
     resolverCidade(cidadeSlug),
@@ -554,7 +424,7 @@ async function EstabelecimentoPage({
   tipoSlug: string
   slug: string
 }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   // "slug" é único por estabelecimento (dentro da cidade), então ele
   // sozinho já basta pra encontrar o registro certo — cidade/bairro/tipo
@@ -583,7 +453,7 @@ async function EstabelecimentoPage({
 // ============================================================
 
 async function EstabelecimentoDetalhes({ est }: { est: any }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   // Buscar horários de funcionamento
   const { data: horarios } = await supabase
