@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Lock, ClipboardList, Package, Wallet, Truck } from 'lucide-react'
+import { Lock, ClipboardList, Package, Wallet, Truck, MessageCircle } from 'lucide-react'
 
 interface ModuloGestaoProps {
   estabelecimentoId: string
@@ -15,6 +15,7 @@ const ITENS = [
   { slug: 'estoque', label: 'Estoque', Icone: Package, bg: 'bg-amber-50', text: 'text-amber-600', hoverBorder: 'hover:border-amber-200' },
   { slug: 'caixa', label: 'Caixa', Icone: Wallet, bg: 'bg-emerald-50', text: 'text-emerald-600', hoverBorder: 'hover:border-emerald-200' },
   { slug: 'fornecedores', label: 'Fornecedores', Icone: Truck, bg: 'bg-violet-50', text: 'text-violet-600', hoverBorder: 'hover:border-violet-200' },
+  { slug: 'atendimento', label: 'Atendimento', Icone: MessageCircle, bg: 'bg-teal-50', text: 'text-teal-600', hoverBorder: 'hover:border-teal-200' },
 ] as const
 
 /**

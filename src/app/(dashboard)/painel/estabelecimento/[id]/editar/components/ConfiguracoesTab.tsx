@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Clock, Image, Sparkles, Star, Globe, SlidersHorizontal, Wrench, Users } from 'lucide-react'
+import { Clock, Image, Sparkles, Star, Globe, SlidersHorizontal, Wrench, Users, MessageCircle } from 'lucide-react'
 import HorariosEditor from '@/app/(dashboard)/painel/components/HorariosEditor'
 import ComodidadesTab from './ComodidadesTab'
 import GoogleReviewsTab from './GoogleReviewsTab'
@@ -9,6 +9,7 @@ import CardapioRecursosTab from './CardapioRecursosTab'
 import GaleriaTab from '../GaleriaTab'
 import IdiomasTab from './IdiomasTab'
 import GestaoTab from './GestaoTab'
+import WhatsAppTab from './WhatsAppTab'
 import FuncionariosTab from '../../gerenciar/FuncionariosTab'
 
 interface ConfiguracoesTabProps {
@@ -20,6 +21,7 @@ interface ConfiguracoesTabProps {
     [key: string]: any
   }
   readOnly?: boolean
+  recursosPlano?: string[]
 }
 
 const SECOES = [
@@ -29,11 +31,12 @@ const SECOES = [
   { id: 'avaliacoes', label: 'Avaliações Google', Icone: Star },
   { id: 'idiomas', label: 'Idiomas', Icone: Globe },
   { id: 'cardapio-recursos', label: 'Recursos do cardápio', Icone: SlidersHorizontal },
+  { id: 'whatsapp', label: 'WhatsApp', Icone: MessageCircle },
   { id: 'gestao', label: 'Módulo de Gestão', Icone: Wrench },
   { id: 'equipe', label: 'Equipe', Icone: Users },
 ] as const
 
-export default function ConfiguracoesTab({ estabelecimento, readOnly }: ConfiguracoesTabProps) {
+export default function ConfiguracoesTab({ estabelecimento, readOnly, recursosPlano }: ConfiguracoesTabProps) {
   const [secaoAtiva, setSecaoAtiva] = useState<string>('horarios')
 
   return (
@@ -74,10 +77,13 @@ export default function ConfiguracoesTab({ estabelecimento, readOnly }: Configur
           />
         )}
         {secaoAtiva === 'idiomas' && (
-          <IdiomasTab estabelecimento={estabelecimento} />
+          <IdiomasTab estabelecimento={estabelecimento} recursosPlano={recursosPlano} />
         )}
         {secaoAtiva === 'cardapio-recursos' && (
-          <CardapioRecursosTab estabelecimento={estabelecimento} readOnly={readOnly} />
+          <CardapioRecursosTab estabelecimento={estabelecimento} readOnly={readOnly} recursosPlano={recursosPlano} />
+        )}
+        {secaoAtiva === 'whatsapp' && (
+          <WhatsAppTab estabelecimento={estabelecimento} readOnly={readOnly} />
         )}
         {secaoAtiva === 'gestao' && (
           <GestaoTab estabelecimento={estabelecimento} readOnly={readOnly} />

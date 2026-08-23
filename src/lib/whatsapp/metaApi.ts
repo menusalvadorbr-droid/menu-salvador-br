@@ -1,0 +1,102 @@
+import { createHmac, timingSafeEqual } from 'crypto'
+
+/** 401/403 da Graph API — token temporário do Graph API Explorer expirado
+ *  (dura só algumas horas) ou access token errado/revogado. Não é bug de
+ *  código: precisa gerar um token novo manualmente e atualizar
+ *  WHATSAPP_ACCESS_TOKEN (ou o token salvo por estabelecimento, se for o
+ *  caso) — ver a mensagem de `salvarErroConexao` em whatsappHandler.ts. */
+export class ErroTokenWhatsApp extends Error {
+  constructor(status: number, corpo: string) {
+    super(`Token do WhatsApp expirado ou inválido (HTTP ${status}): ${corpo}`)
+    this.name = 'ErroTokenWhatsApp'
+  }
+}
+
+const GRAPH_VERSION = 'v20.0'
+// Limite real da Cloud API por mensagem de texto — acima disso a Meta
+// rejeita o envio inteiro, não só corta o excedente.
+const LIMITE_CARACTERES_MENSAGEM = 4096
+
+/** Confere X-Hub-Signature-256 contra WHATSAPP_APP_SECRET — sem isso,
+ *  qualquer um que descobrisse a URL do webhook poderia mandar payloads
+ *  falsos e gerar chamadas de IA por nossa conta. `timingSafeEqual` evita
+ *  vazar o segredo por diferença de tempo de resposta. */
+export function validarAssinaturaWebhook(payloadCru: string, assinaturaHeader: string | null): boolean {
+  if (!assinaturaHeader) return false
+  const appSecret = process.env.WHATSAPP_APP_SECRET
+  if (!appSecret) return false
+
+  const esperada = 'sha256=' + createHmac('sha256', appSecret).update(payloadCru).digest('hex')
+  const bufRecebido = Buffer.from(assinaturaHeader)
+  const bufEsperado = Buffer.from(esperada)
+  if (bufRecebido.length !== bufEsperado.length) return false
+  return timingSafeEqual(bufRecebido, bufEsperado)
+}
+
+/** Envia texto pro cliente via Cloud API. Quebra em várias mensagens se
+ *  passar do limite de caracteres, na ordem certa (não é comum acontecer
+ *  numa resposta de cardápio, mas evita a mensagem simplesmente falhar se
+ *  o modelo gerar algo longo). `accessToken`/`phoneNumberId` vêm do
+ *  estabelecimento resolvido — cada loja pode ter seu próprio número.
+ *
+ *  Janela de 24h: nesta fase (só resposta direta a pergunta de cardápio)
+ *  toda mensagem que mandamos é reação a uma mensagem que acabou de chegar
+ *  do cliente, o que sempre reabre a janela — não há como isto esgotar
+ *  aqui. Se algum dia isso mudar (reengajamento, retomar conversa muito
+ *  depois — fase 2+), a Meta rejeita o envio com um erro específico de
+ *  janela fechada, que sobe como exceção abaixo com o corpo da resposta;
+ *  seria o ponto de checar `ultima_interacao_em` antes de enviar e trocar
+ *  pra um template pré-aprovado em vez de texto livre. */
+export async function enviarMensagemWhatsApp(
+  phoneNumberId: string,
+  accessToken: string,
+  telefoneDestino: string,
+  texto: string
+): Promise<void> {
+  const pedacos = quebrarEmPedacos(texto, LIMITE_CARACTERES_MENSAGEM)
+  for (const pedaco of pedacos) {
+    const resp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: telefoneDestino,
+        type: 'text',
+        text: { body: pedaco },
+      }),
+    })
+    if (!resp.ok) {
+      const erro = await resp.text().catch(() => '')
+      if (resp.status === 401 || resp.status === 403) throw new ErroTokenWhatsApp(resp.status, erro)
+      throw new Error(`Falha ao enviar mensagem WhatsApp (${resp.status}): ${erro}`)
+    }
+  }
+}
+
+/** Confirma que access token + phone_number_id realmente autenticam contra
+ *  a Cloud API — usado pelo botão "Verificar conexão" do painel, pra não
+ *  depender só do dono confirmar visualmente que colou os valores certos. */
+export async function verificarConexaoWhatsApp(phoneNumberId: string, accessToken: string): Promise<boolean> {
+  const resp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}?fields=id`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  return resp.ok
+}
+
+function quebrarEmPedacos(texto: string, limite: number): string[] {
+  if (texto.length <= limite) return [texto]
+  const pedacos: string[] = []
+  let resto = texto
+  while (resto.length > limite) {
+    // Quebra num espaço perto do limite pra não cortar palavra no meio.
+    let corte = resto.lastIndexOf(' ', limite)
+    if (corte <= 0) corte = limite
+    pedacos.push(resto.slice(0, corte))
+    resto = resto.slice(corte).trimStart()
+  }
+  if (resto) pedacos.push(resto)
+  return pedacos
+}

@@ -57,24 +57,43 @@ type ClientePublico = ReturnType<typeof createPublicClient>
  *  pelo slug público. `null` se o estabelecimento não existe/não está ativo. */
 export async function buildCardapioContext(slug: string): Promise<EstabelecimentoContexto | null> {
   const supabase = createPublicClient()
-
   const { data: est } = await supabase
     .from('estabelecimentos')
     .select('id, nome, nome_fantasia')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
   if (!est) return null
+  return montarContextoDoEstabelecimento(supabase, est.id, est.nome_fantasia || est.nome)
+}
 
-  const nome = est.nome_fantasia || est.nome
+/** Mesma coisa que `buildCardapioContext`, mas resolvendo pelo id direto —
+ *  usada pelo robô de WhatsApp, que não tem slug de URL disponível (só o
+ *  phone_number_id da mensagem recebida, já resolvido pra estabelecimento
+ *  antes de chegar aqui). */
+export async function buildCardapioContextPorId(estabelecimentoId: string): Promise<EstabelecimentoContexto | null> {
+  const supabase = createPublicClient()
+  const { data: est } = await supabase
+    .from('estabelecimentos')
+    .select('id, nome, nome_fantasia')
+    .eq('id', estabelecimentoId).eq('status', 'active').eq('ativo', true)
+    .limit(1).single()
+  if (!est) return null
+  return montarContextoDoEstabelecimento(supabase, est.id, est.nome_fantasia || est.nome)
+}
 
+async function montarContextoDoEstabelecimento(
+  supabase: ClientePublico,
+  estabelecimentoId: string,
+  nome: string
+): Promise<EstabelecimentoContexto> {
   const { data: menus } = await supabase
     .from('menus')
     .select('id')
-    .eq('estabelecimento_id', est.id)
+    .eq('estabelecimento_id', estabelecimentoId)
     .order('created_at', { ascending: true })
     .limit(1)
   const menu = menus?.[0]
-  if (!menu) return { id: est.id, nome, itens: [] }
+  if (!menu) return { id: estabelecimentoId, nome, itens: [] }
 
   const { data: categorias } = await supabase
     .from('categorias')
@@ -82,7 +101,7 @@ export async function buildCardapioContext(slug: string): Promise<Estabeleciment
     .eq('menu_id', menu.id)
     .order('ordem')
   const catIds = (categorias || []).map((c: CategoriaBruta) => c.id)
-  if (catIds.length === 0) return { id: est.id, nome, itens: [] }
+  if (catIds.length === 0) return { id: estabelecimentoId, nome, itens: [] }
   const nomePorCategoria = new Map((categorias || []).map((c: CategoriaBruta) => [c.id, c.nome]))
 
   // Propositalmente sem `.eq('disponivel', true)` — o AI Waiter precisa
@@ -95,7 +114,7 @@ export async function buildCardapioContext(slug: string): Promise<Estabeleciment
     .order('ordem')
   const itensRows = (itens || []) as unknown as ItemCardapioBruto[]
 
-  const herdadosPorItem = await resolverAlergenosHerdados(supabase, est.id, itensRows.map((i) => i.id))
+  const herdadosPorItem = await resolverAlergenosHerdados(supabase, estabelecimentoId, itensRows.map((i) => i.id))
 
   const itensContexto: ItemCardapioContexto[] = itensRows.map((item) => {
     const diretos = (item.item_allergens || [])
@@ -113,7 +132,7 @@ export async function buildCardapioContext(slug: string): Promise<Estabeleciment
     }
   })
 
-  return { id: est.id, nome, itens: itensContexto }
+  return { id: estabelecimentoId, nome, itens: itensContexto }
 }
 
 /** Mesma lógica recursiva de `alergenosHerdados()` em fichaTecnicaRepository.ts
