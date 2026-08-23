@@ -135,7 +135,7 @@ export default async function CategoriaCardapioPage({
 
   return (
     <TraducaoProvider slug={est.slug} idiomasAtivos={idiomasAtivos} traducoes={traducoes} traducoesInterface={traducoesInterface}>
-    <CarrinhoProvider estabelecimentoId={est.id} whatsapp={est.whatsapp}>
+    <CarrinhoProvider estabelecimentoId={est.id} slug={est.slug} whatsapp={est.whatsapp}>
     <div className={`min-h-screen ${fonteTema.className}`} style={{ backgroundColor: corF, color: corT }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 pb-12">
 

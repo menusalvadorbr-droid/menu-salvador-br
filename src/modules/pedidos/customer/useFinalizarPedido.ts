@@ -62,6 +62,7 @@ export function abrirWhatsApp(dados: DadosFinalizacao) {
 export function useFinalizarPedido() {
   const [enviando, setEnviando] = useState(false)
   const [resultado, setResultado] = useState<'online' | 'contingencia' | null>(null)
+  const [pedidoId, setPedidoId] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
   const finalizar = useCallback(async (dados: DadosFinalizacao) => {
@@ -100,9 +101,13 @@ export function useFinalizarPedido() {
       abrirWhatsApp(dados)
     }
 
+    // Só existe link de acompanhamento pra pedido gravado de verdade —
+    // em contingência o pedido ainda está só na fila local, sem id real
+    // até sincronizar.
+    setPedidoId(resposta.pedidoId || null)
     setResultado(resposta.modo)
     setEnviando(false)
   }, [])
 
-  return { finalizar, enviando, resultado, erro }
+  return { finalizar, enviando, resultado, pedidoId, erro }
 }

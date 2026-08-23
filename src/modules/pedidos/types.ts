@@ -102,6 +102,25 @@ export interface NovoPedidoInput {
   staff_id?: string
 }
 
+/** Espelho público de `Pedido`, sem os campos sensíveis (nome_cliente,
+ *  endereco_entrega, metodo_pagamento etc.) — é o que a tela de
+ *  acompanhamento do cliente lê da tabela `pedidos_acompanhamento`
+ *  (RLS aberta de propósito, ver a migration correspondente). */
+export interface PedidoAcompanhamento {
+  id: string
+  estabelecimento_id: string
+  items: ItemPedido[]
+  total: number
+  tipo_pedido: TipoPedido
+  mesa: string | null
+  status: StatusPedido
+  created_at: string
+  approved_at: string | null
+  ready_at: string | null
+  delivered_at: string | null
+  updated_at: string
+}
+
 export const ETIQUETA_STATUS: Record<StatusPedido, string> = {
   recebido: '🆕 Recebido',
   aprovado: '✅ Aprovado',

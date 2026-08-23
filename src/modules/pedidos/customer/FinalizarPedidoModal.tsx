@@ -1,7 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useFinalizarPedido } from './useFinalizarPedido'
+import { salvarLinkAcompanhamento } from './pedidoAcompanhamentoStorage'
+import { BOTAO_PEDIDO_PRIMARIO, BOTAO_PEDIDO_SECUNDARIO } from './estilosBotao'
 import type { ItemPedido, TipoPedido } from '../types'
 import { useTraducao } from '@/components/public/TraducaoCardapio'
 
@@ -10,6 +13,7 @@ interface FinalizarPedidoModalProps {
   onFechar: () => void
   onSucesso: () => void
   estabelecimentoId: string
+  slug: string
   whatsappEstabelecimento?: string
   total: number
   items: ItemPedido[]
@@ -28,6 +32,7 @@ export default function FinalizarPedidoModal({
   onFechar,
   onSucesso,
   estabelecimentoId,
+  slug,
   whatsappEstabelecimento,
   total,
   items,
@@ -40,8 +45,12 @@ export default function FinalizarPedidoModal({
   const [enderecoEntrega, setEnderecoEntrega] = useState('')
   const [metodoPagamento, setMetodoPagamento] = useState('Dinheiro')
   const [observacoes, setObservacoes] = useState('')
-  const { finalizar, enviando, resultado, erro } = useFinalizarPedido()
+  const { finalizar, enviando, resultado, pedidoId, erro } = useFinalizarPedido()
   const { traduzirInterface } = useTraducao()
+
+  useEffect(() => {
+    if (pedidoId) salvarLinkAcompanhamento(slug, pedidoId)
+  }, [pedidoId, slug])
 
   if (!aberto) return null
 
@@ -89,15 +98,29 @@ export default function FinalizarPedidoModal({
               </p>
             </>
           )}
-          <button
-            onClick={() => {
-              onSucesso()
-              onFechar()
-            }}
-            className="mt-5 w-full rounded-lg bg-orange-600 py-2.5 font-semibold text-white hover:bg-orange-700"
-          >
-            {traduzirInterface('fechar', 'Fechar')}
-          </button>
+          <div className="mt-5 flex flex-col gap-2">
+            {resultado === 'online' && pedidoId && (
+              <Link
+                href={`/cardapio/${slug}/pedido/${pedidoId}`}
+                onClick={() => {
+                  onSucesso()
+                  onFechar()
+                }}
+                className={`w-full ${BOTAO_PEDIDO_PRIMARIO}`}
+              >
+                📍 {traduzirInterface('acompanhar_meu_pedido', 'Acompanhar meu pedido')}
+              </Link>
+            )}
+            <button
+              onClick={() => {
+                onSucesso()
+                onFechar()
+              }}
+              className={`w-full ${BOTAO_PEDIDO_SECUNDARIO}`}
+            >
+              {traduzirInterface('fechar', 'Fechar')}
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -203,17 +226,10 @@ export default function FinalizarPedidoModal({
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button
-              onClick={handleFinalizar}
-              disabled={enviando}
-              className="flex-1 rounded-lg bg-green-600 py-2.5 font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-            >
+            <button onClick={handleFinalizar} disabled={enviando} className={`flex-1 ${BOTAO_PEDIDO_PRIMARIO}`}>
               {enviando ? traduzirInterface('enviando', 'Enviando...') : traduzirInterface('confirmar_pedido', 'Confirmar pedido')}
             </button>
-            <button
-              onClick={onFechar}
-              className="flex-1 rounded-lg border border-neutral-200 py-2.5 font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
+            <button onClick={onFechar} className={`flex-1 ${BOTAO_PEDIDO_SECUNDARIO}`}>
               {traduzirInterface('cancelar', 'Cancelar')}
             </button>
           </div>

@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import type { ItemPedido as ItemSacola } from '../types'
 import { useTraducao } from '@/components/public/TraducaoCardapio'
+import { BOTAO_PEDIDO_PRIMARIO } from './estilosBotao'
 
 interface SacolaDrawerProps {
   aberto: boolean
@@ -124,11 +125,7 @@ export default function SacolaDrawer({
             <span>{traduzirInterface('total_label', 'Total')}</span>
             <span>R$ {formatarPreco(total)}</span>
           </div>
-          <button
-            onClick={onFinalizar}
-            disabled={itens.length === 0}
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition"
-          >
+          <button onClick={onFinalizar} disabled={itens.length === 0} className={`w-full ${BOTAO_PEDIDO_PRIMARIO}`}>
             📦 {traduzirInterface('finalizar_pedido', 'Finalizar Pedido')}
           </button>
         </div>
