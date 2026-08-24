@@ -213,12 +213,27 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           .select('id')
 
         if (createErr) {
-          logSupabaseError('Erro ao criar menu', createErr)
-          setErro('Erro ao criar menu: ' + createErr.message)
-          setLoading(false)
-          return
+          // 23505 = violou a unique constraint em estabelecimento_id —
+          // outra chamada concorrente (ex: duplo-mount de efeito do React
+          // StrictMode) já criou o menu entre o SELECT acima e este
+          // INSERT. Não é erro de verdade: reconsulta e segue, em vez de
+          // travar a tela — a constraint garante que só existe um mesmo.
+          if (createErr.code === '23505') {
+            const { data: menuAposCorrida } = await supabase
+              .from('menus')
+              .select('id')
+              .eq('estabelecimento_id', estabelecimentoId)
+              .limit(1)
+            mid = menuAposCorrida && menuAposCorrida.length > 0 ? menuAposCorrida[0].id : null
+          } else {
+            logSupabaseError('Erro ao criar menu', createErr)
+            setErro('Erro ao criar menu: ' + createErr.message)
+            setLoading(false)
+            return
+          }
+        } else {
+          mid = (novosMenus && novosMenus.length > 0) ? novosMenus[0].id : null
         }
-        mid = (novosMenus && novosMenus.length > 0) ? novosMenus[0].id : null
       }
 
       setMenuId(mid)
@@ -767,6 +782,13 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           }
         }
       }
+
+      // Itens só renderizam com a categoria expandida (ver comentário perto
+      // de `expandida &&` mais abaixo) — o botão "+ item" do cabeçalho da
+      // categoria abre o modal sem expandir nada, então sem isto o item
+      // salvava normal mas ficava invisível numa seção fechada, parecendo
+      // que "não salvou".
+      setCategoriasExpandidas(new Set([fCatId]))
 
       fecharModal()
       await carregar()
