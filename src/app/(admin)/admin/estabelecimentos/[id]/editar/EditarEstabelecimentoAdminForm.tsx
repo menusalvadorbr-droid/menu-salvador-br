@@ -9,6 +9,7 @@ interface Bairro {
   id: string
   nome: string
   slug: string
+  cidade_id: string | null
 }
 
 interface EditarEstabelecimentoAdminFormProps {
@@ -33,10 +34,11 @@ interface EditarEstabelecimentoAdminFormProps {
     longitude: number | null
   }
   bairros: Bairro[]
+  cidades: { id: string; nome: string }[]
   tiposEstabelecimento: { slug: string; nome: string; icone: string | null }[]
 }
 
-export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairros, tiposEstabelecimento }: EditarEstabelecimentoAdminFormProps) {
+export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairros, cidades, tiposEstabelecimento }: EditarEstabelecimentoAdminFormProps) {
   const router = useRouter()
 
   const [nomeFantasia, setNomeFantasia] = useState(estabelecimento.nome_fantasia || estabelecimento.nome || '')
@@ -60,6 +62,15 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
   const [sucesso, setSucesso] = useState(false)
 
   const bairroSelecionado = bairros.find((b) => b.id === bairroId)
+
+  // Agrupado por cidade (<optgroup>) em vez de filtrar pela cidade do
+  // estabelecimento — boa parte dos estabelecimentos aqui ainda não tem
+  // cidade_id preenchido (dado legado), então filtrar esconderia o bairro
+  // certo pra maioria dos casos. Agrupar só organiza, sem esconder nada.
+  const bairrosPorCidade = cidades
+    .map((c) => ({ cidade: c, bairros: bairros.filter((b) => b.cidade_id === c.id).sort((a, b) => a.nome.localeCompare(b.nome)) }))
+    .filter((g) => g.bairros.length > 0)
+  const bairrosSemCidade = bairros.filter((b) => !b.cidade_id).sort((a, b) => a.nome.localeCompare(b.nome))
   const enderecoCompleto = [
     [[tipoLogradouro, endereco].filter(Boolean).join(' '), numero].filter(Boolean).join(', '),
     bairroSelecionado?.nome,
@@ -180,9 +191,20 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
               className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               <option value="">Selecione o bairro</option>
-              {bairros.map((b) => (
-                <option key={b.id} value={b.id}>{b.nome}</option>
+              {bairrosPorCidade.map((g) => (
+                <optgroup key={g.cidade.id} label={g.cidade.nome}>
+                  {g.bairros.map((b) => (
+                    <option key={b.id} value={b.id}>{b.nome}</option>
+                  ))}
+                </optgroup>
               ))}
+              {bairrosSemCidade.length > 0 && (
+                <optgroup label="Sem cidade">
+                  {bairrosSemCidade.map((b) => (
+                    <option key={b.id} value={b.id}>{b.nome}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             {!bairroId && (
               <p className="text-xs text-amber-600 mt-1">

@@ -5,7 +5,7 @@ import Filtros from './Filtros'
 import CategoriaIconStrip from './CategoriaIconStrip'
 
 interface FiltrosClientProps {
-  bairros: { id: string; nome: string; slug: string }[]
+  bairros: { id: string; nome: string; slug: string; cidadeId: string; nomeCidade: string }[]
   tiposCozinha: { id: number; nome: string; slug: string; icone: string | null }[]
 }
 

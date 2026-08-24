@@ -45,6 +45,7 @@ export default async function AnalisarEstabelecimentoPage({
 
   const [
     { data: bairros },
+    { data: cidades },
     { data: tiposEstabelecimento },
     { data: culinariasAtuais },
     { data: proprietario },
@@ -52,7 +53,8 @@ export default async function AnalisarEstabelecimentoPage({
     { data: claims },
     { data: planos },
   ] = await Promise.all([
-    supabaseAdmin.from('bairros').select('id, nome, slug').order('nome'),
+    supabaseAdmin.from('bairros').select('id, nome, slug, cidade_id').order('nome'),
+    supabaseAdmin.from('cidades').select('id, nome').order('nome'),
     supabaseAdmin.from('tipos_estabelecimento').select('slug, nome, icone').eq('ativo', true).order('ordem'),
     supabaseAdmin
       .from('estabelecimento_tipos_cozinha')
@@ -146,6 +148,7 @@ export default async function AnalisarEstabelecimentoPage({
           <EditarEstabelecimentoAdminForm
             estabelecimento={estabelecimento}
             bairros={bairros || []}
+            cidades={cidades || []}
             tiposEstabelecimento={tiposEstabelecimento || []}
           />
         </SecaoExpansivel>

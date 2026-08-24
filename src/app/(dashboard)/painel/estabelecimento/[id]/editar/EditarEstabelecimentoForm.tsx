@@ -30,7 +30,8 @@ export default function EditarEstabelecimentoForm({
   const [complemento, setComplemento] = useState(estabelecimento.complemento || '')
   const [bairroId, setBairroId] = useState(estabelecimento.bairro_id || '')
   const [cep, setCep] = useState(estabelecimento.cep || '')
-  const [bairros, setBairros] = useState<{ id: string; nome: string }[]>([])
+  const [bairros, setBairros] = useState<{ id: string; nome: string; cidade_id: string | null }[]>([])
+  const [cidades, setCidades] = useState<{ id: string; nome: string }[]>([])
   const [telefone, setTelefone] = useState(estabelecimento.telefone || '')
   const [whatsapp, setWhatsapp] = useState(estabelecimento.whatsapp || '')
   const [instagram, setInstagram] = useState(estabelecimento.instagram || '')
@@ -44,9 +45,15 @@ export default function EditarEstabelecimentoForm({
   useEffect(() => {
     supabase
       .from('bairros')
-      .select('id, nome')
+      .select('id, nome, cidade_id')
       .order('nome')
       .then(({ data }) => setBairros(data || []))
+
+    supabase
+      .from('cidades')
+      .select('id, nome')
+      .order('nome')
+      .then(({ data }) => setCidades(data || []))
 
     // Lista gerenciável em /admin/tipos — antes era fixa no código.
     supabase
@@ -156,6 +163,14 @@ export default function EditarEstabelecimentoForm({
   }
 
   const nomeBairroAtual = bairros.find((b) => b.id === bairroId)?.nome || estabelecimento.bairro || null
+
+  // Agrupado por cidade (<optgroup>) — várias contas ainda não têm
+  // cidade_id preenchido no próprio estabelecimento (dado legado), então
+  // agrupar a lista organiza sem arriscar esconder o bairro certo.
+  const bairrosPorCidade = cidades
+    .map((c) => ({ cidade: c, bairros: bairros.filter((b) => b.cidade_id === c.id) }))
+    .filter((g) => g.bairros.length > 0)
+  const bairrosSemCidade = bairros.filter((b) => !b.cidade_id)
   const enderecoCompleto = [
     [[tipoLogradouro, logradouro].filter(Boolean).join(' '), numero && `nº ${numero}`, complemento]
       .filter(Boolean)
@@ -333,9 +348,20 @@ export default function EditarEstabelecimentoForm({
               className="w-full border rounded-lg px-4 py-2 bg-white text-gray-900 disabled:bg-gray-100"
             >
               <option value="">Selecione um bairro...</option>
-              {bairros.map((b) => (
-                <option key={b.id} value={b.id}>{b.nome}</option>
+              {bairrosPorCidade.map((g) => (
+                <optgroup key={g.cidade.id} label={g.cidade.nome}>
+                  {g.bairros.map((b) => (
+                    <option key={b.id} value={b.id}>{b.nome}</option>
+                  ))}
+                </optgroup>
               ))}
+              {bairrosSemCidade.length > 0 && (
+                <optgroup label="Sem cidade">
+                  {bairrosSemCidade.map((b) => (
+                    <option key={b.id} value={b.id}>{b.nome}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div>

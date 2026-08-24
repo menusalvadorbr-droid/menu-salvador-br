@@ -4,6 +4,8 @@ interface Bairro {
   id: string;
   nome: string;
   slug: string;
+  cidadeId: string;
+  nomeCidade: string;
 }
 
 interface FiltrosProps {
@@ -15,6 +17,15 @@ interface FiltrosProps {
 }
 
 export default function Filtros({ bairroId, bairros, temFiltroAtivo, onChangeBairro, onLimpar }: FiltrosProps) {
+  // Agrupado por cidade (<optgroup>) — bairros de cidades diferentes
+  // apareciam misturados num <select> só, sem indicação nenhuma de qual
+  // cidade era qual.
+  const cidadesOrdenadas = Array.from(new Set(bairros.map((b) => b.nomeCidade))).sort((a, b) => a.localeCompare(b))
+  const bairrosPorCidade = cidadesOrdenadas.map((nomeCidade) => ({
+    nomeCidade,
+    bairros: bairros.filter((b) => b.nomeCidade === nomeCidade),
+  }))
+
   return (
     <div className="border-b border-neutral-100 bg-white">
       <div className="container mx-auto flex items-center gap-3 overflow-x-auto px-4 py-3">
@@ -24,8 +35,12 @@ export default function Filtros({ bairroId, bairros, temFiltroAtivo, onChangeBai
           onChange={(e) => onChangeBairro(e.target.value)}
         >
           <option value="">📍 Todos os bairros</option>
-          {bairros.map((b) => (
-            <option key={b.id} value={b.id}>{b.nome}</option>
+          {bairrosPorCidade.map((g) => (
+            <optgroup key={g.nomeCidade} label={g.nomeCidade}>
+              {g.bairros.map((b) => (
+                <option key={b.id} value={b.id}>{b.nome}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
 
