@@ -10,6 +10,8 @@ import {
   removerInsumo,
   listarTodosAlergenos,
   listarAlergenosDoInsumo,
+  buscarConsumoMedioDiario,
+  calcularPontoReposicao,
   type DadosInsumo,
 } from '../estoqueRepository'
 import type { Insumo, Alergeno } from '../types'
@@ -17,13 +19,21 @@ import type { Insumo, Alergeno } from '../types'
 export function useInsumos(estabelecimentoId: string) {
   const [insumos, setInsumos] = useState<Insumo[]>([])
   const [alergenos, setAlergenos] = useState<Alergeno[]>([])
+  const [pontosReposicao, setPontosReposicao] = useState<Map<string, number>>(new Map())
   const [carregando, setCarregando] = useState(true)
 
   const carregar = useCallback(async () => {
     try {
-      const [listaInsumos, listaAlergenos] = await Promise.all([listarInsumos(estabelecimentoId), listarTodosAlergenos()])
+      const [listaInsumos, listaAlergenos, consumoMedio] = await Promise.all([
+        listarInsumos(estabelecimentoId),
+        listarTodosAlergenos(),
+        buscarConsumoMedioDiario(estabelecimentoId),
+      ])
       setInsumos(listaInsumos)
       setAlergenos(listaAlergenos)
+      setPontosReposicao(
+        new Map(listaInsumos.map((i) => [i.id, calcularPontoReposicao(i, consumoMedio.get(i.id) || 0)]))
+      )
     } finally {
       setCarregando(false)
     }
@@ -87,7 +97,20 @@ export function useInsumos(estabelecimentoId: string) {
     }
   }
 
-  const emFalta = insumos.filter((i) => i.estoque_atual <= i.estoque_minimo)
+  // Abaixo do ponto de reposição, não mais só do estoque mínimo isolado —
+  // ver calcularPontoReposicao em estoqueRepository.ts.
+  const emFalta = insumos.filter((i) => i.estoque_atual < (pontosReposicao.get(i.id) ?? i.estoque_minimo))
 
-  return { insumos, alergenos, carregando, emFalta, adicionar, atualizar, ajustar, remover, listarAlergenosDoInsumo }
+  return {
+    insumos,
+    alergenos,
+    pontosReposicao,
+    carregando,
+    emFalta,
+    adicionar,
+    atualizar,
+    ajustar,
+    remover,
+    listarAlergenosDoInsumo,
+  }
 }

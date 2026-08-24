@@ -68,6 +68,7 @@ export function usePedidosEstabelecimento(estabelecimentoId: string) {
       if (novoStatus === 'em_preparo' && pedidoAtual?.status !== 'em_preparo') {
         try {
           await baixarEstoquePorItens(
+            estabelecimentoId,
             (pedidoAtual?.items || []).map((item) => ({
               itemCardapioId: item.id,
               quantidade: item.quantidade,

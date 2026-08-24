@@ -17,11 +17,24 @@ const FORM_VAZIO = {
   alergenoIds: [] as string[],
   equivalenciaQtd: '',
   equivalenciaUnidade: '' as UnidadeInsumo | '',
+  localArmazenamento: '',
+  estoqueMaximo: '',
+  prazoEntregaDias: '',
 }
 
 export default function InsumosManager({ estabelecimentoId }: { estabelecimentoId: string }) {
-  const { insumos, alergenos, carregando, emFalta, adicionar, atualizar, ajustar, remover, listarAlergenosDoInsumo } =
-    useInsumos(estabelecimentoId)
+  const {
+    insumos,
+    alergenos,
+    pontosReposicao,
+    carregando,
+    emFalta,
+    adicionar,
+    atualizar,
+    ajustar,
+    remover,
+    listarAlergenosDoInsumo,
+  } = useInsumos(estabelecimentoId)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [form, setForm] = useState(FORM_VAZIO)
@@ -54,6 +67,9 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
       alergenoIds: alergenosDoInsumo.map((a) => a.id),
       equivalenciaQtd: insumo.equivalencia_qtd != null ? String(insumo.equivalencia_qtd).replace('.', ',') : '',
       equivalenciaUnidade: insumo.equivalencia_unidade || '',
+      localArmazenamento: insumo.local_armazenamento || '',
+      estoqueMaximo: insumo.estoque_maximo != null ? String(insumo.estoque_maximo) : '',
+      prazoEntregaDias: insumo.prazo_entrega_dias != null ? String(insumo.prazo_entrega_dias) : '',
     })
   }
 
@@ -73,6 +89,9 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
           ? parseFloat(form.equivalenciaQtd.replace(',', '.')) || null
           : null,
       equivalenciaUnidade: form.equivalenciaUnidade || null,
+      localArmazenamento: form.localArmazenamento.trim() || null,
+      estoqueMaximo: form.estoqueMaximo.trim() ? Number(form.estoqueMaximo) : null,
+      prazoEntregaDias: form.prazoEntregaDias.trim() ? Number(form.prazoEntregaDias) : null,
     }
     try {
       if (editandoId) {
@@ -94,7 +113,7 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
     <div>
       {emFalta.length > 0 && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          ⚠️ {emFalta.length} insumo(s) no estoque mínimo ou abaixo: {emFalta.map((i) => i.nome).join(', ')}
+          ⚠️ {emFalta.length} insumo(s) abaixo do ponto de reposição: {emFalta.map((i) => i.nome).join(', ')}
         </div>
       )}
 
@@ -174,6 +193,36 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
                 className="w-32 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
               />
             </label>
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Local de armazenamento
+              <input
+                type="text"
+                value={form.localArmazenamento}
+                onChange={(e) => setForm((f) => ({ ...f, localArmazenamento: e.target.value }))}
+                placeholder="Ex: Freezer 1"
+                className="w-32 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Estoque máximo
+              <input
+                type="number"
+                value={form.estoqueMaximo}
+                onChange={(e) => setForm((f) => ({ ...f, estoqueMaximo: e.target.value }))}
+                placeholder="Opcional"
+                className="w-24 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-neutral-500">
+              Prazo de entrega (dias)
+              <input
+                type="number"
+                value={form.prazoEntregaDias}
+                onChange={(e) => setForm((f) => ({ ...f, prazoEntregaDias: e.target.value }))}
+                placeholder="Pro ponto de reposição"
+                className="w-36 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+              />
+            </label>
           </div>
 
           <div>
@@ -249,7 +298,7 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {insumos.map((insumo) => {
-              const baixo = insumo.estoque_atual <= insumo.estoque_minimo
+              const baixo = insumo.estoque_atual < (pontosReposicao.get(insumo.id) ?? insumo.estoque_minimo)
               return (
                 <tr key={insumo.id} className={baixo ? 'bg-amber-50' : ''}>
                   <td className="px-4 py-2 text-neutral-900">

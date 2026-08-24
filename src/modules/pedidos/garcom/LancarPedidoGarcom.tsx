@@ -180,7 +180,10 @@ export default function LancarPedidoGarcom({
         // por "em_preparo", então a baixa de estoque nunca rodou; roda
         // aqui, uma vez, incondicionalmente.
         try {
-          await baixarEstoquePorItens(sacola.itens.map((item) => ({ itemCardapioId: item.id, quantidade: item.quantidade })))
+          await baixarEstoquePorItens(
+            estabelecimentoId,
+            sacola.itens.map((item) => ({ itemCardapioId: item.id, quantidade: item.quantidade }))
+          )
         } catch (err) {
           // Não trava a venda — mesmo comportamento do fechamento de mesa.
           // Loga pra dar pra investigar depois (item sem ficha vinculada,

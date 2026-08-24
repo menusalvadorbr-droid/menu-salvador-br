@@ -64,6 +64,7 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
       if (pedido.status === 'recebido' || pedido.status === 'aprovado') {
         try {
           await baixarEstoquePorItens(
+            estabelecimentoId,
             pedido.items.map((item) => ({ itemCardapioId: item.id, quantidade: item.quantidade }))
           )
         } catch (err) {

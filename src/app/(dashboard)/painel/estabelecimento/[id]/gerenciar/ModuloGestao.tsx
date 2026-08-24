@@ -1,5 +1,9 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Lock, ClipboardList, Package, Wallet, Truck, MessageCircle } from 'lucide-react'
+import { contarInsumosAbaixoDoPontoReposicao } from '@/modules/estoque/estoqueRepository'
 
 interface ModuloGestaoProps {
   estabelecimentoId: string
@@ -27,6 +31,13 @@ const ITENS = [
  * está em uso ainda.
  */
 export default function ModuloGestao({ estabelecimentoId, ativado }: ModuloGestaoProps) {
+  const [insumosAbaixoReposicao, setInsumosAbaixoReposicao] = useState(0)
+
+  useEffect(() => {
+    if (!ativado) return
+    contarInsumosAbaixoDoPontoReposicao(estabelecimentoId).then(setInsumosAbaixoReposicao).catch(() => {})
+  }, [estabelecimentoId, ativado])
+
   return (
     <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm sm:p-6">
       {!ativado && (
@@ -41,8 +52,16 @@ export default function ModuloGestao({ estabelecimentoId, ativado }: ModuloGesta
             <Link
               key={item.slug}
               href={`/painel/estabelecimento/${estabelecimentoId}/${item.slug}`}
-              className={`group flex flex-col items-center gap-2.5 rounded-xl border border-neutral-100 bg-white px-4 py-6 text-center shadow-sm transition hover:shadow-md ${item.hoverBorder}`}
+              className={`group relative flex flex-col items-center gap-2.5 rounded-xl border border-neutral-100 bg-white px-4 py-6 text-center shadow-sm transition hover:shadow-md ${item.hoverBorder}`}
             >
+              {item.slug === 'estoque' && insumosAbaixoReposicao > 0 && (
+                <span
+                  title={`${insumosAbaixoReposicao} insumo(s) abaixo do ponto de reposição`}
+                  className="absolute top-2 right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white"
+                >
+                  {insumosAbaixoReposicao}
+                </span>
+              )}
               <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${item.bg} ${item.text}`}>
                 <item.Icone className="h-5 w-5" />
               </div>

@@ -55,6 +55,9 @@ export interface DadosInsumo {
    *  referencia esse insumo numa unidade diferente da cadastrada aqui. */
   equivalenciaQtd: number | null
   equivalenciaUnidade: UnidadeInsumo | null
+  localArmazenamento: string | null
+  estoqueMaximo: number | null
+  prazoEntregaDias: number | null
 }
 
 export async function criarInsumo(estabelecimentoId: string, dados: DadosInsumo) {
@@ -71,6 +74,9 @@ export async function criarInsumo(estabelecimentoId: string, dados: DadosInsumo)
       validade_dias_alerta: dados.validadeDiasAlerta,
       equivalencia_qtd: dados.equivalenciaQtd,
       equivalencia_unidade: dados.equivalenciaUnidade,
+      local_armazenamento: dados.localArmazenamento,
+      estoque_maximo: dados.estoqueMaximo,
+      prazo_entrega_dias: dados.prazoEntregaDias,
     })
     .select('id')
     .single()
@@ -93,6 +99,9 @@ export async function atualizarInsumo(insumoId: string, dados: DadosInsumo) {
       validade_dias_alerta: dados.validadeDiasAlerta,
       equivalencia_qtd: dados.equivalenciaQtd,
       equivalencia_unidade: dados.equivalenciaUnidade,
+      local_armazenamento: dados.localArmazenamento,
+      estoque_maximo: dados.estoqueMaximo,
+      prazo_entrega_dias: dados.prazoEntregaDias,
       updated_at: new Date().toISOString(),
     })
     .eq('id', insumoId)
@@ -163,9 +172,18 @@ async function salvarAlergenosDoInsumo(insumoId: string, alergenoIds: string[]) 
  * mesmo insumo em vários updates separados quando ele aparece em mais de
  * um lugar da composição. Não lança erro se o item não tiver ficha técnica
  * cadastrada (nem todo estabelecimento vai controlar estoque de tudo).
+ *
+ * Também grava uma linha `tipo='saida_venda'` em movimentos_estoque pra
+ * cada insumo baixado — sem isso, consumo por venda nunca entraria no
+ * histórico de movimentos, e o cálculo de consumo médio diário (base do
+ * ponto de reposição) ficaria sistematicamente subestimado.
  */
-export async function baixarEstoquePorItens(itens: { itemCardapioId: string; quantidade: number }[]) {
+export async function baixarEstoquePorItens(
+  estabelecimentoId: string,
+  itens: { itemCardapioId: string; quantidade: number }[]
+) {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   for (const item of itens) {
     const { data: ficha } = await supabase
@@ -188,8 +206,66 @@ export async function baixarEstoquePorItens(itens: { itemCardapioId: string; qua
         .from('insumos')
         .update({ estoque_atual: novaQuantidade, updated_at: new Date().toISOString() })
         .eq('id', insumoId)
+
+      await supabase.from('movimentos_estoque').insert({
+        estabelecimento_id: estabelecimentoId,
+        insumo_id: insumoId,
+        tipo: 'saida_venda',
+        quantidade: qtd,
+        criado_por: user?.id || null,
+      })
     }
   }
+}
+
+/**
+ * Consumo médio diário de cada insumo nos últimos 30 dias, a partir da
+ * soma de todas as saídas (todo tipo exceto 'entrada') em movimentos_estoque
+ * ÷ 30. Calculado ao vivo a cada chamada — volume esperado por
+ * estabelecimento é baixo o suficiente (dezenas de movimentos/mês) pra não
+ * precisar de um valor pré-calculado periodicamente.
+ */
+export async function buscarConsumoMedioDiario(estabelecimentoId: string): Promise<Map<string, number>> {
+  const supabase = createClient()
+  const desde = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data, error } = await supabase
+    .from('movimentos_estoque')
+    .select('insumo_id, quantidade, tipo')
+    .eq('estabelecimento_id', estabelecimentoId)
+    .neq('tipo', 'entrada')
+    .gte('created_at', desde)
+  if (error) throw new Error(error.message)
+
+  const somaPorInsumo = new Map<string, number>()
+  for (const mov of data || []) {
+    somaPorInsumo.set(mov.insumo_id, (somaPorInsumo.get(mov.insumo_id) || 0) + mov.quantidade)
+  }
+
+  const mediaPorInsumo = new Map<string, number>()
+  for (const [insumoId, soma] of somaPorInsumo) mediaPorInsumo.set(insumoId, soma / 30)
+  return mediaPorInsumo
+}
+
+/**
+ * ponto_reposicao = (consumo_medio_diario × prazo_entrega_dias) + estoque_minimo.
+ * prazo_entrega_dias é nulo até o dono preencher (campo novo) — nesse caso
+ * cai de volta pra só estoque_minimo (mesmo comportamento de antes desta
+ * etapa), em vez de gerar NaN ou exigir preenchimento obrigatório retroativo.
+ */
+export function calcularPontoReposicao(insumo: Insumo, consumoMedioDiario: number): number {
+  return consumoMedioDiario * (insumo.prazo_entrega_dias ?? 0) + insumo.estoque_minimo
+}
+
+/** Usado pelo badge do card "Estoque" em ModuloGestao.tsx — mesma conta de
+ *  `emFalta` em useInsumos.ts, só que sem precisar montar o estado inteiro
+ *  da aba Insumos pra isso. */
+export async function contarInsumosAbaixoDoPontoReposicao(estabelecimentoId: string): Promise<number> {
+  const [insumos, consumoMedio] = await Promise.all([
+    listarInsumos(estabelecimentoId),
+    buscarConsumoMedioDiario(estabelecimentoId),
+  ])
+  return insumos.filter((i) => i.estoque_atual < calcularPontoReposicao(i, consumoMedio.get(i.id) || 0)).length
 }
 
 /**

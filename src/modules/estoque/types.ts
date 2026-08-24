@@ -22,8 +22,30 @@ export interface Insumo {
    *  aqui (kg↔g e l↔ml convertem sozinhos, não precisam disso). */
   equivalencia_qtd: number | null
   equivalencia_unidade: UnidadeInsumo | null
+  /** Texto livre (ex: "Freezer 1", "Prateleira 2") — usado na contagem
+   *  física por local (Etapa 4, ainda não implementada). */
+  local_armazenamento: string | null
+  /** Alimentam o cálculo do ponto de reposição — ver calcularPontoReposicao
+   *  em estoqueRepository.ts. Nulos até o dono preencher. */
+  estoque_maximo: number | null
+  prazo_entrega_dias: number | null
   created_at: string
   updated_at: string
+}
+
+export type TipoMovimentoEstoque = 'entrada' | 'saida_manual' | 'saida_venda' | 'perda' | 'cortesia' | 'ajuste_inventario'
+
+export interface MovimentoEstoque {
+  id: string
+  estabelecimento_id: string
+  insumo_id: string
+  tipo: TipoMovimentoEstoque
+  quantidade: number
+  motivo: string | null
+  criado_por: string | null
+  created_at: string
+  insumo?: { nome: string; unidade: UnidadeInsumo } | null
+  nomeCriador?: string | null
 }
 
 export type TipoItemFicha = 'insumo' | 'sub_ficha'

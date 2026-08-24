@@ -4,10 +4,11 @@ import { use, useState } from 'react'
 import Link from 'next/link'
 import InsumosManager from '@/modules/estoque/components/InsumosManager'
 import FichaTecnicaManager from '@/modules/estoque/components/FichaTecnicaManager'
+import MovimentosManager from '@/modules/estoque/components/MovimentosManager'
 
 export default function EstoquePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [aba, setAba] = useState<'insumos' | 'fichas'>('insumos')
+  const [aba, setAba] = useState<'insumos' | 'fichas' | 'movimentos'>('insumos')
 
   return (
     <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
@@ -41,14 +42,20 @@ export default function EstoquePage({ params }: { params: Promise<{ id: string }
           >
             Fichas técnicas
           </button>
+          <button
+            onClick={() => setAba('movimentos')}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
+              aba === 'movimentos' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
+            }`}
+          >
+            Movimentos
+          </button>
         </div>
 
         <div className="mt-6">
-          {aba === 'insumos' ? (
-            <InsumosManager estabelecimentoId={id} />
-          ) : (
-            <FichaTecnicaManager estabelecimentoId={id} />
-          )}
+          {aba === 'insumos' && <InsumosManager estabelecimentoId={id} />}
+          {aba === 'fichas' && <FichaTecnicaManager estabelecimentoId={id} />}
+          {aba === 'movimentos' && <MovimentosManager estabelecimentoId={id} />}
         </div>
       </div>
     </div>
