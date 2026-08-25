@@ -36,6 +36,21 @@ export default function PublicFooter() {
               Sobre
             </h3>
             <ul className="mt-3 space-y-2 text-sm">
+              <li>
+                <Link href="/termos-de-servico" className="hover:text-[var(--brand-primary)]">
+                  Termos de Serviço
+                </Link>
+              </li>
+              <li>
+                <Link href="/politica-de-privacidade" className="hover:text-[var(--brand-primary)]">
+                  Política de Privacidade
+                </Link>
+              </li>
+              <li>
+                <Link href="/exclusao-de-dados" className="hover:text-[var(--brand-primary)]">
+                  Exclusão de Dados
+                </Link>
+              </li>
               <li className="text-neutral-400">© {new Date().getFullYear()} menu.salvador</li>
             </ul>
           </div>
