@@ -168,16 +168,31 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
 
   let respostaTexto: string
   let precisaHumano = jaPrecisavaHumano
+  let metricaIa: { tokensEntrada: number; tokensSaida: number } | null = null
   try {
     const inicioDeepSeek = Date.now()
     const resultado = await chamarDeepSeek(system, mensagensParaModelo, MAX_TOKENS_RESPOSTA_WHATSAPP)
     console.log(`[whatsapp][timing] chamarDeepSeek: ${Date.now() - inicioDeepSeek}ms`, { wamid })
     respostaTexto = resultado.texto
-    await registrarMetrica(estabelecimentoId, 'ia', DEEPSEEK_MODEL, resultado.tokensEntrada, resultado.tokensSaida)
+    metricaIa = { tokensEntrada: resultado.tokensEntrada, tokensSaida: resultado.tokensSaida }
   } catch (err) {
     console.error('[whatsapp] erro ao chamar DeepSeek:', err)
     respostaTexto = 'Desculpe, não consegui responder agora. Nossa equipe vai te responder em breve por aqui.'
     precisaHumano = true
+  }
+
+  // Fora do try/catch da IA de propósito — achado ao vivo: essa gravação
+  // de métrica (efeito colateral, não crítico) rodava DENTRO do try, então
+  // uma falha aqui (mesmo transitória) caía no catch e descartava uma
+  // resposta da IA que já tinha dado certo, trocando por "não consegui
+  // responder agora" sem a IA ter falhado de verdade. Uma falha aqui
+  // nunca pode apagar a resposta já obtida.
+  if (metricaIa) {
+    try {
+      await registrarMetrica(estabelecimentoId, 'ia', DEEPSEEK_MODEL, metricaIa.tokensEntrada, metricaIa.tokensSaida)
+    } catch (err) {
+      console.error('[whatsapp] erro ao registrar métrica (não afeta a resposta já obtida da IA):', err)
+    }
   }
 
   // Auditoria por amostragem — roda em paralelo (não aguardada), nunca
