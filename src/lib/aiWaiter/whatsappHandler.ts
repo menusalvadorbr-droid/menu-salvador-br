@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { buildCardapioContextPorId } from './buildCardapioContext'
 import { montarSystemPrompt } from './systemPrompt'
 import { resolverAtalho } from './atalhos'
-import { enviarMensagemWhatsApp, ErroTokenWhatsApp } from '@/lib/whatsapp/metaApi'
+import { enviarMensagemWhatsApp, marcarComoLidaEDigitando, ErroTokenWhatsApp } from '@/lib/whatsapp/metaApi'
 
 // DeepSeek V4 Flash como padrão (mesmo modelo/endpoint de
 // /api/ai-waiter-deepseek, mas não-streaming aqui — a Cloud API do
@@ -13,6 +13,10 @@ import { enviarMensagemWhatsApp, ErroTokenWhatsApp } from '@/lib/whatsapp/metaAp
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 const DEEPSEEK_MODEL = 'deepseek-v4-flash'
 const PROPORCAO_AUDITORIA_HAIKU = 0.05
+// Resposta de WhatsApp precisa ser curta (ver instrução de canal em
+// systemPrompt.ts) — limitar aqui também reduz tempo de geração e custo,
+// e serve de trava mesmo se o modelo ignorar a instrução do prompt.
+const MAX_TOKENS_RESPOSTA_WHATSAPP = 300
 
 const anthropic = new Anthropic()
 
@@ -97,6 +101,12 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
     return
   }
 
+  // Marca como lida + ativa "digitando..." assim que sabemos que vamos
+  // responder de algum jeito (atalho, aviso de humano, ou IA) — cobre a
+  // percepção de espera em qualquer um dos três caminhos, não só o da IA.
+  // Cosmético e não bloqueante: uma falha aqui nunca impede o resto.
+  await marcarComoLidaEDigitando(est.whatsapp_phone_number_id, est.whatsapp_access_token, wamid)
+
   // Camada 1 — atalho por palavra-chave, custo zero, checado antes de
   // qualquer IA. Só bate se o cliente não pediu um humano explicitamente.
   const respostaAtalho = pediuHumanoAgora ? null : await resolverAtalho(estabelecimentoId, texto)
@@ -124,18 +134,22 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
 
   // Camada 2 — IA, sobre o cardápio real do estabelecimento (mesmo contexto
   // e regras do AI Waiter testado em /cardapio/[slug]/teste-ai).
+  const inicioContexto = Date.now()
   const contexto = await buildCardapioContextPorId(estabelecimentoId)
+  console.log(`[whatsapp][timing] buildCardapioContext: ${Date.now() - inicioContexto}ms`, { wamid })
   if (!contexto) {
     console.error('[whatsapp] contexto de cardápio não encontrado:', estabelecimentoId)
     return
   }
-  const system = montarSystemPrompt(contexto.nome, contexto.itens)
+  const system = montarSystemPrompt(contexto.nome, contexto.itens, { canal: 'whatsapp' })
   const mensagensParaModelo = historicoComNova.map((m) => ({ role: m.role, content: m.content }))
 
   let respostaTexto: string
   let precisaHumano = jaPrecisavaHumano
   try {
-    const resultado = await chamarDeepSeek(system, mensagensParaModelo)
+    const inicioDeepSeek = Date.now()
+    const resultado = await chamarDeepSeek(system, mensagensParaModelo, MAX_TOKENS_RESPOSTA_WHATSAPP)
+    console.log(`[whatsapp][timing] chamarDeepSeek: ${Date.now() - inicioDeepSeek}ms`, { wamid })
     respostaTexto = resultado.texto
     await registrarMetrica(estabelecimentoId, 'ia', DEEPSEEK_MODEL, resultado.tokensEntrada, resultado.tokensSaida)
   } catch (err) {
@@ -153,7 +167,9 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
     })
   }
 
+  const inicioEnvio = Date.now()
   const enviado = await enviarComTratamentoDeErro(est, telefone, respostaTexto, estabelecimentoId)
+  console.log(`[whatsapp][timing] enviarMensagemWhatsApp: ${Date.now() - inicioEnvio}ms`, { wamid })
   await salvarConversa(
     estabelecimentoId, telefone, conversaExistente?.id,
     [...historicoComNova, ...(enviado ? [mensagemAssistente(respostaTexto)] : [])],
@@ -241,7 +257,8 @@ interface DeepSeekRespostaCompleta {
 
 async function chamarDeepSeek(
   system: string,
-  mensagens: { role: 'user' | 'assistant'; content: string }[]
+  mensagens: { role: 'user' | 'assistant'; content: string }[],
+  maxTokens: number
 ): Promise<{ texto: string; tokensEntrada: number; tokensSaida: number }> {
   const resp = await fetch(DEEPSEEK_URL, {
     method: 'POST',
@@ -250,7 +267,7 @@ async function chamarDeepSeek(
       model: DEEPSEEK_MODEL,
       messages: [{ role: 'system', content: system }, ...mensagens],
       stream: false,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
     }),
   })
   if (!resp.ok) throw new Error(`DeepSeek respondeu ${resp.status}`)

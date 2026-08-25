@@ -12,7 +12,7 @@ export class ErroTokenWhatsApp extends Error {
   }
 }
 
-const GRAPH_VERSION = 'v20.0'
+const GRAPH_VERSION = 'v24.0'
 // Limite real da Cloud API por mensagem de texto — acima disso a Meta
 // rejeita o envio inteiro, não só corta o excedente.
 const LIMITE_CARACTERES_MENSAGEM = 4096
@@ -73,6 +73,40 @@ export async function enviarMensagemWhatsApp(
       if (resp.status === 401 || resp.status === 403) throw new ErroTokenWhatsApp(resp.status, erro)
       throw new Error(`Falha ao enviar mensagem WhatsApp (${resp.status}): ${erro}`)
     }
+  }
+}
+
+/** Marca a mensagem recebida como lida e ativa o indicador "digitando..."
+ *  no WhatsApp do cliente (fica visível por até ~25s ou até a resposta
+ *  real chegar, o que vier primeiro) — cobre o tempo de geração da IA sem
+ *  custo nenhum de latência real. Cosmético: nunca lança erro pra quem
+ *  chama, só loga e segue — uma falha aqui não pode atrapalhar a resposta
+ *  de verdade. */
+export async function marcarComoLidaEDigitando(
+  phoneNumberId: string,
+  accessToken: string,
+  wamid: string
+): Promise<void> {
+  try {
+    const resp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: wamid,
+        typing_indicator: { type: 'text' },
+      }),
+    })
+    if (!resp.ok) {
+      const erro = await resp.text().catch(() => '')
+      console.error('[whatsapp] falha ao marcar como lida/digitando (não bloqueia a resposta):', resp.status, erro)
+    }
+  } catch (err) {
+    console.error('[whatsapp] erro ao marcar como lida/digitando (não bloqueia a resposta):', err)
   }
 }
 
