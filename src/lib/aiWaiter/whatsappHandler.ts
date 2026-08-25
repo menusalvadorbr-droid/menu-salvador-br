@@ -13,10 +13,14 @@ import { enviarMensagemWhatsApp, marcarComoLidaEDigitando, ErroTokenWhatsApp } f
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 const DEEPSEEK_MODEL = 'deepseek-v4-flash'
 const PROPORCAO_AUDITORIA_HAIKU = 0.05
-// Resposta de WhatsApp precisa ser curta (ver instrução de canal em
-// systemPrompt.ts) — limitar aqui também reduz tempo de geração e custo,
-// e serve de trava mesmo se o modelo ignorar a instrução do prompt.
-const MAX_TOKENS_RESPOSTA_WHATSAPP = 300
+// Tamanho da resposta é controlado pela instrução de canal em
+// systemPrompt.ts (2-4 linhas), não por um teto agressivo de tokens — 300
+// cortava resposta no meio da frase (e, com deepseek-v4-flash, parece ter
+// esvaziado `content` de vez em alguns casos, não só truncado — ver o log
+// de finish_reason em chamarDeepSeek). 1024 é o valor original, alto o
+// bastante pra nunca cortar uma resposta normal, servindo só de limite de
+// segurança de verdade.
+const MAX_TOKENS_RESPOSTA_WHATSAPP = 1024
 
 const anthropic = new Anthropic()
 
@@ -251,7 +255,7 @@ async function registrarMetrica(
 }
 
 interface DeepSeekRespostaCompleta {
-  choices?: { message?: { content?: string } }[]
+  choices?: { message?: { content?: string }; finish_reason?: string }[]
   usage?: { prompt_tokens?: number; completion_tokens?: number }
 }
 
@@ -273,7 +277,13 @@ async function chamarDeepSeek(
   if (!resp.ok) throw new Error(`DeepSeek respondeu ${resp.status}`)
   const dados = (await resp.json()) as DeepSeekRespostaCompleta
   const texto = dados.choices?.[0]?.message?.content
-  if (!texto) throw new Error('DeepSeek não retornou texto')
+  if (!texto) {
+    // finish_reason 'length' = cortou por max_tokens (o que estava
+    // acontecendo com o teto de 300) — qualquer outro valor aqui aponta
+    // pra uma causa diferente.
+    console.error('[whatsapp] DeepSeek não retornou texto, finish_reason:', dados.choices?.[0]?.finish_reason)
+    throw new Error('DeepSeek não retornou texto')
+  }
   return {
     texto,
     tokensEntrada: dados.usage?.prompt_tokens ?? 0,
