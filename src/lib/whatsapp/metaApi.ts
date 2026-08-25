@@ -12,7 +12,13 @@ export class ErroTokenWhatsApp extends Error {
   }
 }
 
-const GRAPH_VERSION = 'v24.0'
+// v25.0 — mesma versão usada no exemplo oficial da doc de typing
+// indicators (developers.facebook.com/docs/whatsapp/cloud-api/typing-indicators).
+// v24.0 aceitava o request e confirmava a leitura (campo antigo/estável),
+// mas o "digitando..." não aparecia pro cliente — hipótese de que o campo
+// typing_indicator (recurso mais novo) era ignorado silenciosamente numa
+// versão que não o reconhece plenamente, em vez de dar erro.
+const GRAPH_VERSION = 'v25.0'
 // Limite real da Cloud API por mensagem de texto — acima disso a Meta
 // rejeita o envio inteiro, não só corta o excedente.
 const LIMITE_CARACTERES_MENSAGEM = 4096
@@ -104,6 +110,14 @@ export async function marcarComoLidaEDigitando(
     if (!resp.ok) {
       const erro = await resp.text().catch(() => '')
       console.error('[whatsapp] falha ao marcar como lida/digitando (não bloqueia a resposta):', resp.status, erro)
+    } else {
+      // Temporário — o "read" já se provou confiável (✓✓ aparece rápido),
+      // mas o "digitando" não estava aparecendo mesmo com 200 de volta.
+      // Loga o corpo da resposta pra confirmar se a Meta reconhece o campo
+      // typing_indicator ou só ignora silenciosamente. Remover depois de
+      // confirmar visualmente que o indicador aparece.
+      const corpo = await resp.text().catch(() => '')
+      console.log('[whatsapp] marcar como lida/digitando OK:', corpo)
     }
   } catch (err) {
     console.error('[whatsapp] erro ao marcar como lida/digitando (não bloqueia a resposta):', err)
