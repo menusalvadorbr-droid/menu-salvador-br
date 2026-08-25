@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return new Response('Estabelecimento não encontrado.', { status: 404 })
   }
 
-  const system = montarSystemPrompt(contexto.nome, contexto.itens)
+  const system = montarSystemPrompt(contexto)
 
   // Chave lida só no servidor (DEEPSEEK_API_KEY) — nunca chega ao navegador,
   // mesma garantia do endpoint Haiku.

@@ -163,7 +163,7 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
     console.error('[whatsapp] contexto de cardápio não encontrado:', estabelecimentoId)
     return
   }
-  const system = montarSystemPrompt(contexto.nome, contexto.itens, { canal: 'whatsapp' })
+  const system = montarSystemPrompt(contexto, { canal: 'whatsapp' })
   const mensagensParaModelo = historicoComNova.map((m) => ({ role: m.role, content: m.content }))
 
   let respostaTexto: string

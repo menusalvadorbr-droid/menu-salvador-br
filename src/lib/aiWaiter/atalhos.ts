@@ -7,7 +7,7 @@ interface AtalhoCustomizado {
   resposta: string
 }
 
-interface EstabelecimentoParaAtalho {
+export interface EstabelecimentoParaAtalho {
   id: string
   endereco: string | null
   numero: string | null
@@ -18,7 +18,7 @@ interface EstabelecimentoParaAtalho {
   cidades: { nome: string } | { nome: string }[] | null
 }
 
-const LABEL_ESTACIONAMENTO: Record<string, string> = {
+export const LABEL_ESTACIONAMENTO: Record<string, string> = {
   proprio: 'Sim, temos estacionamento próprio.',
   valet: 'Sim, temos manobrista (valet).',
   rua: 'Temos vaga na rua, ao redor do estabelecimento.',
@@ -75,7 +75,10 @@ function unico<T>(v: T | T[] | null): T | null {
   return Array.isArray(v) ? v[0] ?? null : v
 }
 
-function formatarEndereco(est: EstabelecimentoParaAtalho): string {
+/** Exportada — reaproveitada por buildCardapioContext.ts pra montar o
+ *  bloco de dados reais do system prompt da IA, mesma formatação usada
+ *  aqui pro atalho de palavra-chave "endereço". */
+export function formatarEndereco(est: EstabelecimentoParaAtalho): string {
   const bairro = unico(est.bairros)?.nome
   const cidade = unico(est.cidades)?.nome
   if (!est.endereco) return 'Não temos o endereço cadastrado ainda — confirme com a equipe.'
@@ -88,7 +91,8 @@ function formatarEndereco(est: EstabelecimentoParaAtalho): string {
   return `📍 ${partes.join(', ')}`
 }
 
-async function formatarHorario(
+/** Exportada — mesmo motivo de formatarEndereco acima. */
+export async function formatarHorario(
   supabase: ReturnType<typeof createPublicClient>,
   estabelecimentoId: string
 ): Promise<string> {

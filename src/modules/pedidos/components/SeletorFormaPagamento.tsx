@@ -1,8 +1,9 @@
 'use client'
 
 import { Banknote, CreditCard, Smartphone } from 'lucide-react'
+import { METODOS_PAGAMENTO } from '../metodosPagamento'
 
-export const METODOS_PAGAMENTO = ['Dinheiro', 'Cartão de débito', 'Cartão de crédito', 'Pix'] as const
+export { METODOS_PAGAMENTO }
 
 const ICONE_METODO: Record<(typeof METODOS_PAGAMENTO)[number], typeof Banknote> = {
   'Dinheiro': Banknote,

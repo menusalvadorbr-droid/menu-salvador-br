@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     return new Response('Estabelecimento não encontrado.', { status: 404 })
   }
 
-  const system = montarSystemPrompt(contexto.nome, contexto.itens)
+  const system = montarSystemPrompt(contexto)
 
   // Breakpoint 1 — system (prompt fixo + cardápio via RAG): idêntico durante
   // toda a sessão do estabelecimento, então cacheável turno a turno. Abaixo

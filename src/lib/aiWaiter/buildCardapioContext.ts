@@ -1,4 +1,6 @@
 import { createPublicClient } from '@/lib/supabase/publicServer'
+import { formatarEndereco, formatarHorario, LABEL_ESTACIONAMENTO, type EstabelecimentoParaAtalho } from './atalhos'
+import { METODOS_PAGAMENTO } from '@/modules/pedidos/metodosPagamento'
 
 // Dados do cardápio já resolvidos (alérgenos diretos + herdados da Ficha
 // Técnica mesclados) — é essa lista, e só ela, que vira o system prompt do
@@ -17,6 +19,19 @@ export interface EstabelecimentoContexto {
   id: string
   nome: string
   itens: ItemCardapioContexto[]
+  /** Já formatado (mesma função usada pelo atalho de palavra-chave
+   *  "endereço") — "Não temos o endereço cadastrado..." se vazio no
+   *  cadastro, nunca inventado. */
+  endereco: string
+  /** Idem, mesma função do atalho "horário". */
+  horario: string
+  /** Comodidades reais do cadastro (aceita_pets, acessibilidade,
+   *  estacionamento) — string vazia se nada preenchido. */
+  comodidades: string
+  /** Métodos aceitos ao finalizar pedido pelo cardápio — constante da
+   *  plataforma inteira (não é campo configurável por estabelecimento
+   *  hoje, ver comentário em montarContextoDoEstabelecimento). */
+  formasPagamento: string
 }
 
 interface CategoriaBruta {
@@ -51,6 +66,19 @@ interface ComposicaoBruta {
   sub_ficha_id: string | null
 }
 
+// Mesmos campos reais já usados pelos atalhos de palavra-chave
+// (atalhos.ts) — nome pro system prompt da IA, e o resto pra montar
+// endereço/estacionamento/comodidades sem duplicar a fonte de dado.
+const SELECT_ESTABELECIMENTO =
+  'id, nome, nome_fantasia, endereco, numero, tipo_logradouro, estacionamento, aceita_pets, acessibilidade, bairros(nome), cidades(nome)'
+
+interface EstabelecimentoBruto extends EstabelecimentoParaAtalho {
+  nome: string
+  nome_fantasia: string | null
+  aceita_pets: boolean | null
+  acessibilidade: string[] | null
+}
+
 type ClientePublico = ReturnType<typeof createPublicClient>
 
 /** Busca nome + cardápio completo (disponível ou não) de um estabelecimento
@@ -59,11 +87,11 @@ export async function buildCardapioContext(slug: string): Promise<Estabeleciment
   const supabase = createPublicClient()
   const { data: est } = await supabase
     .from('estabelecimentos')
-    .select('id, nome, nome_fantasia')
+    .select(SELECT_ESTABELECIMENTO)
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
   if (!est) return null
-  return montarContextoDoEstabelecimento(supabase, est.id, est.nome_fantasia || est.nome)
+  return montarContextoDoEstabelecimento(supabase, est as unknown as EstabelecimentoBruto)
 }
 
 /** Mesma coisa que `buildCardapioContext`, mas resolvendo pelo id direto —
@@ -74,18 +102,30 @@ export async function buildCardapioContextPorId(estabelecimentoId: string): Prom
   const supabase = createPublicClient()
   const { data: est } = await supabase
     .from('estabelecimentos')
-    .select('id, nome, nome_fantasia')
+    .select(SELECT_ESTABELECIMENTO)
     .eq('id', estabelecimentoId).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
   if (!est) return null
-  return montarContextoDoEstabelecimento(supabase, est.id, est.nome_fantasia || est.nome)
+  return montarContextoDoEstabelecimento(supabase, est as unknown as EstabelecimentoBruto)
 }
 
 async function montarContextoDoEstabelecimento(
   supabase: ClientePublico,
-  estabelecimentoId: string,
-  nome: string
+  est: EstabelecimentoBruto
 ): Promise<EstabelecimentoContexto> {
+  const estabelecimentoId = est.id
+  const nome = est.nome_fantasia || est.nome
+  const dadosFixos = {
+    endereco: formatarEndereco(est),
+    horario: await formatarHorario(supabase, estabelecimentoId),
+    comodidades: formatarComodidades(est),
+    // Métodos aceitos ao finalizar pedido pelo cardápio — não existe
+    // campo de cadastro "formas de pagamento aceitas" por estabelecimento
+    // hoje, é a mesma constante da plataforma inteira usada na tela de
+    // finalizar pedido (SeletorFormaPagamento.tsx).
+    formasPagamento: METODOS_PAGAMENTO.join(', '),
+  }
+
   const { data: menus } = await supabase
     .from('menus')
     .select('id')
@@ -93,7 +133,7 @@ async function montarContextoDoEstabelecimento(
     .order('created_at', { ascending: true })
     .limit(1)
   const menu = menus?.[0]
-  if (!menu) return { id: estabelecimentoId, nome, itens: [] }
+  if (!menu) return { id: estabelecimentoId, nome, itens: [], ...dadosFixos }
 
   const { data: categorias } = await supabase
     .from('categorias')
@@ -101,7 +141,7 @@ async function montarContextoDoEstabelecimento(
     .eq('menu_id', menu.id)
     .order('ordem')
   const catIds = (categorias || []).map((c: CategoriaBruta) => c.id)
-  if (catIds.length === 0) return { id: estabelecimentoId, nome, itens: [] }
+  if (catIds.length === 0) return { id: estabelecimentoId, nome, itens: [], ...dadosFixos }
   const nomePorCategoria = new Map((categorias || []).map((c: CategoriaBruta) => [c.id, c.nome]))
 
   // Propositalmente sem `.eq('disponivel', true)` — o AI Waiter precisa
@@ -132,7 +172,21 @@ async function montarContextoDoEstabelecimento(
     }
   })
 
-  return { id: estabelecimentoId, nome, itens: itensContexto }
+  return { id: estabelecimentoId, nome, itens: itensContexto, ...dadosFixos }
+}
+
+/** Mesmos campos reais de ComodidadesTab.tsx (aceita_pets, acessibilidade)
+ *  + estacionamento (já formatado por LABEL_ESTACIONAMENTO, mesmo rótulo
+ *  do atalho de palavra-chave) — string vazia se nada estiver preenchido
+ *  no cadastro, nunca um valor de exemplo. */
+function formatarComodidades(est: EstabelecimentoBruto): string {
+  const partes: string[] = []
+  if (est.estacionamento) partes.push(LABEL_ESTACIONAMENTO[est.estacionamento] || '')
+  if (est.aceita_pets) partes.push('Aceita pets.')
+  if (est.acessibilidade && est.acessibilidade.length > 0) {
+    partes.push(`Acessibilidade: ${est.acessibilidade.join(', ')}.`)
+  }
+  return partes.filter(Boolean).join(' ')
 }
 
 /** Mesma lógica recursiva de `alergenosHerdados()` em fichaTecnicaRepository.ts
