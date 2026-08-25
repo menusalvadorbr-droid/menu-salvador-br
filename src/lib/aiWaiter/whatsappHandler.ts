@@ -272,6 +272,15 @@ async function chamarDeepSeek(
       messages: [{ role: 'system', content: system }, ...mensagens],
       stream: false,
       max_tokens: maxTokens,
+      // deepseek-v4-flash roda em "thinking mode" por padrão — gera
+      // raciocínio interno (reasoning_content) antes da resposta final,
+      // consumindo parte do max_tokens de forma invisível. Era isso que
+      // batia o teto e devolvia content vazio (finish_reason 'length')
+      // mesmo em perguntas simples que exigem comparar vários itens do
+      // cardápio (ex: "qual o mais caro"). Resposta de WhatsApp não
+      // precisa de raciocínio em cadeia — desativa, o que também reduz a
+      // latência de geração.
+      thinking: { type: 'disabled' },
     }),
   })
   if (!resp.ok) throw new Error(`DeepSeek respondeu ${resp.status}`)
