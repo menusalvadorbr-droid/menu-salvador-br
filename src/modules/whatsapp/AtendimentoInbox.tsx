@@ -64,7 +64,17 @@ export default function AtendimentoInbox({ estabelecimentoId }: AtendimentoInbox
       .eq('estabelecimento_id', estabelecimentoId)
       .order('precisa_humano', { ascending: false })
       .order('ultima_interacao_em', { ascending: false })
-    setConversas((data || []) as Conversa[])
+
+    // `mensagens` nunca deveria vir nulo (default '[]'::jsonb no banco,
+    // sempre gravado como array em whatsappHandler.ts), mas normaliza aqui
+    // de qualquer forma — o resto do componente indexa/mapeia isso sem
+    // checagem, e um valor inesperado quebraria a renderização inteira em
+    // vez de só essa conversa.
+    const normalizado = (data || []).map((c) => ({
+      ...c,
+      mensagens: Array.isArray(c.mensagens) ? c.mensagens : [],
+    })) as Conversa[]
+    setConversas(normalizado)
     setCarregando(false)
   }
 

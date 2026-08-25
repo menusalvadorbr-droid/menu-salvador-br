@@ -4,6 +4,12 @@ import { validarAssinaturaWebhook } from '@/lib/whatsapp/metaApi'
 import { processarMensagemWhatsApp } from '@/lib/aiWaiter/whatsappHandler'
 
 export const runtime = 'nodejs'
+// after() roda dentro do orçamento de tempo da própria função (na Vercel,
+// por baixo dos panos é implementado com o waitUntil() deles mesmo — não
+// precisa trocar de API, só garantir orçamento suficiente). Sem isto, cai
+// no padrão da plataforma (10s no Hobby), curto pra IA + Meta + Supabase
+// em sequência no processamento assíncrono depois do 200.
+export const maxDuration = 30
 
 // Formato padrão da Cloud API (webhook de mensagens) — só o que usamos
 // nesta fase (texto simples); outros tipos (imagem, áudio, botão) e
