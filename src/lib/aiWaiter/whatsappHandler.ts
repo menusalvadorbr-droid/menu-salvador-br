@@ -51,6 +51,24 @@ function pediuAtendimentoHumano(texto: string): boolean {
 export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebida): Promise<void> {
   const { phoneNumberId, telefone, texto, wamid } = payload
 
+  // Reivindica o wamid atomicamente antes de qualquer outra coisa — a
+  // Meta manda duas notificações por mensagem (confirmado em produção,
+  // sempre em par, ~0,5s de diferença), e a checagem antiga (ler os
+  // wamids já salvos em whatsapp_conversas e decidir em JS) tinha uma
+  // janela de corrida: as duas notificações liam o mesmo estado "ainda
+  // sem esse wamid" antes de qualquer uma gravar, processavam em
+  // paralelo, e quem terminava por último vencia — se essa segunda
+  // chamada falhasse por qualquer motivo, sobrescrevia uma resposta boa
+  // já enviada com o fallback de erro. A constraint unique no banco
+  // garante exclusão mútua de verdade sob concorrência; checar em JS não.
+  const { error: erroReivindicacao } = await supabaseAdmin
+    .from('whatsapp_wamids_processados')
+    .insert({ wamid })
+  if (erroReivindicacao) {
+    console.log('[whatsapp] wamid já reivindicado por outra notificação concorrente, ignorando duplicata:', wamid)
+    return
+  }
+
   const { data: mapeamento } = await supabaseAdmin
     .from('whatsapp_numero_estabelecimento')
     .select('estabelecimento_id')
