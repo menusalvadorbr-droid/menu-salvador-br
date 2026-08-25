@@ -110,14 +110,6 @@ export async function marcarComoLidaEDigitando(
     if (!resp.ok) {
       const erro = await resp.text().catch(() => '')
       console.error('[whatsapp] falha ao marcar como lida/digitando (não bloqueia a resposta):', resp.status, erro)
-    } else {
-      // Temporário — o "read" já se provou confiável (✓✓ aparece rápido),
-      // mas o "digitando" não estava aparecendo mesmo com 200 de volta.
-      // Loga o corpo da resposta pra confirmar se a Meta reconhece o campo
-      // typing_indicator ou só ignora silenciosamente. Remover depois de
-      // confirmar visualmente que o indicador aparece.
-      const corpo = await resp.text().catch(() => '')
-      console.log('[whatsapp] marcar como lida/digitando OK:', corpo)
     }
   } catch (err) {
     console.error('[whatsapp] erro ao marcar como lida/digitando (não bloqueia a resposta):', err)
