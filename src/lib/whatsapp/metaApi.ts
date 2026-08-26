@@ -61,24 +61,53 @@ export async function enviarMensagemWhatsApp(
 ): Promise<void> {
   const pedacos = quebrarEmPedacos(texto, LIMITE_CARACTERES_MENSAGEM)
   for (const pedaco of pedacos) {
-    const resp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: telefoneDestino,
-        type: 'text',
-        text: { body: pedaco },
-      }),
+    await postMensagemWhatsApp(phoneNumberId, accessToken, {
+      messaging_product: 'whatsapp',
+      to: telefoneDestino,
+      type: 'text',
+      text: { body: pedaco },
     })
-    if (!resp.ok) {
-      const erro = await resp.text().catch(() => '')
-      if (resp.status === 401 || resp.status === 403) throw new ErroTokenWhatsApp(resp.status, erro)
-      throw new Error(`Falha ao enviar mensagem WhatsApp (${resp.status}): ${erro}`)
-    }
+  }
+}
+
+/** Envia a localização real do estabelecimento (cartão de mapa nativo do
+ *  WhatsApp, tocável, abre no app de mapas do cliente) — mesma
+ *  lat/long usada pelo mapa embutido da página pública do estabelecimento.
+ *  Quem chama decide se usa isto (lat/long preenchidos) ou o link de texto
+ *  do Google Maps (fallback sem lat/long) — ver considerarEnviarLocalizacao
+ *  em whatsappHandler.ts. */
+export async function enviarLocalizacaoWhatsApp(
+  phoneNumberId: string,
+  accessToken: string,
+  telefoneDestino: string,
+  local: { latitude: number; longitude: number; nome: string; endereco: string }
+): Promise<void> {
+  await postMensagemWhatsApp(phoneNumberId, accessToken, {
+    messaging_product: 'whatsapp',
+    to: telefoneDestino,
+    type: 'location',
+    location: {
+      latitude: local.latitude,
+      longitude: local.longitude,
+      name: local.nome,
+      address: local.endereco,
+    },
+  })
+}
+
+async function postMensagemWhatsApp(phoneNumberId: string, accessToken: string, body: object): Promise<void> {
+  const resp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!resp.ok) {
+    const erro = await resp.text().catch(() => '')
+    if (resp.status === 401 || resp.status === 403) throw new ErroTokenWhatsApp(resp.status, erro)
+    throw new Error(`Falha ao enviar mensagem WhatsApp (${resp.status}): ${erro}`)
   }
 }
 

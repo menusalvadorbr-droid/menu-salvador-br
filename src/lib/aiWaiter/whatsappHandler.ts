@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { buildCardapioContextPorId } from './buildCardapioContext'
+import { buildCardapioContextPorId, buscarDadosLocalizacao } from './buildCardapioContext'
 import { montarSystemPrompt } from './systemPrompt'
 import { resolverAtalho } from './atalhos'
-import { enviarMensagemWhatsApp, marcarComoLidaEDigitando, ErroTokenWhatsApp } from '@/lib/whatsapp/metaApi'
+import { enviarMensagemWhatsApp, enviarLocalizacaoWhatsApp, marcarComoLidaEDigitando, ErroTokenWhatsApp } from '@/lib/whatsapp/metaApi'
 
 // DeepSeek V4 Flash como padrão (mesmo modelo/endpoint de
 // /api/ai-waiter-deepseek, mas não-streaming aqui — a Cloud API do
@@ -89,7 +89,7 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
 
   const { data: conversaExistente } = await supabaseAdmin
     .from('whatsapp_conversas')
-    .select('id, mensagens, precisa_humano')
+    .select('id, mensagens, precisa_humano, localizacao_enviada')
     .eq('telefone', telefone)
     .eq('estabelecimento_id', estabelecimentoId)
     .maybeSingle()
@@ -135,10 +135,14 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
   if (respostaAtalho) {
     const enviado = await enviarComTratamentoDeErro(est, telefone, respostaAtalho, estabelecimentoId)
     if (enviado) await registrarMetrica(estabelecimentoId, 'atalho')
+    const localizacaoEnviada = enviado
+      ? await considerarEnviarLocalizacao(est, estabelecimentoId, telefone, respostaAtalho, !!conversaExistente?.localizacao_enviada)
+      : undefined
     await salvarConversa(
       estabelecimentoId, telefone, conversaExistente?.id,
       [...historicoComNova, ...(enviado ? [mensagemAssistente(respostaAtalho)] : [])],
-      enviado ? jaPrecisavaHumano : true
+      enviado ? jaPrecisavaHumano : true,
+      localizacaoEnviada
     )
     return
   }
@@ -207,11 +211,69 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
   const inicioEnvio = Date.now()
   const enviado = await enviarComTratamentoDeErro(est, telefone, respostaTexto, estabelecimentoId)
   console.log(`[whatsapp][timing] enviarMensagemWhatsApp: ${Date.now() - inicioEnvio}ms`, { wamid })
+  const localizacaoEnviada = enviado
+    ? await considerarEnviarLocalizacao(est, estabelecimentoId, telefone, respostaTexto, !!conversaExistente?.localizacao_enviada)
+    : undefined
   await salvarConversa(
     estabelecimentoId, telefone, conversaExistente?.id,
     [...historicoComNova, ...(enviado ? [mensagemAssistente(respostaTexto)] : [])],
-    enviado ? precisaHumano : true
+    enviado ? precisaHumano : true,
+    localizacaoEnviada
   )
+}
+
+/** Decide se manda a localização real do estabelecimento logo depois de uma
+ *  resposta (atalho ou IA) que já falou do endereço — gatilho é o TEXTO DA
+ *  RESPOSTA já enviada conter o logradouro cadastrado, não uma tentativa de
+ *  adivinhar como o cliente perguntou (o projeto já viu abordagem por
+ *  palavra-chave da pergunta quebrar com erro de digitação/variação de
+ *  frase). Cobre as duas rotas (atalho "endereço" e resposta livre da IA)
+ *  com a mesma checagem, sem duplicar lógica de detecção de intenção.
+ *
+ *  Nunca bloqueia nem afeta a resposta de texto já enviada: chamada sempre
+ *  DEPOIS do envio de texto ter dado certo, e qualquer falha aqui (rede,
+ *  token, campo faltando) só é logada. Retorna o novo valor de
+ *  localizacao_enviada pra persistir (`undefined` = deixa como já estava,
+ *  usado quando nem chega a rodar). Se já tinha sido enviada nesta
+ *  conversa, não reenvia — a resposta em texto (já confirmada funcionando)
+ *  já basta a partir da segunda vez; reabrir a conversa via
+ *  marcarConversaResolvida (atendimentoActions.ts) reseta o marcador. */
+async function considerarEnviarLocalizacao(
+  est: { whatsapp_phone_number_id: string; whatsapp_access_token: string },
+  estabelecimentoId: string,
+  telefone: string,
+  respostaTexto: string,
+  jaEnviada: boolean
+): Promise<boolean | undefined> {
+  if (jaEnviada) return undefined
+  try {
+    const dados = await buscarDadosLocalizacao(estabelecimentoId)
+    if (!dados || !dados.enderecoParaChecagem) return undefined
+    if (!normalizar(respostaTexto).includes(normalizar(dados.enderecoParaChecagem))) return undefined
+
+    if (dados.latitude != null && dados.longitude != null) {
+      await enviarLocalizacaoWhatsApp(est.whatsapp_phone_number_id, est.whatsapp_access_token, telefone, {
+        latitude: dados.latitude,
+        longitude: dados.longitude,
+        nome: dados.nome,
+        endereco: dados.enderecoCompleto,
+      })
+    } else {
+      // Sem lat/long cadastrados: mesmo fallback de link (não o formato de
+      // iframe embutido) usado pela página pública quando faltam
+      // coordenadas — abre direto no Google Maps do celular do cliente.
+      const link = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dados.enderecoCompleto)}`
+      await enviarMensagemWhatsApp(est.whatsapp_phone_number_id, est.whatsapp_access_token, telefone, link)
+    }
+    return true
+  } catch (err) {
+    console.error('[whatsapp] erro ao enviar localização (não afeta a resposta de texto já enviada):', err)
+    return undefined
+  }
+}
+
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
 /** Envia e trata falha de forma explícita — em especial token expirado/
@@ -255,15 +317,20 @@ async function salvarConversa(
   telefone: string,
   conversaId: string | undefined,
   mensagens: MensagemArmazenada[],
-  precisaHumano: boolean
+  precisaHumano: boolean,
+  // `undefined` = não mexe no valor já salvo (nenhum envio de localização
+  // foi sequer considerado neste turno) — só definido quando
+  // considerarEnviarLocalizacao rodou de fato.
+  localizacaoEnviada?: boolean
 ): Promise<void> {
-  const payload = {
+  const payload: Record<string, unknown> = {
     telefone,
     estabelecimento_id: estabelecimentoId,
     mensagens,
     precisa_humano: precisaHumano,
     ultima_interacao_em: new Date().toISOString(),
   }
+  if (localizacaoEnviada !== undefined) payload.localizacao_enviada = localizacaoEnviada
   if (conversaId) {
     await supabaseAdmin.from('whatsapp_conversas').update(payload).eq('id', conversaId)
   } else {

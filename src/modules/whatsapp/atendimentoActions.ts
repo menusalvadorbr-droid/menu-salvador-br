@@ -43,12 +43,16 @@ export async function responderConversaManualmente(
 }
 
 /** Marca a conversa como resolvida — some do destaque de "esperando
- *  atendimento" até (se for o caso) o robô ou um humano marcarem de novo. */
+ *  atendimento" até (se for o caso) o robô ou um humano marcarem de novo.
+ *  Também reseta localizacao_enviada: reabrir a conversa depois disso conta
+ *  como conversa nova pro controle de "já mandei o cartão/link de
+ *  localização" (whatsappHandler.ts) — se o endereço voltar à tona, manda
+ *  de novo. */
 export async function marcarConversaResolvida(estabelecimentoId: string, conversaId: string): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase
     .from('whatsapp_conversas')
-    .update({ precisa_humano: false })
+    .update({ precisa_humano: false, localizacao_enviada: false })
     .eq('id', conversaId)
     .eq('estabelecimento_id', estabelecimentoId)
   if (error) throw new Error(error.message)

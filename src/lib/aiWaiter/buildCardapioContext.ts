@@ -109,6 +109,65 @@ export async function buildCardapioContextPorId(estabelecimentoId: string): Prom
   return montarContextoDoEstabelecimento(supabase, est as unknown as EstabelecimentoBruto)
 }
 
+export interface DadosLocalizacaoEstabelecimento {
+  nome: string
+  /** Só o logradouro (tipo + endereço), ex. "Rua Example" — usado apenas
+   *  pra detectar se uma resposta já enviada "fala do endereço" (checagem
+   *  de substring em considerarEnviarLocalizacao, whatsappHandler.ts), não
+   *  pra exibir. */
+  enderecoParaChecagem: string
+  /** Endereço completo formatado (logradouro, número, bairro, cidade) —
+   *  vai no cartão de localização nativo (campo `address`) e no link de
+   *  fallback do Google Maps quando não há lat/long cadastrados. */
+  enderecoCompleto: string
+  /** Mesmos campos usados pelo mapa embutido da página pública
+   *  ([...slug]/page.tsx) — null se o estabelecimento não preencheu. */
+  latitude: number | null
+  longitude: number | null
+}
+
+/** Busca só os campos de endereço/coordenadas — usada exclusivamente pra
+ *  decidir se manda a localização real depois de uma resposta (atalho ou
+ *  IA) já ter falado do endereço. Deliberadamente mais enxuta que
+ *  buildCardapioContextPorId (sem cardápio/horário/comodidades) pra não
+ *  pesar o caminho do atalho "custo zero". `null` se não há endereço
+ *  cadastrado (nada pra checar/enviar). */
+export async function buscarDadosLocalizacao(estabelecimentoId: string): Promise<DadosLocalizacaoEstabelecimento | null> {
+  const supabase = createPublicClient()
+  const { data } = await supabase
+    .from('estabelecimentos')
+    .select('nome, nome_fantasia, endereco, numero, tipo_logradouro, latitude, longitude, bairros(nome), cidades(nome)')
+    .eq('id', estabelecimentoId)
+    .maybeSingle()
+  if (!data || !data.endereco) return null
+  const est = data as unknown as {
+    nome: string
+    nome_fantasia: string | null
+    endereco: string
+    numero: string | null
+    tipo_logradouro: string | null
+    latitude: number | null
+    longitude: number | null
+    bairros: { nome: string } | { nome: string }[] | null
+    cidades: { nome: string } | { nome: string }[] | null
+  }
+  const bairro = primeiroNome(est.bairros)
+  const cidade = primeiroNome(est.cidades)
+  const enderecoParaChecagem = [est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')
+  const enderecoCompleto = [enderecoParaChecagem, est.numero, bairro, cidade].filter(Boolean).join(', ')
+  return {
+    nome: est.nome_fantasia || est.nome,
+    enderecoParaChecagem,
+    enderecoCompleto,
+    latitude: est.latitude,
+    longitude: est.longitude,
+  }
+}
+
+function primeiroNome(v: { nome: string } | { nome: string }[] | null): string | null {
+  return (Array.isArray(v) ? v[0] : v)?.nome ?? null
+}
+
 async function montarContextoDoEstabelecimento(
   supabase: ClientePublico,
   est: EstabelecimentoBruto
