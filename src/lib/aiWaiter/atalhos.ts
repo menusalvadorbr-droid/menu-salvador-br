@@ -118,19 +118,33 @@ export async function formatarHorario(
     porDia.set(linha.dia_semana, lista)
   }
 
+  const diaAtual = indiceDiaAtual()
   const texto = DIAS.map((nomeDia, idx) => {
     const periodos = porDia.get(idx)
-    if (!periodos || periodos.length === 0 || periodos.every((p) => p.fechado)) {
-      return `${capitaliza(nomeDia)}: fechado`
-    }
-    const horarios = periodos
-      .filter((p) => !p.fechado)
-      .map((p) => `${p.horario_abertura.slice(0, 5)} às ${p.horario_fechamento.slice(0, 5)}`)
-      .join(' e ')
-    return `${capitaliza(nomeDia)}: ${horarios}`
+    const ehHoje = idx === diaAtual
+    const rotulo = ehHoje ? `${capitaliza(nomeDia)} (hoje)` : capitaliza(nomeDia)
+    const linha = !periodos || periodos.length === 0 || periodos.every((p) => p.fechado)
+      ? `${rotulo}: fechado`
+      : `${rotulo}: ${periodos
+          .filter((p) => !p.fechado)
+          .map((p) => `${p.horario_abertura.slice(0, 5)} às ${p.horario_fechamento.slice(0, 5)}`)
+          .join(' e ')}`
+    // *asterisco* é a sintaxe de negrito do próprio WhatsApp — destaca o dia
+    // atual na lista sem precisar de HTML/markdown que o app não renderiza.
+    return ehHoje ? `*${linha}*` : linha
   }).join('\n')
 
   return `🕒 Horário de funcionamento:\n${texto}`
+}
+
+/** Índice do dia da semana (0=domingo...6=sábado, mesma ordem de DIAS) no
+ *  fuso de Salvador/Bahia — sempre calculado na hora, nunca fixo. Usa
+ *  Intl com weekday em inglês (nomes únicos e sem acento) só pra mapear
+ *  pro índice; a lista em si continua toda em português. */
+function indiceDiaAtual(): number {
+  const DIAS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const nomeEn = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bahia', weekday: 'long' }).format(new Date())
+  return DIAS_EN.indexOf(nomeEn)
 }
 
 function capitaliza(s: string): string {
