@@ -53,6 +53,7 @@ export function montarSystemPrompt(
  *  responder" pra ele, em vez de uma lista fixa de tópicos permitidos. */
 function montarPromptWhatsApp(contexto: EstabelecimentoContexto): string {
   const dados = [
+    `Data e hora atuais: ${formatarDataHoraAtual()}`,
     contexto.endereco ? `Endereço: ${contexto.endereco}` : null,
     contexto.horario ? `Horário de funcionamento:\n${contexto.horario}` : null,
     contexto.comodidades ? `Comodidades: ${contexto.comodidades}` : null,
@@ -75,6 +76,29 @@ Nunca contradiga uma informação que você mesmo já deu na conversa, a menos q
 Respostas curtas, no tom de uma conversa real de WhatsApp — não escreva parágrafos longos nem liste tudo que você sabe quando a pergunta é específica. Emojis com moderação, sem exagero.
 Se o cliente perguntar algo totalmente sem relação com o estabelecimento (assunto pessoal, outro negócio, política etc.), redirecione com uma frase curta e neutra, sem se desculpar demais e sem fingir que não sabe algo que sabe.
 Seja você mesmo em cada resposta: não repita sempre a mesma frase de abertura ou fechamento, varie a forma de cumprimentar e de se despedir.`
+}
+
+/** A IA não tem relógio próprio — só sabe o que está escrito no contexto.
+ *  Calculada de novo a cada chamada (nunca fixo/cacheado), sempre no fuso
+ *  de Salvador/Bahia (UTC-3 o ano todo, sem horário de verão desde 2019 —
+ *  por isso America/Bahia via Intl, não um offset manual, que quebraria se
+ *  a regra mudasse de novo). É isso que permite a IA cruzar "agora" com o
+ *  horário de funcionamento cadastrado (já no mesmo bloco de dados) pra
+ *  responder "vocês estão abertos agora?" de verdade, em vez de só listar a
+ *  semana inteira. */
+function formatarDataHoraAtual(): string {
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Bahia',
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value || ''
+  return `Hoje é ${valor('weekday')}, ${valor('day')}/${valor('month')}/${valor('year')}, agora são ${valor('hour')}:${valor('minute')} (horário de Brasília).`
 }
 
 /** Prompt original — intocado, só extraído pra função própria quando o
