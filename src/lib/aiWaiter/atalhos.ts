@@ -46,7 +46,13 @@ export async function resolverAtalho(estabelecimentoId: string, mensagem: string
   if (!data) return null
   const est = data as unknown as EstabelecimentoParaAtalho
 
-  if (contemPalavra(texto, ['horário', 'horario', 'que horas', 'aberto', 'fecha'])) {
+  // "aberto"/"fecha" removidos de propósito: "estão abertos agora?" precisa
+  // cruzar a hora real com o horário do dia certo pra responder de verdade
+  // (a IA já faz isso — ver "Data e hora atuais" em systemPrompt.ts); esse
+  // atalho aqui só lista a semana inteira, sem noção nenhuma de "agora".
+  // "horário"/"que horas" continuam aqui pra quem quer mesmo a lista
+  // completa sem gastar chamada de IA.
+  if (contemPalavra(texto, ['horário', 'horario', 'que horas'])) {
     return formatarHorario(supabase, estabelecimentoId)
   }
 
