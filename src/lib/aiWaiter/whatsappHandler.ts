@@ -21,6 +21,14 @@ const PROPORCAO_AUDITORIA_HAIKU = 0.05
 // bastante pra nunca cortar uma resposta normal, servindo só de limite de
 // segurança de verdade.
 const MAX_TOKENS_RESPOSTA_WHATSAPP = 1024
+// Achado ao vivo (caso real "Sim monte" -> "Claro! 😊 Mon"): o DeepSeek às
+// vezes gera uma resposta genuinamente curta e para sozinho por conta
+// própria — HTTP 200, sem erro, tokens_saida de só 6 num teto de 1024, não
+// é corte por max_tokens. Não cai no catch de erro porque não é erro.
+// Limiar arbitrário mas folgado — qualquer resposta de verdade em
+// português passa disso fácil; só existe pra pegar esse tipo de corte
+// espúrio do modelo.
+const TAMANHO_MINIMO_RESPOSTA_VALIDA = 15
 
 const anthropic = new Anthropic()
 
@@ -175,7 +183,11 @@ export async function processarMensagemWhatsApp(payload: MensagemWhatsAppRecebid
   let metricaIa: { tokensEntrada: number; tokensSaida: number } | null = null
   try {
     const inicioDeepSeek = Date.now()
-    const resultado = await chamarDeepSeek(system, mensagensParaModelo, MAX_TOKENS_RESPOSTA_WHATSAPP)
+    let resultado = await chamarDeepSeek(system, mensagensParaModelo, MAX_TOKENS_RESPOSTA_WHATSAPP)
+    if (resultado.texto.trim().length < TAMANHO_MINIMO_RESPOSTA_VALIDA) {
+      console.warn('[whatsapp] resposta da IA anormalmente curta, tentando de novo uma vez:', JSON.stringify(resultado.texto), { wamid })
+      resultado = await chamarDeepSeek(system, mensagensParaModelo, MAX_TOKENS_RESPOSTA_WHATSAPP)
+    }
     console.log(`[whatsapp][timing] chamarDeepSeek: ${Date.now() - inicioDeepSeek}ms`, { wamid })
     respostaTexto = resultado.texto
     metricaIa = { tokensEntrada: resultado.tokensEntrada, tokensSaida: resultado.tokensSaida }
