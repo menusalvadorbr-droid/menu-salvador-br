@@ -51,8 +51,12 @@ export async function resolverAtalho(estabelecimentoId: string, mensagem: string
   // (a IA já faz isso — ver "Data e hora atuais" em systemPrompt.ts); esse
   // atalho aqui só lista a semana inteira, sem noção nenhuma de "agora".
   // "horário"/"que horas" continuam aqui pra quem quer mesmo a lista
-  // completa sem gastar chamada de IA.
-  if (contemPalavra(texto, ['horário', 'horario', 'que horas'])) {
+  // completa sem gastar chamada de IA — mas não quando a pergunta também
+  // menciona "agora" (achado ao vivo: "que horas é agora?" batia aqui e
+  // devolvia a tabela da semana, quando o cliente só queria saber as horas
+  // agora, nada a ver com horário de funcionamento). Com "agora" no texto,
+  // sempre cai na IA, que já responde certo usando a data/hora real.
+  if (!texto.includes('agora') && contemPalavra(texto, ['horário', 'horario', 'que horas'])) {
     return formatarHorario(supabase, estabelecimentoId)
   }
 
