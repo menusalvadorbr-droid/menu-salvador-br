@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Lock, ClipboardList, Package, Wallet, Truck, MessageCircle } from 'lucide-react'
+import { Lock, ClipboardList, Package, Wallet, Truck, MessageCircle, ListChecks } from 'lucide-react'
 import { contarInsumosAbaixoDoPontoReposicao } from '@/modules/estoque/estoqueRepository'
+import { contarPendenciasOperador } from '@/modules/operador/operadorRepository'
 
 interface ModuloGestaoProps {
   estabelecimentoId: string
@@ -20,6 +21,7 @@ const ITENS = [
   { slug: 'caixa', label: 'Caixa', Icone: Wallet, bg: 'bg-emerald-50', text: 'text-emerald-600', hoverBorder: 'hover:border-emerald-200' },
   { slug: 'fornecedores', label: 'Fornecedores', Icone: Truck, bg: 'bg-violet-50', text: 'text-violet-600', hoverBorder: 'hover:border-violet-200' },
   { slug: 'atendimento', label: 'Atendimento', Icone: MessageCircle, bg: 'bg-teal-50', text: 'text-teal-600', hoverBorder: 'hover:border-teal-200' },
+  { slug: 'operador', label: 'Fila do Operador', Icone: ListChecks, bg: 'bg-rose-50', text: 'text-rose-600', hoverBorder: 'hover:border-rose-200' },
 ] as const
 
 /**
@@ -32,10 +34,12 @@ const ITENS = [
  */
 export default function ModuloGestao({ estabelecimentoId, ativado }: ModuloGestaoProps) {
   const [insumosAbaixoReposicao, setInsumosAbaixoReposicao] = useState(0)
+  const [pendenciasOperador, setPendenciasOperador] = useState(0)
 
   useEffect(() => {
     if (!ativado) return
     contarInsumosAbaixoDoPontoReposicao(estabelecimentoId).then(setInsumosAbaixoReposicao).catch(() => {})
+    contarPendenciasOperador(estabelecimentoId).then(setPendenciasOperador).catch(() => {})
   }, [estabelecimentoId, ativado])
 
   return (
@@ -60,6 +64,14 @@ export default function ModuloGestao({ estabelecimentoId, ativado }: ModuloGesta
                   className="absolute top-2 right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white"
                 >
                   {insumosAbaixoReposicao}
+                </span>
+              )}
+              {item.slug === 'operador' && pendenciasOperador > 0 && (
+                <span
+                  title={`${pendenciasOperador} pendência(s) na Fila do Operador`}
+                  className="absolute top-2 right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-xs font-bold text-white"
+                >
+                  {pendenciasOperador}
                 </span>
               )}
               <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${item.bg} ${item.text}`}>

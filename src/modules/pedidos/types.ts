@@ -70,6 +70,7 @@ export interface Pedido {
   total: number
   desconto: number | null
   nome_cliente: string | null
+  telefone: string | null
   mesa: string | null
   mesa_id: string | null
   tipo_pedido: TipoPedido
@@ -92,6 +93,7 @@ export interface NovoPedidoInput {
   items: ItemPedido[]
   total: number
   nome_cliente?: string
+  telefone?: string
   mesa?: string
   mesa_id?: string
   tipo_pedido?: TipoPedido

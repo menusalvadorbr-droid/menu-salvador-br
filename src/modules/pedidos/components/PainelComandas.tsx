@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePedidosEstabelecimento } from '../hooks/usePedidosEstabelecimento'
 import { useChamadosGarcom } from '../hooks/useChamadosGarcom'
+import { useValidacoesBloqueantes } from '../hooks/useValidacoesBloqueantes'
+import { aceitarValidacao } from '@/modules/operador/operadorRepository'
 import { ETIQUETA_STATUS, ETIQUETA_TIPO_PEDIDO, type StatusPedido } from '../types'
 
 const COLUNAS: StatusPedido[] = ['recebido', 'aprovado', 'em_preparo', 'pronto', 'entregue']
@@ -21,6 +24,18 @@ const PROXIMO_STATUS: Partial<Record<StatusPedido, StatusPedido>> = {
 export default function PainelComandas({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { pedidos, carregando, mudarStatus } = usePedidosEstabelecimento(estabelecimentoId)
   const { chamados, atender } = useChamadosGarcom(estabelecimentoId)
+  const validacoesBloqueantes = useValidacoesBloqueantes(estabelecimentoId)
+  const [liberando, setLiberando] = useState<string | null>(null)
+
+  async function liberarMesmoAssim(validacaoId: string) {
+    setLiberando(validacaoId)
+    try {
+      await aceitarValidacao(validacaoId)
+    } catch (err) {
+      alert(`Não foi possível liberar o pedido: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    }
+    setLiberando(null)
+  }
 
   if (carregando) {
     return (
@@ -63,6 +78,11 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
               <div className="flex flex-col gap-2">
                 {pedidosDaColuna.map((pedido) => {
                   const proximo = PROXIMO_STATUS[pedido.status]
+                  // Pedido de entrega ainda não liberado pela Fila do
+                  // Operador (Validar entrega) — bloqueia só a transição
+                  // aprovado→em_preparo, que é literalmente "entrar na
+                  // cozinha". Demais transições seguem livres.
+                  const bloqueio = proximo === 'em_preparo' ? validacoesBloqueantes.get(pedido.id) : undefined
                   return (
                     <div
                       key={pedido.id}
@@ -96,13 +116,34 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
                       <p className="mt-2 text-sm font-semibold text-neutral-900">
                         R$ {pedido.total.toFixed(2)}
                       </p>
-                      {proximo && (
-                        <button
-                          onClick={() => mudarStatus(pedido.id, proximo)}
-                          className="mt-2 w-full rounded-lg bg-orange-600 py-1.5 text-xs font-semibold text-white hover:bg-orange-700"
-                        >
-                          Marcar como {ETIQUETA_STATUS[proximo]}
-                        </button>
+                      {bloqueio ? (
+                        bloqueio.status === 'pendente' ? (
+                          <p className="mt-2 rounded-lg bg-amber-50 py-1.5 text-center text-xs font-semibold text-amber-700">
+                            ⏳ Aguardando validação de entrega
+                          </p>
+                        ) : (
+                          <div className="mt-2 space-y-1">
+                            <p className="rounded-lg bg-red-50 px-2 py-1.5 text-xs text-red-700">
+                              ❌ Entrega recusada: {bloqueio.motivo_recusa}
+                            </p>
+                            <button
+                              onClick={() => liberarMesmoAssim(bloqueio.id)}
+                              disabled={liberando === bloqueio.id}
+                              className="w-full rounded-lg border border-red-200 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {liberando === bloqueio.id ? 'Liberando...' : 'Aceitar mesmo assim'}
+                            </button>
+                          </div>
+                        )
+                      ) : (
+                        proximo && (
+                          <button
+                            onClick={() => mudarStatus(pedido.id, proximo)}
+                            className="mt-2 w-full rounded-lg bg-orange-600 py-1.5 text-xs font-semibold text-white hover:bg-orange-700"
+                          >
+                            Marcar como {ETIQUETA_STATUS[proximo]}
+                          </button>
+                        )
                       )}
                       {pedido.status === 'entregue' && (
                         <Link

@@ -40,6 +40,7 @@ export default function FinalizarPedidoModal({
   mesaIdFixa,
 }: FinalizarPedidoModalProps) {
   const [nome, setNome] = useState('')
+  const [telefone, setTelefone] = useState('')
   const [tipoPedido, setTipoPedido] = useState<TipoPedido>(mesaFixa ? 'mesa' : 'retirada')
   const [mesa, setMesa] = useState(mesaFixa || '')
   const [enderecoEntrega, setEnderecoEntrega] = useState('')
@@ -61,6 +62,7 @@ export default function FinalizarPedidoModal({
       items,
       total,
       nomeCliente: nome,
+      telefone,
       tipoPedido,
       mesa: tipoPedido === 'mesa' ? mesa : undefined,
       // Só manda mesa_id quando o número veio travado do QR escaneado
@@ -162,6 +164,22 @@ export default function FinalizarPedidoModal({
               type="text"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-neutral-900"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              {traduzirInterface(
+                'telefone_cliente',
+                tipoPedido === 'entrega' || metodoPagamento === 'Pix' ? 'Telefone (WhatsApp) *' : 'Telefone (WhatsApp)'
+              )}
+            </label>
+            <input
+              type="tel"
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+              placeholder="(71) 99999-9999"
               className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-neutral-900"
             />
           </div>

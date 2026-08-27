@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { criarPedido } from '../ordersRepository'
+import { normalizarTelefone } from '@/lib/telefone'
 import type { ItemPedido, TipoPedido } from '../types'
 
 interface DadosFinalizacao {
@@ -10,6 +11,7 @@ interface DadosFinalizacao {
   items: ItemPedido[]
   total: number
   nomeCliente: string
+  telefone?: string
   tipoPedido: TipoPedido
   mesa?: string
   mesaId?: string
@@ -81,11 +83,21 @@ export function useFinalizarPedido() {
       return
     }
 
+    // Telefone é obrigatório pra entrega (contato do entregador) e pra Pix
+    // (confirmação manual de pagamento na Fila do Operador) — nos demais
+    // casos é opcional, mas ainda coletado se o cliente preencher.
+    if ((dados.tipoPedido === 'entrega' || dados.metodoPagamento === 'Pix') && !dados.telefone?.trim()) {
+      setErro('Informe seu telefone para continuar.')
+      setEnviando(false)
+      return
+    }
+
     const resposta = await criarPedido({
       estabelecimento_id: dados.estabelecimentoId,
       items: dados.items,
       total: dados.total,
       nome_cliente: dados.nomeCliente,
+      telefone: dados.telefone?.trim() ? normalizarTelefone(dados.telefone) : undefined,
       tipo_pedido: dados.tipoPedido,
       mesa: dados.mesa,
       mesa_id: dados.mesaId,
