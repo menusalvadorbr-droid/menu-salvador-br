@@ -74,7 +74,7 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
   }
 
   useEffect(() => {
-    carregarFuncionarios()
+    Promise.resolve().then(carregarFuncionarios)
   }, [estabelecimentoId])
 
   const handleConvidar = async (e: React.FormEvent) => {

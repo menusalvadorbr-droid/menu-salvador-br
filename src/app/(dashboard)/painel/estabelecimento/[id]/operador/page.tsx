@@ -27,7 +27,7 @@ export default async function OperadorPage({
   // aqui é só uma tela vazia caso a pessoa não tenha acesso.
   return (
     <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <Link href={`/painel/estabelecimento/${id}/gerenciar`} className="text-sm text-neutral-500 hover:text-orange-600">
           ← Voltar ao gerenciamento
         </Link>

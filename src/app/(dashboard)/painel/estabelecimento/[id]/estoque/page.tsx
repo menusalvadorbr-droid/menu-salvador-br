@@ -6,10 +6,23 @@ import InsumosManager from '@/modules/estoque/components/InsumosManager'
 import FichaTecnicaManager from '@/modules/estoque/components/FichaTecnicaManager'
 import MovimentosManager from '@/modules/estoque/components/MovimentosManager'
 import GestaoNav from '../gerenciar/GestaoNav'
+import AbasPainel from '../gerenciar/AbasPainel'
+import EstadoCarregamento from '../gerenciar/EstadoCarregamento'
+import { useEstabelecimentoGerenciar } from '../gerenciar/useEstabelecimentoGerenciar'
+
+const ABAS = [
+  { chave: 'insumos' as const, label: 'Insumos' },
+  { chave: 'fichas' as const, label: 'Fichas técnicas' },
+  { chave: 'movimentos' as const, label: 'Movimentos' },
+]
 
 export default function EstoquePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [aba, setAba] = useState<'insumos' | 'fichas' | 'movimentos'>('insumos')
+  const { estabelecimento, loading, acessoNegado } = useEstabelecimentoGerenciar(id)
+
+  const estadoEspecial = EstadoCarregamento({ acessoNegado, loading, encontrado: !!estabelecimento })
+  if (estadoEspecial) return estadoEspecial
 
   return (
     <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
@@ -27,32 +40,7 @@ export default function EstoquePage({ params }: { params: Promise<{ id: string }
         </p>
         <GestaoNav estabelecimentoId={id} />
 
-        <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => setAba('insumos')}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              aba === 'insumos' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            Insumos
-          </button>
-          <button
-            onClick={() => setAba('fichas')}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              aba === 'fichas' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            Fichas técnicas
-          </button>
-          <button
-            onClick={() => setAba('movimentos')}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              aba === 'movimentos' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            Movimentos
-          </button>
-        </div>
+        <AbasPainel abas={ABAS} ativa={aba} onChange={setAba} />
 
         <div className="mt-6">
           {aba === 'insumos' && <InsumosManager estabelecimentoId={id} />}

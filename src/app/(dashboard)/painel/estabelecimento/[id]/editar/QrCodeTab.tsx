@@ -32,8 +32,10 @@ export default function QrCodeTab({
   const [baixando, setBaixando] = useState(false)
 
   useEffect(() => {
-    setIsClient(true)
-    setLink(`${window.location.origin}/cardapio/${slug}`)
+    Promise.resolve().then(() => {
+      setIsClient(true)
+      setLink(`${window.location.origin}/cardapio/${slug}`)
+    })
   }, [slug])
 
   const frente = modeloQr?.cor_frente || '#000000'

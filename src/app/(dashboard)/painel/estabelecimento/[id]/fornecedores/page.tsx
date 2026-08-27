@@ -5,14 +5,26 @@ import Link from 'next/link'
 import FornecedoresManager from '@/modules/fornecedores/components/FornecedoresManager'
 import ListaPedidosCompra from '@/modules/fornecedores/components/ListaPedidosCompra'
 import GestaoNav from '../gerenciar/GestaoNav'
+import AbasPainel from '../gerenciar/AbasPainel'
+import EstadoCarregamento from '../gerenciar/EstadoCarregamento'
+import { useEstabelecimentoGerenciar } from '../gerenciar/useEstabelecimentoGerenciar'
+
+const ABAS = [
+  { chave: 'pedidos' as const, label: 'Pedidos de compra' },
+  { chave: 'fornecedores' as const, label: 'Fornecedores' },
+]
 
 export default function FornecedoresPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [aba, setAba] = useState<'pedidos' | 'fornecedores'>('pedidos')
+  const { estabelecimento, loading, acessoNegado } = useEstabelecimentoGerenciar(id)
+
+  const estadoEspecial = EstadoCarregamento({ acessoNegado, loading, encontrado: !!estabelecimento })
+  if (estadoEspecial) return estadoEspecial
 
   return (
     <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <Link
           href={`/painel/estabelecimento/${id}/gerenciar`}
           className="text-sm text-neutral-500 hover:text-orange-600"
@@ -25,24 +37,7 @@ export default function FornecedoresPage({ params }: { params: Promise<{ id: str
         </p>
         <GestaoNav estabelecimentoId={id} />
 
-        <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => setAba('pedidos')}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              aba === 'pedidos' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            Pedidos de compra
-          </button>
-          <button
-            onClick={() => setAba('fornecedores')}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              aba === 'fornecedores' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            Fornecedores
-          </button>
-        </div>
+        <AbasPainel abas={ABAS} ativa={aba} onChange={setAba} />
 
         <div className="mt-6">
           {aba === 'pedidos' ? (

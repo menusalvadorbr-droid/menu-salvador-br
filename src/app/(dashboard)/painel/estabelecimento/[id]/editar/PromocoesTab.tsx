@@ -202,7 +202,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     setLoading(false)
   }, [estabelecimentoId])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { Promise.resolve().then(carregar) }, [carregar])
 
   function mostrarToast(msg: string) {
     setToast(msg)

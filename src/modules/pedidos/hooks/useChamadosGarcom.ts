@@ -16,7 +16,7 @@ export function useChamadosGarcom(estabelecimentoId: string) {
   }, [estabelecimentoId])
 
   useEffect(() => {
-    carregar()
+    Promise.resolve().then(carregar)
 
     const supabase = createClient()
     const canal = supabase

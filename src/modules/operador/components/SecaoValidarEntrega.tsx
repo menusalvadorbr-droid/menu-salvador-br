@@ -5,6 +5,7 @@ import { useFilaValidacao } from '../hooks/useFilaValidacao'
 import { aceitarValidacao, recusarValidacao, contarPedidosAnteriores } from '../operadorRepository'
 import { telefoneParaWhatsApp } from '@/lib/telefone'
 import LancarPedidoGarcom from '../../pedidos/garcom/LancarPedidoGarcom'
+import PainelSecao from './PainelSecao'
 import type { ValidacaoPedido } from '../types'
 
 function CardValidacao({
@@ -181,23 +182,17 @@ export default function SecaoValidarEntrega({
   const { validacoes, carregando, recarregar } = useFilaValidacao(estabelecimentoId)
 
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
-      {mostrarTitulo && (
-        <h2 className="mb-3 text-sm font-bold text-neutral-800">
-          🛵 Validar entrega <span className="font-normal text-neutral-500">({validacoes.length})</span>
-        </h2>
-      )}
-      {carregando ? (
-        <p className="text-sm text-neutral-500">Carregando...</p>
-      ) : validacoes.length === 0 ? (
-        <p className="text-sm text-neutral-500">Nenhum pedido esperando validação.</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {validacoes.map((v) => (
-            <CardValidacao key={v.id} estabelecimentoId={estabelecimentoId} validacao={v} onPedidoEditado={recarregar} />
-          ))}
-        </div>
-      )}
-    </section>
+    <PainelSecao
+      cor="neutral"
+      titulo="🛵 Validar entrega"
+      contagem={validacoes.length}
+      mostrarTitulo={mostrarTitulo}
+      carregando={carregando}
+      vazio="Nenhum pedido esperando validação."
+    >
+      {validacoes.map((v) => (
+        <CardValidacao key={v.id} estabelecimentoId={estabelecimentoId} validacao={v} onPedidoEditado={recarregar} />
+      ))}
+    </PainelSecao>
   )
 }

@@ -5,7 +5,10 @@ import { sincronizarPendentes } from '../ordersRepository'
 import { temPendentes } from '../localQueue'
 
 export function useSincronizacaoPedidos() {
-  const [pendentes, setPendentes] = useState(0)
+  // Lazy initializer (roda só na primeira renderização) em vez de setState
+  // dentro do efeito abaixo — é uma checagem síncrona de localStorage que
+  // não depende de nada que mude depois da montagem.
+  const [pendentes, setPendentes] = useState(() => (temPendentes() ? 1 : 0))
   const [sincronizando, setSincronizando] = useState(false)
 
   const tentarSincronizar = useCallback(async () => {
@@ -23,9 +26,6 @@ export function useSincronizacaoPedidos() {
   }, [])
 
   useEffect(() => {
-    // Checa quantos pedidos estão pendentes assim que a página carrega
-    setPendentes(temPendentes() ? 1 : 0)
-
     // Tenta sincronizar assim que o navegador informar que voltou a ter rede
     window.addEventListener('online', tentarSincronizar)
 
@@ -34,7 +34,7 @@ export function useSincronizacaoPedidos() {
     const intervalo = setInterval(tentarSincronizar, 15000)
 
     // Tenta uma vez ao montar, caso já existam pendentes de uma sessão anterior
-    tentarSincronizar()
+    Promise.resolve().then(tentarSincronizar)
 
     return () => {
       window.removeEventListener('online', tentarSincronizar)
