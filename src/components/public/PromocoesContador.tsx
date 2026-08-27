@@ -7,7 +7,7 @@ import SpecialOfferCard from './SpecialOfferCard'
 import { calcularEstadoOferta, algumaOfertaEncerrandoEmBreve, type EstadoOferta, type SpecialOfferRow } from '@/lib/specialOffers'
 import { TextoInterface } from './TraducaoCardapio'
 
-interface ItemComPromo {
+export interface ItemComPromo {
   id: string
   nome: string
   descricao?: string | null

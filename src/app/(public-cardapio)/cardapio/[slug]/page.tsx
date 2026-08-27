@@ -6,14 +6,15 @@ import Image from 'next/image'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
 import { TraducaoProvider, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
-import PromocoesContador from '@/components/public/PromocoesContador'
+import PromocoesContador, { type ItemComPromo } from '@/components/public/PromocoesContador'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
 import NavegacaoCategoriasCardsClient from '@/components/public/NavegacaoCategoriasCardsClient'
 import FaixasCategorias from '@/components/public/FaixasCategorias'
 import PilulasCardapioClient from '@/components/public/PilulasCardapioClient'
 import { obterFonteTema } from '@/lib/fontesTema'
 import { gradienteHeroImagem } from '@/lib/temaHero'
-import { SELECT_ITEM_CARDAPIO_PUBLICO } from '@/lib/resolverItemCardapio'
+import { SELECT_ITEM_CARDAPIO_PUBLICO, type ItemCardapioBruto } from '@/lib/resolverItemCardapio'
+import type { CategoriaCache } from '@/lib/cardapioCache'
 
 // ISR — página inteira cacheada por até 2min no CDN da Vercel, evitando as
 // ~10 consultas ao Supabase em toda visita (inclusive todo scan de QR Code
@@ -25,6 +26,28 @@ import { SELECT_ITEM_CARDAPIO_PUBLICO } from '@/lib/resolverItemCardapio'
 // projeto, um único fetch sem cache invalida o ISR da rota inteira — não
 // existe granularidade por consulta nesse modelo).
 export const revalidate = 120
+
+// Shape de temas.config e estabelecimentos.cardapio_config (jsonb, sem
+// schema fixo no banco) — só os campos que esta página realmente lê.
+interface TemaConfigPublico {
+  cor_primaria?: string
+  cor_secundaria?: string
+  cor_fundo?: string
+  cor_texto?: string
+  cor_borda?: string
+  fonte?: string
+  hero_modo?: string
+  hero_imagem_url?: string
+  hero_veu_opacidade?: number | string
+  card_raio?: number
+}
+
+interface CardapioConfigPublico {
+  foto_posicao?: 'left' | 'right' | 'top' | 'none'
+  mostrar_codigo?: boolean
+  mostrar_alergenos?: boolean
+  titulo?: string
+}
 
 // Sem isso (mesmo retornando vazio), o Next 16 trata /[slug] como rota
 // totalmente dinâmica e ignora o revalidate acima por completo — confirmado
@@ -75,7 +98,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   if (estErr || !est) notFound()
 
   // 2. Tema (cores)
-  let temaConfig: any = {}
+  let temaConfig: TemaConfigPublico = {}
   if (est.tema_atual_id) {
     const { data: tema } = await supabase
       .from('temas').select('config').eq('id', est.tema_atual_id).single()
@@ -92,7 +115,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
   const cardRaio = `${Number.isFinite(temaConfig.card_raio) ? temaConfig.card_raio : 16}px`
 
   // 3. Config do cardápio — salvo em estabelecimentos.cardapio_config (pelo TemaEditor)
-  const cc: any = est.cardapio_config || {}
+  const cc: CardapioConfigPublico = est.cardapio_config || {}
   const fotoPosicao      = (cc.foto_posicao      ?? 'left') as 'left' | 'right' | 'top' | 'none'
   const mostrarCodigo    = cc.mostrar_codigo    !== false
   const mostrarAlergenos = cc.mostrar_alergenos !== false
@@ -119,9 +142,9 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     .limit(1)
   const menu = menus?.[0] ?? null
 
-  let categorias: any[]                      = []
-  let itensPorCat: Record<string, any[]>     = {}
-  let itensComPromo: any[]                   = []
+  let categorias: CategoriaCache[] = []
+  const itensPorCat: Record<string, ItemCardapioBruto[]> = {}
+  let itensComPromo: ItemComPromo[] = []
   let totalItensFaixas = 0
 
   if (menu) {
@@ -130,7 +153,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     categorias = cats || []
 
     if (categorias.length > 0) {
-      const catIds = categorias.map((c: any) => c.id)
+      const catIds = categorias.map((c) => c.id)
 
       if (navegacaoCategoria === 'faixas' || navegacaoCategoria === 'cards') {
         // Faixas e Cards: os itens de cada categoria não são buscados
@@ -155,24 +178,33 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             .not('preco_promocional', 'is', null),
         ])
         totalItensFaixas = count || 0
-        itensComPromo = promoItens || []
+        // Select mais estreito que ItemCardapioBruto, mas o filtro
+        // .not('preco_promocional', 'is', null) do banco já garante que
+        // nunca vem null aqui — o TS não enxerga isso, daí o cast.
+        itensComPromo = (promoItens || []) as unknown as ItemComPromo[]
       } else {
-        const { data: itens, error: itensErr } = await supabase
+        const { data, error: itensErr } = await supabase
           .from('itens_cardapio')
           .select(SELECT_ITEM_CARDAPIO_PUBLICO)
           .in('categoria_id', catIds)
           .eq('disponivel', true)
           .order('ordem')
+        // SELECT_ITEM_CARDAPIO_PUBLICO é uma string dinâmica (não um
+        // literal), então o postgrest-js não consegue inferir o retorno —
+        // ItemCardapioBruto é o formato real, já usado e validado em
+        // resolverItemCardapio.ts pros mesmos joins.
+        const itens = data as unknown as ItemCardapioBruto[] | null
 
         if (itensErr) logSupabaseError('Erro ao buscar itens do cardápio público:', itensErr)
 
         if (itens) {
-          categorias.forEach((cat: any) => {
-            itensPorCat[cat.id] = itens.filter((i: any) => i.categoria_id === cat.id)
+          categorias.forEach((cat) => {
+            itensPorCat[cat.id] = itens.filter((i) => i.categoria_id === cat.id)
           })
           // Itens com promoção ativa para o carrossel do topo
-          itensComPromo = itens.filter((i: any) =>
-            i.promo_status === 'active' && i.preco_promocional && i.disponivel
+          itensComPromo = itens.filter(
+            (i): i is ItemCardapioBruto & { preco_promocional: number } =>
+              i.promo_status === 'active' && !!i.preco_promocional && i.disponivel
           )
         }
       }
@@ -268,7 +300,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
                   {est.bairro}
                   {' · '}
                   {(est.estabelecimento_tipos_cozinha || [])
-                    .map((v: any) => v.tipos_cozinha?.nome)
+                    .map((v: { tipos_cozinha: { nome: string } | null }) => v.tipos_cozinha?.nome)
                     .filter(Boolean)
                     .join(', ') || <TextoInterface chave="culinaria_variada">Culinária variada</TextoInterface>}
                 </p>
@@ -328,7 +360,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             no modo "faixas" a lista de faixas abaixo já É a navegação. */}
         {navegacaoCategoria === 'pilulas' && categorias.length > 1 && (
           <NavegacaoCategorias
-            categorias={categorias.reduce((acc: { id: string; nome: string }[], cat: any) => {
+            categorias={categorias.reduce((acc: { id: string; nome: string }[], cat) => {
               if (itensPorCat[cat.id]?.length) acc.push({ id: cat.id, nome: cat.nome })
               return acc
             }, [])}
@@ -341,7 +373,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
           <NavegacaoCategoriasCardsClient
             estabelecimentoId={est.id}
             slug={est.slug}
-            categoriasServidor={categorias.map((cat: any) => ({ id: cat.id }))}
+            categoriasServidor={categorias.map((cat) => ({ id: cat.id }))}
             corS={corS}
             corBd={corBd}
             cardRaio={cardRaio}

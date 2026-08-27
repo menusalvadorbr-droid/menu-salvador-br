@@ -22,6 +22,47 @@ interface CardapioTabProps {
   readOnly?: boolean
 }
 
+// Shape cru devolvido pela query de grupos_complementos (com o embed de
+// opcoes_complemento + itens_cardapio) — mesma query e mesmo mapeamento
+// pra GrupoComplemento[] rodam em dois pontos deste arquivo (carregar()
+// e salvarGrupo()), extraído aqui pra não duplicar a lógica nem retipar
+// cada callback como `any` nos dois lugares.
+interface OpcaoComplementoRow {
+  id: string
+  item_id: string
+  preco_adicional: number | null
+  exibir_preco: boolean | null
+  ordem: number
+  itens_cardapio: { nome: string } | null
+}
+
+interface GrupoComplementoRow {
+  id: string
+  nome: string
+  selecao_minima: number | null
+  selecao_maxima: number | null
+  ordem: number
+  opcoes_complemento: OpcaoComplementoRow[] | null
+}
+
+function mapearGruposComplemento(gruposData: GrupoComplementoRow[] | null): GrupoComplemento[] {
+  return (gruposData || []).map((g) => ({
+    id: g.id,
+    nome: g.nome,
+    selecaoMinima: String(g.selecao_minima ?? 0),
+    selecaoMaxima: String(g.selecao_maxima ?? 1),
+    opcoes: (g.opcoes_complemento || [])
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((o) => ({
+        id: o.id,
+        itemId: o.item_id,
+        itemNome: o.itens_cardapio?.nome || '',
+        precoAdicional: String(o.preco_adicional ?? 0).replace('.', ','),
+        exibirPreco: o.exibir_preco ?? true,
+      })),
+  }))
+}
+
 // ─────────────────────────────────────────────
 // ALERGENOS FALLBACK (ANVISA RDC 26/2015)
 // ─────────────────────────────────────────────
@@ -319,23 +360,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .eq('estabelecimento_id', estabelecimentoId)
         .order('ordem', { ascending: true })
 
-      setGruposEstabelecimento(
-        (gruposData || []).map((g: any) => ({
-          id: g.id,
-          nome: g.nome,
-          selecaoMinima: String(g.selecao_minima ?? 0),
-          selecaoMaxima: String(g.selecao_maxima ?? 1),
-          opcoes: (g.opcoes_complemento || [])
-            .sort((a: any, b: any) => a.ordem - b.ordem)
-            .map((o: any) => ({
-              id: o.id,
-              itemId: o.item_id,
-              itemNome: o.itens_cardapio?.nome || '',
-              precoAdicional: String(o.preco_adicional ?? 0).replace('.', ','),
-              exibirPreco: o.exibir_preco ?? true,
-            })),
-        }))
-      )
+      setGruposEstabelecimento(mapearGruposComplemento(gruposData as unknown as GrupoComplementoRow[] | null))
 
       // 4. Alergenos
       const { data: algs } = await supabase
@@ -344,8 +369,8 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .order('nome', { ascending: true })
       setAlergenos(algs?.length ? algs : ALERGENOS_FALLBACK)
 
-    } catch (e: any) {
-      setErro('Erro inesperado: ' + e.message)
+    } catch (e: unknown) {
+      setErro('Erro inesperado: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setLoading(false)
     }
@@ -550,9 +575,9 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         if (error) throw new Error(error.message)
       }
       setCatEditandoTraducoes(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       logSupabaseError('Erro ao salvar traduções da categoria', err)
-      setErro('Erro ao salvar traduções: ' + err.message)
+      setErro('Erro ao salvar traduções: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setSalvandoTraducoesCategoria(false)
     }
@@ -586,7 +611,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .from('item_allergens')
         .select('allergen_id')
         .eq('item_id', item.id)
-      setAlergenosSel(data?.map((a: any) => a.allergen_id) || [])
+      setAlergenosSel(data?.map((a: { allergen_id: string }) => a.allergen_id) || [])
       const variacoesDoItem = (item.variacoes || []).map((v) => ({ id: v.id, nome: v.nome, preco: v.preco.toString().replace('.', ',') }))
       setVariacoes(variacoesDoItem)
       setMostrarVariacoes(variacoesDoItem.length > 0)
@@ -596,7 +621,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .select('grupo_id')
         .eq('item_id', item.id)
 
-      const vinculadosDoItem = (vinculos || []).map((v: any) => v.grupo_id)
+      const vinculadosDoItem = (vinculos || []).map((v: { grupo_id: string }) => v.grupo_id)
       setGruposVinculadosIds(vinculadosDoItem)
       setMostrarGrupos(vinculadosDoItem.length > 0)
 
@@ -792,9 +817,9 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
 
       fecharModal()
       await carregar()
-    } catch (err: any) {
+    } catch (err: unknown) {
       logSupabaseError('Erro ao salvar item', err)
-      setErro('Erro ao salvar: ' + (err.message || JSON.stringify(err)))
+      setErro('Erro ao salvar: ' + (err instanceof Error ? err.message : JSON.stringify(err)))
     } finally {
       setSalvando(false)
     }
@@ -1012,26 +1037,10 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         .eq('estabelecimento_id', estabelecimentoId)
         .order('ordem', { ascending: true })
 
-      setGruposEstabelecimento(
-        (gruposData || []).map((gr: any) => ({
-          id: gr.id,
-          nome: gr.nome,
-          selecaoMinima: String(gr.selecao_minima ?? 0),
-          selecaoMaxima: String(gr.selecao_maxima ?? 1),
-          opcoes: (gr.opcoes_complemento || [])
-            .sort((a: any, b: any) => a.ordem - b.ordem)
-            .map((o: any) => ({
-              id: o.id,
-              itemId: o.item_id,
-              itemNome: o.itens_cardapio?.nome || '',
-              precoAdicional: String(o.preco_adicional ?? 0).replace('.', ','),
-              exibirPreco: o.exibir_preco ?? true,
-            })),
-        }))
-      )
-    } catch (err: any) {
+      setGruposEstabelecimento(mapearGruposComplemento(gruposData as unknown as GrupoComplementoRow[] | null))
+    } catch (err: unknown) {
       logSupabaseError('Erro ao salvar grupo de complemento', err)
-      setErro('Erro ao salvar grupo: ' + err.message)
+      setErro('Erro ao salvar grupo: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setSalvandoGrupo(false)
     }
