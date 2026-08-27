@@ -7,11 +7,11 @@ import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
 import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
 import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepository'
 import { useSacola } from '../customer/useSacola'
-import { criarPedido, finalizarVendaImediata } from '../ordersRepository'
+import { criarPedido, finalizarVendaImediata, atualizarItensPedido } from '../ordersRepository'
 import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
 import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
 import type { Mesa } from '../mesas/types'
-import type { TipoPedido } from '../types'
+import type { Pedido, TipoPedido } from '../types'
 
 const LIMITE_CATEGORIAS_VISIVEIS = 5
 
@@ -82,6 +82,8 @@ export default function LancarPedidoGarcom({
   tema = 'claro',
   finalizarNoAto = false,
   modo = 'modal',
+  pedidoEmEdicao,
+  onPedidoAtualizado,
 }: {
   estabelecimentoId: string
   mesa: Mesa | null
@@ -90,6 +92,14 @@ export default function LancarPedidoGarcom({
   tema?: 'claro' | 'escuro'
   finalizarNoAto?: boolean
   modo?: 'modal' | 'inline'
+  // Quando presente, o componente abre em modo edição: sacola pré-
+  // preenchida com os itens do pedido, e "confirmar" atualiza esse pedido
+  // em vez de criar um novo. Usado pelos cards de Pix/Validar entrega da
+  // Fila do Operador, sempre antes de pagamento/preparo — nenhuma checagem
+  // extra de elegibilidade aqui, quem chama já garante isso pela lista de
+  // origem (ver operadorRepository.ts).
+  pedidoEmEdicao?: Pedido
+  onPedidoAtualizado?: () => void
 }) {
   const c = ESTILOS[tema]
   const [categorias, setCategorias] = useState<CategoriaComItens[]>([])
@@ -111,10 +121,16 @@ export default function LancarPedidoGarcom({
   // muita categoria virava uma parede de blocos antes de chegar nos itens;
   // "+ mais" revela o resto sob demanda.
   const [mostrarTodasCategorias, setMostrarTodasCategorias] = useState(false)
-  const sacola = useSacola()
+  const sacola = useSacola(pedidoEmEdicao?.items)
 
-  const tipoPedido: TipoPedido = mesa ? 'mesa' : 'balcao'
-  const titulo = mesa ? `Mesa ${mesa.numero}` : finalizarNoAto ? 'Nova venda' : 'Venda no balcão'
+  const tipoPedido: TipoPedido = pedidoEmEdicao ? pedidoEmEdicao.tipo_pedido : mesa ? 'mesa' : 'balcao'
+  const titulo = pedidoEmEdicao
+    ? 'Editar pedido'
+    : mesa
+      ? `Mesa ${mesa.numero}`
+      : finalizarNoAto
+        ? 'Nova venda'
+        : 'Venda no balcão'
 
   const descontoNum = calcularDesconto(sacola.total, tipoDesconto, parseFloat(descontoInput.replace(',', '.')) || 0)
   const totalComDesconto = Math.max(0, sacola.total - descontoNum)
@@ -146,6 +162,19 @@ export default function LancarPedidoGarcom({
     setValorRecebido('')
     setFormaPagamento(METODOS_PAGAMENTO[0])
     setLinhaEmEdicao(null)
+  }
+
+  async function salvarEdicao() {
+    if (!pedidoEmEdicao || sacola.itens.length === 0) return
+    setEnviando(true)
+    try {
+      await atualizarItensPedido(pedidoEmEdicao.id, sacola.itens, sacola.total)
+      setEnviando(false)
+      onPedidoAtualizado?.()
+    } catch (err) {
+      setEnviando(false)
+      alert(`Não foi possível salvar as alterações: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    }
   }
 
   async function lancarPedido() {
@@ -581,11 +610,17 @@ export default function LancarPedidoGarcom({
                 <span>R$ {sacola.total.toFixed(2)}</span>
               </div>
               <button
-                onClick={lancarPedido}
+                onClick={pedidoEmEdicao ? salvarEdicao : lancarPedido}
                 disabled={enviando}
                 className={`w-full rounded-lg py-2.5 font-semibold transition disabled:opacity-50 ${c.botaoPrincipal}`}
               >
-                {enviando ? 'Lançando...' : mesa ? `Lançar pedido — Mesa ${mesa.numero}` : 'Lançar venda no balcão'}
+                {enviando
+                  ? pedidoEmEdicao ? 'Salvando...' : 'Lançando...'
+                  : pedidoEmEdicao
+                    ? 'Salvar alterações'
+                    : mesa
+                      ? `Lançar pedido — Mesa ${mesa.numero}`
+                      : 'Lançar venda no balcão'}
               </button>
             </div>
           )}

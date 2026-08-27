@@ -4,11 +4,20 @@ import { useState } from 'react'
 import { useFilaPix } from '../hooks/useFilaPix'
 import { confirmarPagamentoPix } from '../operadorRepository'
 import { telefoneParaWhatsApp } from '@/lib/telefone'
+import LancarPedidoGarcom from '../../pedidos/garcom/LancarPedidoGarcom'
+import type { Pedido } from '../../pedidos/types'
 
-export default function SecaoPixAguardando({ estabelecimentoId }: { estabelecimentoId: string }) {
+export default function SecaoPixAguardando({
+  estabelecimentoId,
+  mostrarTitulo = true,
+}: {
+  estabelecimentoId: string
+  mostrarTitulo?: boolean
+}) {
   const { pedidos, carregando } = useFilaPix(estabelecimentoId)
   const [valoresConferencia, setValoresConferencia] = useState<Record<string, string>>({})
   const [confirmando, setConfirmando] = useState<string | null>(null)
+  const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
 
   async function confirmar(pedidoId: string) {
     setConfirmando(pedidoId)
@@ -22,9 +31,11 @@ export default function SecaoPixAguardando({ estabelecimentoId }: { estabelecime
 
   return (
     <section className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-bold text-sky-800">
-        💳 Pix aguardando confirmação <span className="font-normal text-sky-600">({pedidos.length})</span>
-      </h2>
+      {mostrarTitulo && (
+        <h2 className="mb-3 text-sm font-bold text-sky-800">
+          💳 Pix aguardando confirmação <span className="font-normal text-sky-600">({pedidos.length})</span>
+        </h2>
+      )}
       {carregando ? (
         <p className="text-sm text-sky-600">Carregando...</p>
       ) : pedidos.length === 0 ? (
@@ -57,6 +68,12 @@ export default function SecaoPixAguardando({ estabelecimentoId }: { estabelecime
                   </a>
                 )}
                 <button
+                  onClick={() => setPedidoEditando(p)}
+                  className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+                >
+                  Editar pedido
+                </button>
+                <button
                   onClick={() => confirmar(p.id)}
                   disabled={confirmando === p.id}
                   className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
@@ -67,6 +84,17 @@ export default function SecaoPixAguardando({ estabelecimentoId }: { estabelecime
             </div>
           ))}
         </div>
+      )}
+
+      {pedidoEditando && (
+        <LancarPedidoGarcom
+          estabelecimentoId={estabelecimentoId}
+          mesa={null}
+          pedidoEmEdicao={pedidoEditando}
+          onFechar={() => setPedidoEditando(null)}
+          onPedidoLancado={() => setPedidoEditando(null)}
+          onPedidoAtualizado={() => setPedidoEditando(null)}
+        />
       )}
     </section>
   )

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import PainelComandas from '@/modules/pedidos/components/PainelComandas'
 import BotaoVendaBalcao from '@/modules/pedidos/components/BotaoVendaBalcao'
+import GestaoNav from '../gerenciar/GestaoNav'
 import Link from 'next/link'
 
 export default async function PedidosEstabelecimentoPage({
@@ -46,6 +47,7 @@ export default async function PedidosEstabelecimentoPage({
           </div>
         </div>
         <p className="mt-1 text-sm text-neutral-500">Atualiza sozinho em tempo real.</p>
+        <GestaoNav estabelecimentoId={id} />
 
         <div className="mt-6">
           <PainelComandas estabelecimentoId={id} />

@@ -8,6 +8,7 @@ import HistoricoCaixa from '@/modules/financeiro/components/HistoricoCaixa'
 import EstadoCarregamento from '../gerenciar/EstadoCarregamento'
 import { useEstabelecimentoGerenciar } from '../gerenciar/useEstabelecimentoGerenciar'
 import { caixaTema } from '@/modules/financeiro/caixaTema'
+import GestaoNav from '../gerenciar/GestaoNav'
 
 export default function CaixaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -60,6 +61,10 @@ export default function CaixaPage({ params }: { params: Promise<{ id: string }> 
           </button>
         </div>
       </header>
+
+      <div className="px-4 pt-3 md:px-6">
+        <GestaoNav estabelecimentoId={id} tema="escuro" />
+      </div>
 
       <div className="mx-auto max-w-5xl p-4 md:p-6">
         {aba === 'caixa' ? <PainelCaixa estabelecimentoId={id} /> : <HistoricoCaixa estabelecimentoId={id} />}

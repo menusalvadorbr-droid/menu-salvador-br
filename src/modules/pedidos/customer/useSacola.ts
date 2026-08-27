@@ -16,8 +16,8 @@ function chaveLinha(item: Omit<ItemSacola, 'quantidade' | 'linhaId'>): string {
   return `${item.id}::${variacao}::${complementos}`
 }
 
-export function useSacola() {
-  const [itens, setItens] = useState<ItemSacola[]>([])
+export function useSacola(itensIniciais?: ItemSacola[]) {
+  const [itens, setItens] = useState<ItemSacola[]>(itensIniciais || [])
 
   const adicionarItem = useCallback((item: Omit<ItemSacola, 'quantidade' | 'linhaId'>) => {
     const linhaId = chaveLinha(item)

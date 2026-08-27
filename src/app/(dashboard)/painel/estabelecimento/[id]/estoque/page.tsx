@@ -5,6 +5,7 @@ import Link from 'next/link'
 import InsumosManager from '@/modules/estoque/components/InsumosManager'
 import FichaTecnicaManager from '@/modules/estoque/components/FichaTecnicaManager'
 import MovimentosManager from '@/modules/estoque/components/MovimentosManager'
+import GestaoNav from '../gerenciar/GestaoNav'
 
 export default function EstoquePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -24,6 +25,7 @@ export default function EstoquePage({ params }: { params: Promise<{ id: string }
           Cadastre os insumos e monte a ficha técnica de cada prato — o estoque desconta sozinho quando
           um pedido entra em preparo.
         </p>
+        <GestaoNav estabelecimentoId={id} />
 
         <div className="mt-4 flex gap-2">
           <button

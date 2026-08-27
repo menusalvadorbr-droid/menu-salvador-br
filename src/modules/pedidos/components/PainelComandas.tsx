@@ -6,6 +6,7 @@ import { usePedidosEstabelecimento } from '../hooks/usePedidosEstabelecimento'
 import { useChamadosGarcom } from '../hooks/useChamadosGarcom'
 import { useValidacoesBloqueantes } from '../hooks/useValidacoesBloqueantes'
 import { aceitarValidacao } from '@/modules/operador/operadorRepository'
+import FaixaPendencias from './FaixaPendencias'
 import { ETIQUETA_STATUS, ETIQUETA_TIPO_PEDIDO, type StatusPedido } from '../types'
 
 const COLUNAS: StatusPedido[] = ['recebido', 'aprovado', 'em_preparo', 'pronto', 'entregue']
@@ -48,6 +49,8 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
 
   return (
     <div>
+      <FaixaPendencias estabelecimentoId={estabelecimentoId} />
+
       {chamados.length > 0 && (
         <div className="mb-4 flex flex-col gap-2">
           {chamados.map((chamado) => (

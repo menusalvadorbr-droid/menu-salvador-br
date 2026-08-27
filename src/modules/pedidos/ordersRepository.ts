@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { NovoPedidoInput, Pedido, StatusPedido } from './types'
+import type { ItemPedido, NovoPedidoInput, Pedido, StatusPedido } from './types'
 import { adicionarPendente, listarPendentes, removerPendente, incrementarTentativa } from './localQueue'
 
 export interface ResultadoCriarPedido {
@@ -138,6 +138,20 @@ export async function atualizarStatusPedido(pedidoId: string, novoStatus: Status
   if (campoTimestamp) atualizacao[campoTimestamp] = new Date().toISOString()
 
   const { error } = await supabase.from('orders').update(atualizacao).eq('id', pedidoId)
+  if (error) throw new Error(error.message)
+}
+
+/**
+ * Edita os itens de um pedido já existente, antes de pagamento/preparo
+ * (chamado só a partir de cards que já garantem isso pela própria lista de
+ * origem — ver LancarPedidoGarcom.tsx em modo edição). Sem efeito colateral
+ * extra: baixa de estoque continua presa à transição pra em_preparo, e o
+ * "valor esperado" do Pix é sempre lido direto de orders.total, então
+ * recalcula sozinho assim que esta linha muda.
+ */
+export async function atualizarItensPedido(pedidoId: string, items: ItemPedido[], total: number) {
+  const supabase = createClient()
+  const { error } = await supabase.from('orders').update({ items, total }).eq('id', pedidoId)
   if (error) throw new Error(error.message)
 }
 

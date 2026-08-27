@@ -4,14 +4,24 @@ import { useEffect, useState } from 'react'
 import { useFilaValidacao } from '../hooks/useFilaValidacao'
 import { aceitarValidacao, recusarValidacao, contarPedidosAnteriores } from '../operadorRepository'
 import { telefoneParaWhatsApp } from '@/lib/telefone'
+import LancarPedidoGarcom from '../../pedidos/garcom/LancarPedidoGarcom'
 import type { ValidacaoPedido } from '../types'
 
-function CardValidacao({ estabelecimentoId, validacao }: { estabelecimentoId: string; validacao: ValidacaoPedido }) {
+function CardValidacao({
+  estabelecimentoId,
+  validacao,
+  onPedidoEditado,
+}: {
+  estabelecimentoId: string
+  validacao: ValidacaoPedido
+  onPedidoEditado: () => void
+}) {
   const { pedido } = validacao
   const [totalAnteriores, setTotalAnteriores] = useState<number | null>(null)
   const [recusando, setRecusando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [editando, setEditando] = useState(false)
 
   useEffect(() => {
     const contagem = pedido.telefone
@@ -76,6 +86,7 @@ function CardValidacao({ estabelecimentoId, validacao }: { estabelecimentoId: st
         {pedido.metodo_pagamento || 'Forma de pagamento não informada'}
         {pedido.metodo_pagamento === 'Dinheiro' && pedido.observacoes && ` — ${pedido.observacoes}`}
       </p>
+      <p className="mt-0.5 text-xs font-semibold text-neutral-700">R$ {pedido.total.toFixed(2)}</p>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {pedido.telefone && (
@@ -88,6 +99,12 @@ function CardValidacao({ estabelecimentoId, validacao }: { estabelecimentoId: st
             Falar no WhatsApp
           </a>
         )}
+        <button
+          onClick={() => setEditando(true)}
+          className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+        >
+          Editar pedido
+        </button>
         <button
           onClick={aceitar}
           disabled={enviando}
@@ -133,18 +150,43 @@ function CardValidacao({ estabelecimentoId, validacao }: { estabelecimentoId: st
           </div>
         </div>
       )}
+
+      {editando && (
+        <LancarPedidoGarcom
+          estabelecimentoId={estabelecimentoId}
+          mesa={null}
+          pedidoEmEdicao={pedido}
+          onFechar={() => setEditando(false)}
+          onPedidoLancado={() => setEditando(false)}
+          onPedidoAtualizado={() => {
+            setEditando(false)
+            // useFilaValidacao só escuta validacao_pedidos, não orders —
+            // editar itens não dispara refetch sozinho aqui, diferente do
+            // card de Pix (que escuta orders inteiro).
+            onPedidoEditado()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-export default function SecaoValidarEntrega({ estabelecimentoId }: { estabelecimentoId: string }) {
-  const { validacoes, carregando } = useFilaValidacao(estabelecimentoId)
+export default function SecaoValidarEntrega({
+  estabelecimentoId,
+  mostrarTitulo = true,
+}: {
+  estabelecimentoId: string
+  mostrarTitulo?: boolean
+}) {
+  const { validacoes, carregando, recarregar } = useFilaValidacao(estabelecimentoId)
 
   return (
     <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-bold text-neutral-800">
-        🛵 Validar entrega <span className="font-normal text-neutral-500">({validacoes.length})</span>
-      </h2>
+      {mostrarTitulo && (
+        <h2 className="mb-3 text-sm font-bold text-neutral-800">
+          🛵 Validar entrega <span className="font-normal text-neutral-500">({validacoes.length})</span>
+        </h2>
+      )}
       {carregando ? (
         <p className="text-sm text-neutral-500">Carregando...</p>
       ) : validacoes.length === 0 ? (
@@ -152,7 +194,7 @@ export default function SecaoValidarEntrega({ estabelecimentoId }: { estabelecim
       ) : (
         <div className="flex flex-col gap-2">
           {validacoes.map((v) => (
-            <CardValidacao key={v.id} estabelecimentoId={estabelecimentoId} validacao={v} />
+            <CardValidacao key={v.id} estabelecimentoId={estabelecimentoId} validacao={v} onPedidoEditado={recarregar} />
           ))}
         </div>
       )}

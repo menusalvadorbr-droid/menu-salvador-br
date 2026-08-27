@@ -4,6 +4,7 @@ import { use, useState } from 'react'
 import Link from 'next/link'
 import FornecedoresManager from '@/modules/fornecedores/components/FornecedoresManager'
 import ListaPedidosCompra from '@/modules/fornecedores/components/ListaPedidosCompra'
+import GestaoNav from '../gerenciar/GestaoNav'
 
 export default function FornecedoresPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -22,6 +23,7 @@ export default function FornecedoresPage({ params }: { params: Promise<{ id: str
         <p className="mt-1 text-sm text-neutral-500">
           Receber um pedido dá entrada automática no estoque, na aba Estoque.
         </p>
+        <GestaoNav estabelecimentoId={id} />
 
         <div className="mt-4 flex gap-2">
           <button

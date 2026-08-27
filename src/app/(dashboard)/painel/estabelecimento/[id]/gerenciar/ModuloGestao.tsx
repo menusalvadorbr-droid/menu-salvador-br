@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Lock, ClipboardList, Package, Wallet, Truck, MessageCircle, ListChecks } from 'lucide-react'
+import { Lock, ClipboardList, Package, Wallet, Truck, ListChecks } from 'lucide-react'
 import { contarInsumosAbaixoDoPontoReposicao } from '@/modules/estoque/estoqueRepository'
 import { contarPendenciasOperador } from '@/modules/operador/operadorRepository'
 
@@ -15,12 +15,16 @@ interface ModuloGestaoProps {
 // de longe, mesmo princípio das cores por módulo da tela inicial. Strings
 // sempre literais (nunca concatenadas em runtime) pra o Tailwind conseguir
 // escanear essas classes.
-const ITENS = [
+// Exportado — GestaoNav.tsx reaproveita a mesma lista (ícones, cores,
+// rótulos) pra montar a barra de navegação entre as telas de Gestão, sem
+// duplicar. "atendimento" foi removido daqui: a IA escalada agora se
+// resolve direto na faixa de pendências do board de comandas
+// (FaixaPendencias.tsx), a rota /atendimento não existe mais.
+export const ITENS = [
   { slug: 'pedidos', label: 'Pedidos', Icone: ClipboardList, bg: 'bg-sky-50', text: 'text-sky-600', hoverBorder: 'hover:border-sky-200' },
   { slug: 'estoque', label: 'Estoque', Icone: Package, bg: 'bg-amber-50', text: 'text-amber-600', hoverBorder: 'hover:border-amber-200' },
   { slug: 'caixa', label: 'Caixa', Icone: Wallet, bg: 'bg-emerald-50', text: 'text-emerald-600', hoverBorder: 'hover:border-emerald-200' },
   { slug: 'fornecedores', label: 'Fornecedores', Icone: Truck, bg: 'bg-violet-50', text: 'text-violet-600', hoverBorder: 'hover:border-violet-200' },
-  { slug: 'atendimento', label: 'Atendimento', Icone: MessageCircle, bg: 'bg-teal-50', text: 'text-teal-600', hoverBorder: 'hover:border-teal-200' },
   { slug: 'operador', label: 'Fila do Operador', Icone: ListChecks, bg: 'bg-rose-50', text: 'text-rose-600', hoverBorder: 'hover:border-rose-200' },
 ] as const
 

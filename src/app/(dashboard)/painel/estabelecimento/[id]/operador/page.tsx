@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import FilaOperador from '@/modules/operador/components/FilaOperador'
+import GestaoNav from '../gerenciar/GestaoNav'
 
 export default async function OperadorPage({
   params,
@@ -34,6 +35,7 @@ export default async function OperadorPage({
           Fila do Operador — {estabelecimento.nome_fantasia || estabelecimento.nome}
         </h1>
         <p className="mt-1 text-sm text-neutral-500">Atualiza sozinho em tempo real.</p>
+        <GestaoNav estabelecimentoId={id} />
 
         <div className="mt-6">
           <FilaOperador estabelecimentoId={id} />
