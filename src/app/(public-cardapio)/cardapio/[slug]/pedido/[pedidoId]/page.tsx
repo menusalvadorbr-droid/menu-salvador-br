@@ -17,7 +17,7 @@ export default async function AcompanharPedidoPage({
 
   const { data: est } = await supabase
     .from('estabelecimentos')
-    .select('nome, nome_fantasia')
+    .select('nome, nome_fantasia, chave_pix, cidades(nome)')
     .eq('slug', slug)
     .eq('status', 'active')
     .eq('ativo', true)
@@ -25,9 +25,19 @@ export default async function AcompanharPedidoPage({
     .single()
   if (!est) notFound()
 
+  const nomeEstabelecimento = est.nome_fantasia || est.nome
+  const cidades = est.cidades as { nome: string }[] | { nome: string } | null
+  const cidadeNome = (Array.isArray(cidades) ? cidades[0]?.nome : cidades?.nome) || null
+
   return (
     <div className="min-h-screen bg-neutral-50 px-4 py-8">
-      <AcompanharPedido slug={slug} pedidoId={pedidoId} nomeEstabelecimento={est.nome_fantasia || est.nome} />
+      <AcompanharPedido
+        slug={slug}
+        pedidoId={pedidoId}
+        nomeEstabelecimento={nomeEstabelecimento}
+        chavePix={est.chave_pix}
+        cidade={cidadeNome}
+      />
     </div>
   )
 }

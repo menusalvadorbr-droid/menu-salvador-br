@@ -3,17 +3,33 @@
 import Link from 'next/link'
 import { useAcompanharPedido } from '@/modules/pedidos/customer/useAcompanharPedido'
 import StatusPedidoTimeline from '@/modules/pedidos/customer/StatusPedidoTimeline'
-import { ETIQUETA_TIPO_PEDIDO } from '@/modules/pedidos/types'
+import PixPagamentoCard from '@/modules/pedidos/customer/PixPagamentoCard'
+import type { PedidoAcompanhamento } from '@/modules/pedidos/types'
 import { BOTAO_PEDIDO_SECUNDARIO } from '@/modules/pedidos/customer/estilosBotao'
+
+function formatarHora(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatarOrigem(pedido: PedidoAcompanhamento): string {
+  if (pedido.tipo_pedido === 'mesa') return pedido.mesa ? `Mesa ${pedido.mesa}` : 'Mesa'
+  if (pedido.tipo_pedido === 'entrega') return 'Delivery'
+  if (pedido.tipo_pedido === 'retirada') return 'Retirada'
+  return 'Balcão'
+}
 
 export default function AcompanharPedido({
   slug,
   pedidoId,
   nomeEstabelecimento,
+  chavePix,
+  cidade,
 }: {
   slug: string
   pedidoId: string
   nomeEstabelecimento: string
+  chavePix: string | null
+  cidade: string | null
 }) {
   const { pedido, carregando, naoEncontrado } = useAcompanharPedido(pedidoId)
 
@@ -36,30 +52,88 @@ export default function AcompanharPedido({
     )
   }
 
+  const pixPendente = pedido.metodo_pagamento === 'Pix' && pedido.status !== 'pago' && pedido.status !== 'cancelado'
+
+  // Preço por item já vem final (variação e complementos embutidos, ver
+  // SeletorItemModal.tsx) — subtotal é só a soma direta. Acréscimo não
+  // tem coluna própria no sistema hoje (taxa de entrega é combinada fora
+  // do app) — calculado por diferença em vez de inventar um campo sem
+  // dado nenhum por trás, o que também absorve de graça qualquer ajuste
+  // manual futuro no total.
+  const subtotal = pedido.items.reduce((acc, item) => acc + item.preco * item.quantidade, 0)
+  const desconto = pedido.desconto || 0
+  const acrescimo = Math.max(0, pedido.total - subtotal + desconto)
+
   return (
     <div className="mx-auto max-w-md">
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{nomeEstabelecimento}</p>
-      <h1 className="mb-6 text-xl font-bold text-neutral-900">📦 Acompanhar pedido</h1>
+      <p className="mb-4 text-xs font-medium uppercase tracking-wide text-neutral-400">{nomeEstabelecimento}</p>
 
-      <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-        <StatusPedidoTimeline pedido={pedido} />
-      </div>
-
-      <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between text-xs text-neutral-500">
-          <span>{ETIQUETA_TIPO_PEDIDO[pedido.tipo_pedido]}</span>
-          {pedido.mesa && <span>Mesa {pedido.mesa}</span>}
+      {pixPendente ? (
+        <>
+          <PixPagamentoCard
+            chavePix={chavePix}
+            nomeFantasia={nomeEstabelecimento}
+            cidade={cidade}
+            valor={pedido.total}
+            codigoPedido={pedido.codigo_pedido}
+          />
+          <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-4 text-center shadow-sm">
+            <p className="text-sm font-medium text-neutral-600">
+              ⏳ Aguardando pagamento — sem pressa, você tem tempo tranquilo pra pagar. Assim que identificarmos o
+              Pix, o andamento do seu pedido aparece aqui.
+            </p>
+          </div>
+        </>
+      ) : (
+        <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+          <StatusPedidoTimeline pedido={pedido} />
         </div>
-        <ul className="space-y-1 text-sm text-neutral-700">
+      )}
+
+      <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 pb-3">
+          <div>
+            <p className="text-xs text-neutral-400">Código do pedido</p>
+            <p className="text-xl font-black tracking-wide text-neutral-900">{pedido.codigo_pedido}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-neutral-400">{formatarHora(pedido.created_at)}</p>
+            <p className="text-sm font-semibold text-neutral-700">{formatarOrigem(pedido)}</p>
+          </div>
+        </div>
+        {pedido.metodo_pagamento && (
+          <p className="pt-2 text-xs text-neutral-400">Pagamento: {pedido.metodo_pagamento}</p>
+        )}
+
+        <ul className="mt-3 space-y-1 text-sm text-neutral-700">
           {pedido.items.map((item, i) => (
             <li key={i} className="flex justify-between gap-2">
               <span>{item.quantidade}x {item.nome}</span>
             </li>
           ))}
         </ul>
-        <div className="mt-3 flex justify-between border-t border-neutral-100 pt-3 text-sm font-bold text-neutral-900">
-          <span>Total</span>
-          <span>R$ {pedido.total.toFixed(2)}</span>
+
+        <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3 text-sm">
+          <div className="flex justify-between text-neutral-500">
+            <span>Subtotal</span>
+            <span>R$ {subtotal.toFixed(2)}</span>
+          </div>
+          {desconto > 0 && (
+            <div className="flex justify-between text-neutral-500">
+              <span>Desconto</span>
+              <span>− R$ {desconto.toFixed(2)}</span>
+            </div>
+          )}
+          {acrescimo > 0.01 && (
+            <div className="flex justify-between text-neutral-500">
+              <span>Acréscimo</span>
+              <span>+ R$ {acrescimo.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between pt-1 text-base font-bold text-neutral-900">
+            <span>Total</span>
+            <span>R$ {pedido.total.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 

@@ -357,8 +357,6 @@ export async function vincularPedidoASessaoAberta(estabelecimentoId: string, ped
   await supabase.from('orders').update({ caixa_sessao_id: sessaoAberta.id }).eq('id', pedidoId)
 }
 
-const numeroPedido = (id: string) => id.slice(0, 8).toUpperCase()
-
 /**
  * Demonstrativo completo de uma sessão de caixa — vendas agrupadas por
  * mesa (cada grupo com seus pedidos e, logo abaixo, os pagamentos daquela
@@ -379,7 +377,7 @@ export async function demonstrativoSessao(sessaoId: string): Promise<Demonstrati
   const [{ data: pedidos, error: erroPedidos }, { data: pagamentos, error: erroPagamentos }] = await Promise.all([
     supabase
       .from('orders')
-      .select('id, total, metodo_pagamento, created_at, delivered_at, paid_at, mesa, mesa_id, staff_id')
+      .select('id, codigo_pedido, total, metodo_pagamento, created_at, delivered_at, paid_at, mesa, mesa_id, staff_id')
       .eq('caixa_sessao_id', sessaoId)
       .eq('status', 'pago'),
     supabase
@@ -414,7 +412,7 @@ export async function demonstrativoSessao(sessaoId: string): Promise<Demonstrati
   for (const p of pedidos || []) {
     const item: PedidoResumoDemonstrativo = {
       id: p.id,
-      numero: numeroPedido(p.id),
+      numero: p.codigo_pedido,
       criadoEm: p.created_at,
       entregueEm: p.delivered_at,
       pagoEm: p.paid_at,

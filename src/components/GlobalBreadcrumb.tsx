@@ -145,6 +145,10 @@ export default function Breadcrumb() {
   // Se estiver na home, não exibe breadcrumb
   if (segments.length === 0) return null
 
+  // Tela de acompanhamento de pedido (/cardapio/[slug]/pedido/[pedidoId]) —
+  // fluxo de pagamento focado, sem trilha de navegação por cima.
+  if (segments[0] === 'cardapio' && segments[2] === 'pedido') return null
+
   return (
     <nav aria-label="Trilha de navegação" className="text-xs text-gray-400 py-2 px-4 bg-white border-b border-gray-100">
       <ol className="flex flex-wrap items-center gap-1 max-w-7xl mx-auto list-none p-0 m-0">

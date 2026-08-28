@@ -65,6 +65,7 @@ export const ETIQUETA_TIPO_PEDIDO: Record<TipoPedido, string> = {
 
 export interface Pedido {
   id: string
+  codigo_pedido: string
   estabelecimento_id: string
   items: ItemPedido[]
   total: number
@@ -105,17 +106,20 @@ export interface NovoPedidoInput {
 }
 
 /** Espelho público de `Pedido`, sem os campos sensíveis (nome_cliente,
- *  endereco_entrega, metodo_pagamento etc.) — é o que a tela de
- *  acompanhamento do cliente lê da tabela `pedidos_acompanhamento`
- *  (RLS aberta de propósito, ver a migration correspondente). */
+ *  endereco_entrega etc.) — é o que a tela de acompanhamento do cliente
+ *  lê da tabela `pedidos_acompanhamento` (RLS aberta de propósito, ver a
+ *  migration correspondente). */
 export interface PedidoAcompanhamento {
   id: string
+  codigo_pedido: string
   estabelecimento_id: string
   items: ItemPedido[]
   total: number
   tipo_pedido: TipoPedido
   mesa: string | null
   status: StatusPedido
+  metodo_pagamento: string | null
+  desconto: number | null
   created_at: string
   approved_at: string | null
   ready_at: string | null

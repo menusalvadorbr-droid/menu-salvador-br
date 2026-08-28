@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Clock, Image, Sparkles, Star, Globe, SlidersHorizontal, Wrench, Users, MessageCircle } from 'lucide-react'
+import { Clock, Image, Sparkles, Star, Globe, SlidersHorizontal, Wrench, Users, MessageCircle, Wallet } from 'lucide-react'
 import HorariosEditor from '@/app/(dashboard)/painel/components/HorariosEditor'
 import ComodidadesTab from './ComodidadesTab'
 import GoogleReviewsTab from './GoogleReviewsTab'
@@ -10,6 +10,7 @@ import GaleriaTab from '../GaleriaTab'
 import IdiomasTab from './IdiomasTab'
 import GestaoTab from './GestaoTab'
 import WhatsAppTab from './WhatsAppTab'
+import PixTab from './PixTab'
 import FuncionariosTab from '../../gerenciar/FuncionariosTab'
 
 interface ConfiguracoesTabProps {
@@ -32,6 +33,7 @@ const SECOES = [
   { id: 'idiomas', label: 'Idiomas', Icone: Globe },
   { id: 'cardapio-recursos', label: 'Recursos do cardápio', Icone: SlidersHorizontal },
   { id: 'whatsapp', label: 'WhatsApp', Icone: MessageCircle },
+  { id: 'pix', label: 'Pix', Icone: Wallet },
   { id: 'gestao', label: 'Módulo de Gestão', Icone: Wrench },
   { id: 'equipe', label: 'Equipe', Icone: Users },
 ] as const
@@ -84,6 +86,9 @@ export default function ConfiguracoesTab({ estabelecimento, readOnly, recursosPl
         )}
         {secaoAtiva === 'whatsapp' && (
           <WhatsAppTab estabelecimento={estabelecimento} readOnly={readOnly} />
+        )}
+        {secaoAtiva === 'pix' && (
+          <PixTab estabelecimento={estabelecimento} readOnly={readOnly} />
         )}
         {secaoAtiva === 'gestao' && (
           <GestaoTab estabelecimento={estabelecimento} readOnly={readOnly} />

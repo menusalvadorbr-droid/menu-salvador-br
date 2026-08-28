@@ -19,6 +19,7 @@ export default function PainelSecao({
   mostrarTitulo = true,
   carregando,
   vazio,
+  acao,
   children,
 }: {
   cor: keyof typeof CORES
@@ -27,6 +28,7 @@ export default function PainelSecao({
   mostrarTitulo?: boolean
   carregando: boolean
   vazio: string
+  acao?: ReactNode
   children: ReactNode
 }) {
   const c = CORES[cor]
@@ -34,9 +36,12 @@ export default function PainelSecao({
   return (
     <section className={`rounded-2xl border ${c.borda} ${c.fundo} p-4 shadow-sm`}>
       {mostrarTitulo && (
-        <h2 className={`mb-3 text-sm font-bold ${c.titulo}`}>
-          {titulo} <span className={`font-normal ${c.texto}`}>({contagem})</span>
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className={`text-sm font-bold ${c.titulo}`}>
+            {titulo} <span className={`font-normal ${c.texto}`}>({contagem})</span>
+          </h2>
+          {acao}
+        </div>
       )}
       {carregando ? (
         <p className={`text-sm ${c.texto}`}>Carregando...</p>

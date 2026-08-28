@@ -6,7 +6,10 @@ import { aceitarValidacao, recusarValidacao, contarPedidosAnteriores } from '../
 import { telefoneParaWhatsApp } from '@/lib/telefone'
 import LancarPedidoGarcom from '../../pedidos/garcom/LancarPedidoGarcom'
 import PainelSecao from './PainelSecao'
+import CampoBuscaFila from './CampoBuscaFila'
 import type { ValidacaoPedido } from '../types'
+
+const LIMITE_PARA_BUSCA = 10
 
 function CardValidacao({
   estabelecimentoId,
@@ -60,7 +63,10 @@ function CardValidacao({
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-neutral-800">{pedido.nome_cliente || 'Cliente'}</p>
+        <div>
+          <p className="text-sm font-semibold text-neutral-800">{pedido.nome_cliente || 'Cliente'}</p>
+          <p className="text-xs text-neutral-400">Pedido {pedido.codigo_pedido}</p>
+        </div>
         {totalAnteriores !== null && (
           <span
             className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -180,17 +186,30 @@ export default function SecaoValidarEntrega({
   mostrarTitulo?: boolean
 }) {
   const { validacoes, carregando, recarregar } = useFilaValidacao(estabelecimentoId)
+  const [filtro, setFiltro] = useState('')
+
+  const filtroNorm = filtro.trim().toLowerCase()
+  const validacoesFiltradas = filtroNorm
+    ? validacoes.filter(
+        (v) =>
+          v.pedido.codigo_pedido.toLowerCase().includes(filtroNorm) ||
+          (v.pedido.nome_cliente || '').toLowerCase().includes(filtroNorm)
+      )
+    : validacoes
 
   return (
     <PainelSecao
       cor="neutral"
       titulo="🛵 Validar entrega"
-      contagem={validacoes.length}
+      contagem={validacoesFiltradas.length}
       mostrarTitulo={mostrarTitulo}
       carregando={carregando}
-      vazio="Nenhum pedido esperando validação."
+      vazio={filtroNorm ? 'Nenhum pedido encontrado com esse código ou nome.' : 'Nenhum pedido esperando validação.'}
+      acao={
+        validacoes.length > LIMITE_PARA_BUSCA ? <CampoBuscaFila valor={filtro} onChange={setFiltro} /> : undefined
+      }
     >
-      {validacoes.map((v) => (
+      {validacoesFiltradas.map((v) => (
         <CardValidacao key={v.id} estabelecimentoId={estabelecimentoId} validacao={v} onPedidoEditado={recarregar} />
       ))}
     </PainelSecao>
