@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import ImageUpload from '@/app/(dashboard)/painel/components/ImageUpload'
 import type { SpecialOfferRow, SpecialOfferItemRow } from '@/lib/specialOffers'
 import { CONFIG_TEMA_PADRAO } from '@/components/tema/PreviewTemaCardapio'
+import { calcularPrecoPromocional } from '@/lib/promocaoItem'
 import GerarPostInstagramModal from './GerarPostInstagramModal'
+import SumCard from './SumCard'
+import PromoGrupo from './PromoGrupo'
+import ModalConfigurarPromocao from './ModalConfigurarPromocao'
+import ModalOfertaContador from './ModalOfertaContador'
 
 interface ItemCardapioSimples {
   id: string
@@ -229,13 +233,8 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
     setSalvando(true)
     setErro(null)
 
-    let precoPromo: number
-    if (tipoDesc === 'pct') {
-      precoPromo = parseFloat((itemModal.preco * (1 - val / 100)).toFixed(2))
-    } else {
-      precoPromo = parseFloat((itemModal.preco - val).toFixed(2))
-    }
-    if (precoPromo <= 0) { setErro('Preço promocional inválido.'); setSalvando(false); return }
+    const precoPromo = calcularPrecoPromocional(itemModal.preco, tipoDesc, val)
+    if (precoPromo === null) { setErro('Preço promocional inválido.'); setSalvando(false); return }
 
     const { error } = await supabase
       .from('itens_cardapio')
@@ -384,6 +383,10 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
 
   function removerItemDoCombo(itemCardapioId: string) {
     setOfItensCombo((prev) => prev.filter((li) => li.itemCardapioId !== itemCardapioId))
+  }
+
+  function limparItensCombo() {
+    setOfItensCombo([])
   }
 
   // Soma dos itens compostos × quantidade — só uma sugestão pro campo
@@ -630,147 +633,24 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
 
       {/* ── MODAL DE CONFIGURAÇÃO ── */}
       {modalModo === 'configurar' && itemModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-
-            {/* header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="font-semibold text-gray-900">Configurar promoção</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {itemModal.codigo ? `#${itemModal.codigo} · ` : ''}{itemModal.nome}
-                </p>
-              </div>
-              <button onClick={() => setModalModo(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-400 flex items-center justify-center transition">✕</button>
-            </div>
-
-            <div className="px-6 py-5 space-y-5">
-
-              {erro && <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-sm">{erro}</div>}
-
-              {/* tipo de desconto */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Tipo de desconto</label>
-                <div className="flex gap-3">
-                  {(['pct', 'fixed'] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setTipoDesc(t)}
-                      className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition ${
-                        tipoDesc === t
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {t === 'pct' ? '% Percentual' : 'R$ Valor fixo'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* atalhos percentual */}
-              {tipoDesc === 'pct' && (
-                <div className="flex gap-2">
-                  {[10, 15, 20, 30, 50].map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setDescValor(p.toString())}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition ${
-                        descValor === p.toString()
-                          ? 'bg-orange-100 border-orange-400 text-orange-700'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      {p}%
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* valor */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  {tipoDesc === 'pct' ? 'Desconto (%)' : 'Desconto (R$)'}
-                </label>
-                <div className="relative">
-                  <input
-                    value={descValor}
-                    onChange={e => setDescValor(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-2xl font-bold text-center bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    placeholder="0"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                    {tipoDesc === 'pct' ? '%' : 'R$'}
-                  </span>
-                </div>
-              </div>
-
-              {/* comparação de preços */}
-              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-5 py-4">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Preço atual</p>
-                  <p className="text-base text-gray-500 line-through">R$ {precoBase.toFixed(2)}</p>
-                </div>
-                <div className="text-gray-400">→</div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Com promoção</p>
-                  <p className="text-xl font-bold text-orange-600">
-                    R$ {(precoComDesconto > 0 ? precoComDesconto : 0).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              {/* datas */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Início</label>
-                  <input
-                    type="date"
-                    value={promoInicio}
-                    onChange={e => setPromoInicio(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Término <span className="text-gray-400 font-normal">(opcional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={promoFim}
-                    onChange={e => setPromoFim(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                </div>
-              </div>
-              {promoFim && (
-                <p className="text-xs text-gray-400">
-                  Desativa automaticamente após {promoFim}.
-                </p>
-              )}
-            </div>
-
-            {/* footer */}
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
-              <button
-                onClick={() => setModalModo(null)}
-                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={ativarPromocao}
-                disabled={salvando || precoComDesconto <= 0}
-                className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition flex items-center justify-center gap-2"
-              >
-                {salvando
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Ativando…</>
-                  : '🔥 Ativar promoção'
-                }
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalConfigurarPromocao
+          itemNome={itemModal.nome}
+          itemCodigo={itemModal.codigo}
+          tipoDesc={tipoDesc}
+          setTipoDesc={setTipoDesc}
+          descValor={descValor}
+          setDescValor={setDescValor}
+          promoInicio={promoInicio}
+          setPromoInicio={setPromoInicio}
+          promoFim={promoFim}
+          setPromoFim={setPromoFim}
+          erro={erro}
+          precoBase={precoBase}
+          precoComDesconto={precoComDesconto}
+          salvando={salvando}
+          onAtivar={ativarPromocao}
+          onFechar={() => setModalModo(null)}
+        />
       )}
 
       {/* ── PROMOÇÕES COM CONTADOR (special_offers) — feature independente ── */}
@@ -876,338 +756,39 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
 
       {/* ── MODAL DE PROMOÇÃO COM CONTADOR ── */}
       {modalOfertaAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-              <h2 className="font-semibold text-gray-900">
-                {ofertaEditando ? 'Editar promoção' : 'Nova promoção com contador'}
-              </h2>
-              <button
-                onClick={fecharModalOferta}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 text-lg transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="overflow-y-auto px-6 py-5 space-y-4 flex-1">
-              {erroOferta && (
-                <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-sm">
-                  {erroOferta}
-                </div>
-              )}
-
-              <ImageUpload
-                onUpload={setOfFotoUrl}
-                onRemove={() => setOfFotoUrl('')}
-                currentImage={ofFotoUrl || null}
-                label="Foto da promoção"
-                aspectRatio="16:9"
-                maxSize={2}
-              />
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Nome <span className="text-red-400">*</span>
-                </label>
-                <input
-                  value={ofNome}
-                  onChange={(e) => setOfNome(e.target.value)}
-                  placeholder="Ex: Combo casal, Happy hour"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
-                <textarea
-                  value={ofDescricao}
-                  onChange={(e) => setOfDescricao(e.target.value)}
-                  rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                />
-              </div>
-
-              {/* Compor com itens do cardápio — só aparece se o
-                  estabelecimento já tiver algum item cadastrado; senão o
-                  formulário segue exatamente como sempre foi (nome/preço/
-                  foto livres). */}
-              {itensCardapioTodos.length > 0 && (
-                <div className="rounded-xl border border-gray-200 p-3 space-y-3">
-                  <Toggle
-                    checked={ofComporItens}
-                    onChange={(v) => { setOfComporItens(v); if (!v) setOfItensCombo([]) }}
-                    label="Compor com itens do cardápio (ex: Combo)"
-                  />
-                  {ofComporItens && (
-                    <div className="space-y-2">
-                      {ofItensCombo.length > 0 && (
-                        <div className="space-y-1.5">
-                          {ofItensCombo.map((li) => (
-                            <div key={li.itemCardapioId} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
-                              <span className="flex-1 text-sm text-gray-700 truncate">{li.nome}</span>
-                              <input
-                                value={li.quantidade}
-                                onChange={(e) => atualizarQuantidadeNoCombo(li.itemCardapioId, e.target.value)}
-                                className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white text-gray-900"
-                              />
-                              <button
-                                onClick={() => removerItemDoCombo(li.itemCardapioId)}
-                                className="text-red-400 hover:text-red-600 text-xs px-1"
-                                title="Remover"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="relative">
-                        <input
-                          value={buscaItemCombo}
-                          onChange={(e) => setBuscaItemCombo(e.target.value)}
-                          placeholder="Buscar item do cardápio…"
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                        />
-                        {buscaItemCombo.trim() && (
-                          <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
-                            {itensCardapioTodos
-                              .filter(
-                                (i) =>
-                                  i.nome.toLowerCase().includes(buscaItemCombo.trim().toLowerCase()) &&
-                                  !ofItensCombo.some((li) => li.itemCardapioId === i.id)
-                              )
-                              .slice(0, 8)
-                              .map((i) => (
-                                <button
-                                  key={i.id}
-                                  onClick={() => adicionarItemNoCombo(i)}
-                                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 transition"
-                                >
-                                  {i.nome} <span className="text-gray-400 text-xs">R$ {i.preco.toFixed(2)}</span>
-                                </button>
-                              ))}
-                          </div>
-                        )}
-                      </div>
-                      {somaItensCombo > 0 && (
-                        <p className="text-xs text-gray-500">
-                          Soma dos itens: R$ {somaItensCombo.toFixed(2)}{' '}
-                          <button
-                            type="button"
-                            onClick={() => setOfPrecoDe(somaItensCombo.toFixed(2).replace('.', ','))}
-                            className="text-orange-600 hover:underline font-medium"
-                          >
-                            usar como Preço &quot;de&quot;
-                          </button>
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Preço &quot;de&quot; <span className="text-gray-400 font-normal">(opcional)</span>
-                  </label>
-                  <input
-                    value={ofPrecoDe}
-                    onChange={(e) => setOfPrecoDe(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Preço &quot;por&quot; <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    value={ofPrecoPor}
-                    onChange={(e) => setOfPrecoPor(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-5">
-                <Toggle checked={ofCardLargo} onChange={setOfCardLargo} label="Card largo (dobro da largura)" />
-                <Toggle checked={ofAtivo} onChange={setOfAtivo} label="Ativo" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Tem prazo definido?</label>
-                <div className="flex gap-2">
-                  {([
-                    { valor: true, label: 'Sim' },
-                    { valor: false, label: 'Não' },
-                  ] as const).map((op) => (
-                    <button
-                      key={String(op.valor)}
-                      type="button"
-                      onClick={() => setOfTemPrazo(op.valor)}
-                      className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition ${
-                        ofTemPrazo === op.valor
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {op.label}
-                    </button>
-                  ))}
-                </div>
-                {!ofTemPrazo && (
-                  <p className="mt-1.5 text-xs text-gray-400">
-                    Fica sempre disponível, sem contador — ideal pra Combos e itens fixos.
-                  </p>
-                )}
-              </div>
-
-              {ofTemPrazo && (
-              <div className="rounded-xl border border-gray-200 p-3 space-y-3">
-                <Toggle checked={ofRecorrente} onChange={setOfRecorrente} label="Recorrente (repete toda semana)" />
-
-                {ofRecorrente ? (
-                  <>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Dias da semana</label>
-                      <div className="flex gap-1.5">
-                        {DIAS_SEMANA_ABREV.map((label, dia) => (
-                          <button
-                            key={dia}
-                            type="button"
-                            onClick={() => toggleDiaSemanaOferta(dia)}
-                            className={`w-9 h-9 rounded-lg text-xs font-semibold border transition ${
-                              ofDiasSemana.includes(dia)
-                                ? 'border-orange-500 bg-orange-50 text-orange-700'
-                                : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Hora início</label>
-                        <input
-                          type="time"
-                          value={ofHoraInicio}
-                          onChange={(e) => setOfHoraInicio(e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Hora fim</label>
-                        <input
-                          type="time"
-                          value={ofHoraFim}
-                          onChange={(e) => setOfHoraFim(e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      Hora fim menor ou igual à hora início = janela cruza a meia-noite (ex: 22:00–02:00).
-                    </p>
-                  </>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Início <span className="text-gray-400 font-normal">(opcional — vazio = já começou)</span>
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={ofInicioEm}
-                        onChange={(e) => setOfInicioEm(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Fim <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={ofFimEm}
-                        onChange={(e) => setOfFimEm(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Exibir a partir de <span className="text-gray-400 font-normal">(opcional)</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={ofExibirInicio}
-                    onChange={(e) => setOfExibirInicio(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Exibir até <span className="text-gray-400 font-normal">(opcional)</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={ofExibirFim}
-                    onChange={(e) => setOfExibirFim(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 -mt-2">
-                Enquanto estiver dentro dessa janela mas fora do horário ativo, a promoção aparece apagada
-                com um aviso de quando fica disponível, em vez do contador.
-              </p>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Alerta de urgência (minutos)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={ofAlertaMinutos}
-                  onChange={(e) => setOfAlertaMinutos(e.target.value)}
-                  className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  A partir de quantos minutos antes de encerrar o contador vira âmbar/urgente.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
-              <button
-                onClick={fecharModalOferta}
-                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarOferta}
-                disabled={salvandoOferta}
-                className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition flex items-center justify-center gap-2"
-              >
-                {salvandoOferta
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Salvando…</>
-                  : ofertaEditando ? '✓ Salvar alterações' : '✓ Criar promoção'
-                }
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalOfertaContador
+          editando={!!ofertaEditando}
+          erroOferta={erroOferta}
+          ofNome={ofNome} setOfNome={setOfNome}
+          ofDescricao={ofDescricao} setOfDescricao={setOfDescricao}
+          ofFotoUrl={ofFotoUrl} setOfFotoUrl={setOfFotoUrl}
+          ofPrecoDe={ofPrecoDe} setOfPrecoDe={setOfPrecoDe}
+          ofPrecoPor={ofPrecoPor} setOfPrecoPor={setOfPrecoPor}
+          ofCardLargo={ofCardLargo} setOfCardLargo={setOfCardLargo}
+          ofAtivo={ofAtivo} setOfAtivo={setOfAtivo}
+          ofRecorrente={ofRecorrente} setOfRecorrente={setOfRecorrente}
+          ofDiasSemana={ofDiasSemana} toggleDiaSemanaOferta={toggleDiaSemanaOferta}
+          ofHoraInicio={ofHoraInicio} setOfHoraInicio={setOfHoraInicio}
+          ofHoraFim={ofHoraFim} setOfHoraFim={setOfHoraFim}
+          ofInicioEm={ofInicioEm} setOfInicioEm={setOfInicioEm}
+          ofFimEm={ofFimEm} setOfFimEm={setOfFimEm}
+          ofExibirInicio={ofExibirInicio} setOfExibirInicio={setOfExibirInicio}
+          ofExibirFim={ofExibirFim} setOfExibirFim={setOfExibirFim}
+          ofAlertaMinutos={ofAlertaMinutos} setOfAlertaMinutos={setOfAlertaMinutos}
+          ofTemPrazo={ofTemPrazo} setOfTemPrazo={setOfTemPrazo}
+          itensCardapioTodos={itensCardapioTodos}
+          ofComporItens={ofComporItens} setOfComporItens={setOfComporItens}
+          ofItensCombo={ofItensCombo}
+          buscaItemCombo={buscaItemCombo} setBuscaItemCombo={setBuscaItemCombo}
+          somaItensCombo={somaItensCombo}
+          adicionarItemNoCombo={adicionarItemNoCombo}
+          atualizarQuantidadeNoCombo={atualizarQuantidadeNoCombo}
+          removerItemDoCombo={removerItemDoCombo}
+          limparItensCombo={limparItensCombo}
+          salvandoOferta={salvandoOferta}
+          onSalvar={salvarOferta}
+          onFechar={fecharModalOferta}
+        />
       )}
 
       {/* ── GERAR POST PRA INSTAGRAM ── */}
@@ -1223,95 +804,6 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
         />
       )}
 
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────
-// SUBCOMPONENTES
-// ─────────────────────────────────────────────
-function Toggle({ checked, onChange, label }: {
-  checked: boolean; onChange: (v: boolean) => void; label: string
-}) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <div
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${
-          checked ? 'bg-orange-500' : 'bg-gray-200'
-        }`}
-      >
-        <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-          checked ? 'translate-x-4' : ''
-        }`} />
-      </div>
-      <span className="text-sm text-gray-700">{label}</span>
-    </label>
-  )
-}
-
-function SumCard({ num, label, cor }: { num: number; label: string; cor: 'yellow' | 'green' | 'gray' }) {
-  const cls = {
-    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-    green:  'bg-green-50 border-green-200 text-green-700',
-    gray:   'bg-gray-50 border-gray-200 text-gray-600',
-  }[cor]
-  return (
-    <div className={`border rounded-xl px-4 py-3 ${cls}`}>
-      <div className="text-2xl font-bold">{num}</div>
-      <div className="text-xs mt-0.5 leading-snug">{label}</div>
-    </div>
-  )
-}
-
-function PromoGrupo({ titulo, hint, cor, itens, readOnly, renderAcoes }: {
-  titulo: string; hint?: string; cor: string
-  itens: ItemCardapio[]; readOnly: boolean
-  renderAcoes: (item: ItemCardapio) => React.ReactNode
-}) {
-  const borderCor = cor === 'yellow' ? 'border-yellow-200' : cor === 'green' ? 'border-green-200' : 'border-gray-200'
-  const headBg    = cor === 'yellow' ? 'bg-yellow-50'      : cor === 'green' ? 'bg-green-50'      : 'bg-gray-50'
-
-  return (
-    <div className={`border ${borderCor} rounded-xl overflow-hidden`}>
-      <div className={`${headBg} px-4 py-3 border-b ${borderCor}`}>
-        <h3 className="font-semibold text-gray-800 text-sm">{titulo} <span className="text-gray-400 font-normal">({itens.length})</span></h3>
-        {hint && <p className="text-xs text-gray-500 mt-0.5">{hint}</p>}
-      </div>
-      <div className="divide-y divide-gray-100">
-        {itens.map(item => (
-          <div key={item.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition ${cor === 'gray' ? 'opacity-55' : ''}`}>
-            <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-100 flex items-center justify-center text-gray-400">
-              {item.foto_url ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" /> : '🍽️'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-2">
-                {item.codigo && <span className="font-mono text-xs text-gray-400">#{item.codigo}</span>}
-                <span className="text-sm font-medium text-gray-800 truncate">{item.nome}</span>
-              </div>
-              <div className="text-xs text-gray-400 mt-0.5">
-                {item.promo_desconto_pct
-                  ? `-${item.promo_desconto_pct}% · `
-                  : item.preco_promocional ? `R$ ${item.preco_promocional.toFixed(2)} · ` : ''}
-                {item.promo_fim ? `até ${new Date(item.promo_fim).toLocaleDateString('pt-BR')}` : 'sem data de término'}
-              </div>
-            </div>
-            <div className="text-right flex-shrink-0">
-              {item.preco_promocional ? (
-                <>
-                  <div className="text-xs text-gray-400 line-through">R$ {item.preco?.toFixed(2)}</div>
-                  <div className="text-sm font-bold text-orange-600">R$ {item.preco_promocional.toFixed(2)}</div>
-                </>
-              ) : (
-                <div className="text-sm font-bold text-gray-800">R$ {item.preco?.toFixed(2)}</div>
-              )}
-            </div>
-            {!readOnly && <div className="flex-shrink-0">{renderAcoes(item)}</div>}
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

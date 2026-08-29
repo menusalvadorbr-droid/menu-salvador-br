@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useAcompanharPedido } from '@/modules/pedidos/customer/useAcompanharPedido'
 import StatusPedidoTimeline from '@/modules/pedidos/customer/StatusPedidoTimeline'
 import PixPagamentoCard from '@/modules/pedidos/customer/PixPagamentoCard'
-import type { PedidoAcompanhamento } from '@/modules/pedidos/types'
+import { ehPixPendente, precoEfetivo, type PedidoAcompanhamento } from '@/modules/pedidos/types'
 import { BOTAO_PEDIDO_SECUNDARIO } from '@/modules/pedidos/customer/estilosBotao'
 
 function formatarHora(iso: string): string {
@@ -52,15 +52,16 @@ export default function AcompanharPedido({
     )
   }
 
-  const pixPendente = pedido.metodo_pagamento === 'Pix' && pedido.status !== 'pago' && pedido.status !== 'cancelado'
+  const pixPendente = ehPixPendente(pedido)
 
-  // Preço por item já vem final (variação e complementos embutidos, ver
-  // SeletorItemModal.tsx) — subtotal é só a soma direta. Acréscimo não
-  // tem coluna própria no sistema hoje (taxa de entrega é combinada fora
-  // do app) — calculado por diferença em vez de inventar um campo sem
-  // dado nenhum por trás, o que também absorve de graça qualquer ajuste
-  // manual futuro no total.
-  const subtotal = pedido.items.reduce((acc, item) => acc + item.preco * item.quantidade, 0)
+  // Preço por item já vem com variação/complementos embutidos (ver
+  // SeletorItemModal.tsx) — só falta aplicar promoção por linha
+  // (precoEfetivo, mesma regra de useSacola.ts) pra bater com o total
+  // real do pedido. Acréscimo não tem coluna própria no sistema hoje
+  // (taxa de entrega é combinada fora do app) — calculado por diferença
+  // em vez de inventar um campo sem dado nenhum por trás, o que também
+  // absorve de graça qualquer ajuste manual futuro no total.
+  const subtotal = pedido.items.reduce((acc, item) => acc + precoEfetivo(item) * item.quantidade, 0)
   const desconto = pedido.desconto || 0
   const acrescimo = Math.max(0, pedido.total - subtotal + desconto)
 

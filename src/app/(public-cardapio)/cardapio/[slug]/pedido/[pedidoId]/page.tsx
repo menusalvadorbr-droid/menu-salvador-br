@@ -16,7 +16,7 @@ export default async function AcompanharPedidoPage({
   const supabase = createPublicClient()
 
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('nome, nome_fantasia, chave_pix, cidades(nome)')
     .eq('slug', slug)
     .eq('status', 'active')

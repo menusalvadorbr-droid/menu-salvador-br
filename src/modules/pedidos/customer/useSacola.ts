@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { ItemPedido as ItemSacola } from '../types'
+import { precoEfetivo, type ItemPedido as ItemSacola } from '../types'
 
 // Duas adições do mesmo prato só viram a mesma linha (e só então
 // incrementam quantidade) se tiverem a mesma variação e os mesmos
@@ -48,12 +48,7 @@ export function useSacola(itensIniciais?: ItemSacola[]) {
 
   const limparSacola = useCallback(() => setItens([]), [])
 
-  const total = itens.reduce((acc, item) => {
-    const preco = item.preco_promocional && item.preco_promocional < item.preco
-      ? item.preco_promocional
-      : item.preco
-    return acc + preco * item.quantidade
-  }, 0)
+  const total = itens.reduce((acc, item) => acc + precoEfetivo(item) * item.quantidade, 0)
 
   const totalItens = itens.reduce((acc, item) => acc + item.quantidade, 0)
 

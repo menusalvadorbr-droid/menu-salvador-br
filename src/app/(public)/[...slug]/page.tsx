@@ -3,13 +3,22 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import EstablishmentCard, { type EstablishmentCardData } from '@/components/public/EstablishmentCard'
-import GaleriaEstabelecimento from '@/components/public/GaleriaEstabelecimento'
 import SectionHeading from '@/components/public/SectionHeading'
 import StatusPill from '@/components/public/StatusPill'
 import { isEstabelecimentoAberto } from '@/lib/statusAberto'
 import { horarioAtualSalvador } from '@/lib/horarioSalvador'
 import SecaoAvaliacoesGoogle from '@/components/public/SecaoAvaliacoesGoogle'
-import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
+import SecaoSobre from '@/components/public/SecaoSobre'
+import SecaoCardapioDestaque from '@/components/public/SecaoCardapioDestaque'
+import SecaoGaleria from '@/components/public/SecaoGaleria'
+import SecaoHorarios from '@/components/public/SecaoHorarios'
+import SecaoLocalizacao from '@/components/public/SecaoLocalizacao'
+import SecaoComodidades from '@/components/public/SecaoComodidades'
+import SecaoContato from '@/components/public/SecaoContato'
+import SecaoPromocoes from '@/components/public/SecaoPromocoes'
+import { TraducaoProvider, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
+import { resolverSecoesEstabelecimento } from '@/lib/secoesEstabelecimento'
+import { montarEnderecoCompleto, resolverLinksMapa, temComodidade } from '@/lib/enderecoEstabelecimento'
 import type { Metadata } from 'next'
 
 // ISR — troca de createClient() (cookie, sempre dinâmico) pro
@@ -136,7 +145,7 @@ export default async function Page({
 async function CidadePage({ cidade }: { cidade: CidadeRow }) {
   const supabase = createPublicClient()
   const { data: tipos } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('tipo_estabelecimento_id, tipos_estabelecimento(nome, slug, icone)')
     .eq('cidade_id', cidade.id)
     .eq('status', 'active')
@@ -185,7 +194,7 @@ async function TipoNaCidadePage({ cidadeSlug, tipo }: { cidadeSlug: string; tipo
   if (!cidade) notFound()
 
   const { data: estabelecimentos } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*, bairros(nome, slug)')
     .eq('cidade_id', cidade.id)
     .eq('tipo_estabelecimento_id', tipo.id)
@@ -246,7 +255,7 @@ async function BairroPage({ cidadeSlug, bairroSlug }: { cidadeSlug?: string; bai
   const nomeCidade = cidadeDoBairro?.nome
 
   const { data: estabelecimentos } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*, tipos_estabelecimento(nome, slug, icone)')
     .eq('bairro_id', bairroRow.id)
     .eq('status', 'active')
@@ -354,7 +363,7 @@ async function TipoNoBairroPage({ cidadeSlug, bairroSlug, tipoSlug }: { cidadeSl
   const nomeBairro = bairroRow.nome
 
   const { data: estabelecimentos } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*')
     .eq('cidade_id', cidade.id)
     .eq('bairro_id', bairroRow.id)
@@ -436,7 +445,7 @@ async function EstabelecimentoPage({
   // desatualizado na URL, então a segunda tentativa nunca resolvia nada
   // que a busca só por slug já não resolvesse.)
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*, estabelecimento_tipos_cozinha(tipos_cozinha(nome)), cidades(nome, slug), bairros(nome, slug), tipos_estabelecimento(nome, slug, icone)')
     .eq('slug', slug)
     .eq('status', 'active')
@@ -471,26 +480,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
     .eq('key', 'secoes_estabelecimento')
     .maybeSingle()
 
-  const SECOES_PADRAO = [
-    { chave: 'capa', ativa: true, ordem: 0 },
-    { chave: 'sobre', ativa: true, ordem: 1 },
-    { chave: 'cardapio_destaque', ativa: true, ordem: 2 },
-    { chave: 'galeria', ativa: true, ordem: 3 },
-    { chave: 'horarios', ativa: true, ordem: 4 },
-    { chave: 'localizacao', ativa: true, ordem: 5 },
-    { chave: 'comodidades', ativa: true, ordem: 6 },
-    { chave: 'avaliacoes_google', ativa: false, ordem: 7 },
-    { chave: 'contato', ativa: true, ordem: 8 },
-    { chave: 'promocoes', ativa: true, ordem: 9 },
-  ]
-
-  const secoesConfig: { chave: string; ativa: boolean; ordem: number }[] =
-    (paletaESecoes?.value as any) || SECOES_PADRAO
-
-  const secaoAtiva = (chave: string) =>
-    secoesConfig.find((s) => s.chave === chave)?.ativa ?? false
-
-  const ordemSecoes = [...secoesConfig].sort((a, b) => a.ordem - b.ordem).map((s) => s.chave)
+  const { secaoAtiva, ordemSecoes } = resolverSecoesEstabelecimento(paletaESecoes?.value)
 
   // Promoções ativas desse estabelecimento (só busca se a seção estiver ligada)
   let promocoes: any[] = []
@@ -538,48 +528,13 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
   const nomeCidadeReal = est.cidades?.nome || 'Salvador'
   const nomeBairroReal = est.bairros?.nome || null
 
-  const enderecoCompleto = est.endereco
-    ? `${[est.tipo_logradouro, est.endereco].filter(Boolean).join(' ')}${est.numero ? ', ' + est.numero : ''}${nomeBairroReal ? `, ${nomeBairroReal}` : ''}, ${nomeCidadeReal}, BA`
-    : `${nomeBairroReal ? `${nomeBairroReal}, ` : ''}${nomeCidadeReal}, BA`
-
-  // O admin pode preencher um link de Google Maps manualmente — ele tem
-  // prevalência sobre o endereço geocodificado. Só funciona de verdade
-  // como mapa incorporado se for um link "Compartilhar → Incorporar um
-  // mapa" (contém "/maps/embed"); um link comum de "Compartilhar local"
-  // não é aceito pelo Google dentro de iframe, então nesses casos cai de
-  // volta pro endereço geocodificado, que sempre funciona incorporado.
-  const linkCustomizado = est.link_google_maps?.trim() || null
-  const linkCustomizadoEhEmbed = !!linkCustomizado && linkCustomizado.includes('/maps/embed')
-
-  const mapUrl = linkCustomizadoEhEmbed
-    ? linkCustomizado
-    : est.latitude && est.longitude
-    ? `https://maps.google.com/maps?q=${est.latitude},${est.longitude}&z=16&output=embed`
-    : `https://maps.google.com/maps?q=${encodeURIComponent(enderecoCompleto)}&output=embed`
-
-  // Link "abrir no Google Maps" (fora do iframe) — quando o admin preenche
-  // um link comum de "Compartilhar local" (não incorporável), ele não serve
-  // pro iframe, mas ainda tem prevalência aqui: sem isso, esse tipo de link
-  // ficava sem nenhum efeito na página pública, mesmo preenchido.
-  const linkAbrirMapa =
-    linkCustomizado ||
-    (est.latitude && est.longitude
-      ? `https://maps.google.com/maps?q=${est.latitude},${est.longitude}&z=16`
-      : `https://maps.google.com/maps?q=${encodeURIComponent(enderecoCompleto)}`)
+  const enderecoCompleto = montarEnderecoCompleto(est, nomeBairroReal, nomeCidadeReal)
+  const { mapUrl, linkAbrirMapa } = resolverLinksMapa(est, enderecoCompleto)
 
   const nomeExibicao = est.nome_fantasia || est.nome
   const cidade = nomeCidadeReal
   const bairro = nomeBairroReal
-
-  const ETIQUETA_ESTACIONAMENTO: Record<string, { emoji: string; chave: string; texto: string }> = {
-    proprio: { emoji: '🅿️', chave: 'estacionamento_proprio', texto: 'Estacionamento próprio' },
-    valet: { emoji: '🚗', chave: 'estacionamento_manobrista', texto: 'Manobrista' },
-    rua: { emoji: '🅿️', chave: 'estacionamento_rua', texto: 'Estacionamento na rua' },
-    nao_tem: { emoji: '🚫', chave: 'estacionamento_sem', texto: 'Sem estacionamento' },
-  }
-
-  const temComodidade =
-    est.aceita_pets || est.estacionamento || (est.acessibilidade && est.acessibilidade.length > 0)
+  const estabelecimentoTemComodidade = temComodidade(est)
 
   // Tradução manual do cardápio (EN/FR/ES) — mesmo mecanismo do
   // cardapio/[slug]/page.tsx; aqui só a seção de Promoções mostra nome de
@@ -681,213 +636,47 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
               switch (chave) {
                 case 'sobre':
                   return (
-                    <div key={chave}>
-                      <h2 className="mb-4 text-lg font-semibold text-neutral-800">
-                        📝 <TextoInterface chave="secao_sobre">Sobre</TextoInterface>
-                      </h2>
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-semibold text-neutral-700">
-                          <TextoInterface chave="endereco_label">Endereço</TextoInterface>
-                        </h3>
-                        <p className="text-sm text-neutral-700">
-                          {[[est.tipo_logradouro, est.endereco].filter(Boolean).join(' '), est.numero]
-                            .filter(Boolean)
-                            .join(', ') || <TextoInterface chave="endereco_nao_informado">Endereço não informado</TextoInterface>}
-                        </p>
-                        <p className="text-xs text-neutral-500">{bairro ? `${bairro} - ` : ''}{cidade}, BA</p>
-                      </div>
-                    </div>
+                    <SecaoSobre
+                      key={chave}
+                      tipoLogradouro={est.tipo_logradouro}
+                      endereco={est.endereco}
+                      numero={est.numero}
+                      bairro={bairro}
+                      cidade={cidade}
+                    />
                   )
 
                 case 'cardapio_destaque':
-                  return (
-                    <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
-                        📋 <TextoInterface chave="secao_cardapio">Cardápio</TextoInterface>
-                      </h2>
-                      <Link
-                        href={`/cardapio/${est.slug}`}
-                        className="inline-block rounded-full px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-                        style={{ backgroundColor: 'var(--brand-primary)' }}
-                      >
-                        <TextoInterface chave="ver_cardapio_completo">Ver cardápio completo</TextoInterface> →
-                      </Link>
-                    </div>
-                  )
+                  return <SecaoCardapioDestaque key={chave} slug={est.slug} />
 
                 case 'galeria':
-                  return (
-                    <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
-                        📸 <TextoInterface chave="secao_fotos">Fotos</TextoInterface>
-                      </h2>
-                      <GaleriaEstabelecimento fotos={galeriaFotos} nome={nomeExibicao} />
-                    </div>
-                  )
+                  return <SecaoGaleria key={chave} fotos={galeriaFotos} nome={nomeExibicao} />
 
                 case 'horarios':
-                  return (
-                    <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
-                        🕒 <TextoInterface chave="secao_horarios">Horários</TextoInterface>
-                      </h2>
-                      {horarios && horarios.length > 0 ? (
-                        <div className="space-y-3">
-                          {[
-                            { dia: 'Domingo', chave: 'dia_domingo' },
-                            { dia: 'Segunda', chave: 'dia_segunda' },
-                            { dia: 'Terça', chave: 'dia_terca' },
-                            { dia: 'Quarta', chave: 'dia_quarta' },
-                            { dia: 'Quinta', chave: 'dia_quinta' },
-                            { dia: 'Sexta', chave: 'dia_sexta' },
-                            { dia: 'Sábado', chave: 'dia_sabado' },
-                          ].map(({ dia, chave: chaveDia }, idx) => {
-                            const periodos = horarios.filter((h: any) => h.dia_semana === idx)
-                            const hoje = diaSemanaHojeSalvador === idx
-                            const todosFechados = periodos.every((h: any) => h.fechado)
-                            return (
-                              <div
-                                key={idx}
-                                className={`rounded-xl p-3 text-sm border ${
-                                  hoje ? 'border-[var(--brand-primary)]/30' : 'border-neutral-100 bg-neutral-50'
-                                }`}
-                                style={hoje ? { backgroundColor: 'color-mix(in srgb, var(--brand-primary) 8%, white)' } : undefined}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <span className="font-medium">
-                                    {hoje && '👉 '}
-                                    <TextoInterface chave={chaveDia}>{dia}</TextoInterface>
-                                  </span>
-                                  <div className="text-right">
-                                    {todosFechados ? (
-                                      <span className="text-red-500"><TextoInterface chave="fechado">Fechado</TextoInterface></span>
-                                    ) : (
-                                      periodos.map((h: any, i: number) => (
-                                        <div key={i} className="text-neutral-700">
-                                          {h.horario_abertura?.substring(0, 5) || '--'} – {h.horario_fechamento?.substring(0, 5) || '--'}
-                                        </div>
-                                      ))
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="py-6 text-center text-sm text-neutral-500">
-                          <TextoInterface chave="horarios_nao_cadastrados">Horários não cadastrados.</TextoInterface>
-                        </p>
-                      )}
-                    </div>
-                  )
+                  return <SecaoHorarios key={chave} horarios={horarios || []} diaSemanaHoje={diaSemanaHojeSalvador} />
 
                 case 'localizacao':
-                  return (
-                    <div key={chave}>
-                      <div className="mb-2 flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-neutral-800">
-                          📍 <TextoInterface chave="secao_localizacao">Localização</TextoInterface>
-                        </h2>
-                        <a
-                          href={linkAbrirMapa}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-orange-600 hover:underline"
-                        >
-                          <TextoInterface chave="abrir_google_maps">Abrir no Google Maps</TextoInterface>
-                        </a>
-                      </div>
-                      <div className="h-56 w-full overflow-hidden rounded-xl border border-neutral-200">
-                        <iframe
-                          src={mapUrl}
-                          width="100%"
-                          height="100%"
-                          style={{ border: 'none' }}
-                          loading="lazy"
-                          allowFullScreen
-                        />
-                      </div>
-                    </div>
-                  )
+                  return <SecaoLocalizacao key={chave} mapUrl={mapUrl} linkAbrirMapa={linkAbrirMapa} />
 
                 case 'comodidades':
-                  if (!temComodidade) return null
+                  if (!estabelecimentoTemComodidade) return null
                   return (
-                    <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
-                        ✨ <TextoInterface chave="secao_comodidades">Comodidades</TextoInterface>
-                      </h2>
-                      <div className="flex flex-wrap gap-2">
-                        {est.aceita_pets && (
-                          <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700">
-                            🐾 <TextoInterface chave="aceita_pets">Aceita pets</TextoInterface>
-                          </span>
-                        )}
-                        {est.estacionamento && est.estacionamento !== 'nao_tem' && (
-                          <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700">
-                            {ETIQUETA_ESTACIONAMENTO[est.estacionamento].emoji}{' '}
-                            <TextoInterface chave={ETIQUETA_ESTACIONAMENTO[est.estacionamento].chave}>
-                              {ETIQUETA_ESTACIONAMENTO[est.estacionamento].texto}
-                            </TextoInterface>
-                          </span>
-                        )}
-                        {(est.acessibilidade || []).map((item: string, i: number) => (
-                          <span key={i} className="rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700">
-                            ♿ {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    <SecaoComodidades
+                      key={chave}
+                      aceitaPets={est.aceita_pets}
+                      estacionamento={est.estacionamento}
+                      acessibilidade={est.acessibilidade}
+                    />
                   )
 
                 case 'contato':
                   return (
-                    <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
-                        📞 <TextoInterface chave="secao_contato">Contato</TextoInterface>
-                      </h2>
-                      <div className="space-y-1 text-sm text-neutral-700">
-                        {est.telefone && <p>📞 {est.telefone}</p>}
-                        {est.whatsapp && <p>💬 {est.whatsapp}</p>}
-                        {est.instagram && <p>📷 {est.instagram}</p>}
-                        {!est.telefone && !est.whatsapp && !est.instagram && (
-                          <p className="text-neutral-400">
-                            <TextoInterface chave="contato_nao_informado">Contato não informado</TextoInterface>
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <SecaoContato key={chave} telefone={est.telefone} whatsapp={est.whatsapp} instagram={est.instagram} />
                   )
 
                 case 'promocoes':
                   if (promocoes.length === 0) return null
-                  return (
-                    <div key={chave}>
-                      <h2 className="mb-2 text-lg font-semibold text-neutral-800">
-                        🎉 <TextoInterface chave="secao_promocoes">Promoções</TextoInterface>
-                      </h2>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {promocoes.map((item) => (
-                          <div key={item.id} className="flex items-center gap-3 rounded-xl border border-neutral-100 p-3">
-                            {item.foto_url && (
-                              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg">
-                                <Image src={item.foto_url} alt={item.nome} fill sizes="56px" className="object-cover" />
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-neutral-900">
-                                <Texto tipo="item" id={item.id} campo="nome">{item.nome}</Texto>
-                              </p>
-                              <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>
-                                R$ {(item.preco_promocional ?? item.preco)?.toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
+                  return <SecaoPromocoes key={chave} promocoes={promocoes} />
 
                 case 'avaliacoes_google':
                   return <SecaoAvaliacoesGoogle key={chave} estabelecimentoId={est.id} />

@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useFilaValidacao } from '../hooks/useFilaValidacao'
+import { useFiltroFila } from '../hooks/useFiltroFila'
 import { aceitarValidacao, recusarValidacao, contarPedidosAnteriores } from '../operadorRepository'
 import { telefoneParaWhatsApp } from '@/lib/telefone'
 import LancarPedidoGarcom from '../../pedidos/garcom/LancarPedidoGarcom'
 import PainelSecao from './PainelSecao'
 import CampoBuscaFila from './CampoBuscaFila'
 import type { ValidacaoPedido } from '../types'
-
-const LIMITE_PARA_BUSCA = 10
 
 function CardValidacao({
   estabelecimentoId,
@@ -186,16 +185,15 @@ export default function SecaoValidarEntrega({
   mostrarTitulo?: boolean
 }) {
   const { validacoes, carregando, recarregar } = useFilaValidacao(estabelecimentoId)
-  const [filtro, setFiltro] = useState('')
-
-  const filtroNorm = filtro.trim().toLowerCase()
-  const validacoesFiltradas = filtroNorm
-    ? validacoes.filter(
-        (v) =>
-          v.pedido.codigo_pedido.toLowerCase().includes(filtroNorm) ||
-          (v.pedido.nome_cliente || '').toLowerCase().includes(filtroNorm)
-      )
-    : validacoes
+  const {
+    filtro,
+    setFiltro,
+    itensFiltrados: validacoesFiltradas,
+    filtroAtivo,
+    mostrarBusca,
+  } = useFiltroFila(validacoes, (v, termo) =>
+    v.pedido.codigo_pedido.toLowerCase().includes(termo) || (v.pedido.nome_cliente || '').toLowerCase().includes(termo)
+  )
 
   return (
     <PainelSecao
@@ -204,10 +202,8 @@ export default function SecaoValidarEntrega({
       contagem={validacoesFiltradas.length}
       mostrarTitulo={mostrarTitulo}
       carregando={carregando}
-      vazio={filtroNorm ? 'Nenhum pedido encontrado com esse código ou nome.' : 'Nenhum pedido esperando validação.'}
-      acao={
-        validacoes.length > LIMITE_PARA_BUSCA ? <CampoBuscaFila valor={filtro} onChange={setFiltro} /> : undefined
-      }
+      vazio={filtroAtivo ? 'Nenhum pedido encontrado com esse código ou nome.' : 'Nenhum pedido esperando validação.'}
+      acao={mostrarBusca ? <CampoBuscaFila valor={filtro} onChange={setFiltro} /> : undefined}
     >
       {validacoesFiltradas.map((v) => (
         <CardValidacao key={v.id} estabelecimentoId={estabelecimentoId} validacao={v} onPedidoEditado={recarregar} />

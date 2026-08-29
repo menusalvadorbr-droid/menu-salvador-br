@@ -39,7 +39,7 @@ export async function resolverAtalho(estabelecimentoId: string, mensagem: string
 
   const supabase = createPublicClient()
   const { data } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('id, endereco, numero, tipo_logradouro, estacionamento, whatsapp_atalhos, bairros(nome), cidades(nome)')
     .eq('id', estabelecimentoId)
     .maybeSingle()

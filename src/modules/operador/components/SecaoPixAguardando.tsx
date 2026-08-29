@@ -2,14 +2,13 @@
 
 import { useState } from 'react'
 import { useFilaPix } from '../hooks/useFilaPix'
+import { useFiltroFila } from '../hooks/useFiltroFila'
 import { confirmarPagamentoPix } from '../operadorRepository'
 import { telefoneParaWhatsApp } from '@/lib/telefone'
 import LancarPedidoGarcom from '../../pedidos/garcom/LancarPedidoGarcom'
 import PainelSecao from './PainelSecao'
 import CampoBuscaFila from './CampoBuscaFila'
 import type { Pedido } from '../../pedidos/types'
-
-const LIMITE_PARA_BUSCA = 10
 
 export default function SecaoPixAguardando({
   estabelecimentoId,
@@ -22,16 +21,15 @@ export default function SecaoPixAguardando({
   const [valoresConferencia, setValoresConferencia] = useState<Record<string, string>>({})
   const [confirmando, setConfirmando] = useState<string | null>(null)
   const [pedidoEditando, setPedidoEditando] = useState<Pedido | null>(null)
-  const [filtro, setFiltro] = useState('')
-
-  const filtroNorm = filtro.trim().toLowerCase()
-  const pedidosFiltrados = filtroNorm
-    ? pedidos.filter(
-        (p) =>
-          p.codigo_pedido.toLowerCase().includes(filtroNorm) ||
-          (p.nome_cliente || '').toLowerCase().includes(filtroNorm)
-      )
-    : pedidos
+  const {
+    filtro,
+    setFiltro,
+    itensFiltrados: pedidosFiltrados,
+    filtroAtivo,
+    mostrarBusca,
+  } = useFiltroFila(pedidos, (p, termo) =>
+    p.codigo_pedido.toLowerCase().includes(termo) || (p.nome_cliente || '').toLowerCase().includes(termo)
+  )
 
   async function confirmar(pedidoId: string) {
     setConfirmando(pedidoId)
@@ -51,10 +49,8 @@ export default function SecaoPixAguardando({
         contagem={pedidosFiltrados.length}
         mostrarTitulo={mostrarTitulo}
         carregando={carregando}
-        vazio={filtroNorm ? 'Nenhum pedido encontrado com esse código ou nome.' : 'Nenhum Pix aguardando confirmação.'}
-        acao={
-          pedidos.length > LIMITE_PARA_BUSCA ? <CampoBuscaFila valor={filtro} onChange={setFiltro} /> : undefined
-        }
+        vazio={filtroAtivo ? 'Nenhum pedido encontrado com esse código ou nome.' : 'Nenhum Pix aguardando confirmação.'}
+        acao={mostrarBusca ? <CampoBuscaFila valor={filtro} onChange={setFiltro} /> : undefined}
       >
         {pedidosFiltrados.map((p) => (
           <div key={p.id} className="rounded-xl border border-sky-200 bg-white p-3">

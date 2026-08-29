@@ -9,7 +9,7 @@ export default async function TesteAiPage({ params }: { params: Promise<{ slug: 
   const supabase = createPublicClient()
 
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('nome, nome_fantasia')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()

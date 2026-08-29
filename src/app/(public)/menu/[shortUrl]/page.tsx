@@ -16,7 +16,7 @@ export default async function MenuDigitalPage({ params }: MenuDigitalPageProps) 
   const { shortUrl } = await params
 
   const { data: estabelecimento, error } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('slug')
     .eq('qrcode_short_url', shortUrl)
     .eq('status', 'active')

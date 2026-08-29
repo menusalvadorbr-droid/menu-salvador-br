@@ -86,11 +86,16 @@ export default function NovoEstabelecimentoForm({
 
     setConsultando(true)
     try {
-      const { data: existente } = await supabase
-        .from('estabelecimentos')
-        .select('id, nome_fantasia, nome, slug, owner_user_id')
-        .eq('cnpj', limparCnpj(cnpj))
-        .maybeSingle()
+      // Busca por cnpj precisa achar estabelecimento de QUALQUER usuário
+      // (pra detectar duplicata/já reivindicado, não só o próprio) — RPC
+      // dedicada em vez da tabela/view, porque nem a view (só devolve
+      // cnpj quando já se sabe o estabelecimento) nem a tabela base (RLS
+      // restrita a dono/funcionário/admin) cobrem "buscar POR cnpj"
+      // sem reexpor a coluna sensível a qualquer usuário logado.
+      const { data: encontrados } = await supabase.rpc('buscar_estabelecimento_por_cnpj', {
+        p_cnpj: limparCnpj(cnpj),
+      })
+      const existente = encontrados?.[0] || null
 
       if (existente) {
         setEstabelecimentoExistente({
@@ -222,13 +227,11 @@ export default function NovoEstabelecimentoForm({
     setLoading(true)
 
     try {
-      const { data: existenteCnpj } = await supabase
-        .from('estabelecimentos')
-        .select('id')
-        .eq('cnpj', limparCnpj(cnpj))
-        .maybeSingle()
+      const { data: existentesCnpj } = await supabase.rpc('buscar_estabelecimento_por_cnpj', {
+        p_cnpj: limparCnpj(cnpj),
+      })
 
-      if (existenteCnpj) {
+      if (existentesCnpj && existentesCnpj.length > 0) {
         throw new Error('Já existe um estabelecimento cadastrado com esse CNPJ.')
       }
 
@@ -240,7 +243,7 @@ export default function NovoEstabelecimentoForm({
 
       while (tentativa < 20) {
         const { data: existente } = await supabase
-          .from('estabelecimentos')
+          .from('estabelecimentos_publico')
           .select('id')
           .eq('slug', slugFinal)
           .eq('cidade_id', cidadeId)

@@ -2,6 +2,7 @@
 
 import { Banknote, CreditCard, Smartphone } from 'lucide-react'
 import { METODOS_PAGAMENTO } from '../metodosPagamento'
+import { TEMA_DUAS_PELES } from '../temaDuasPeles'
 
 export { METODOS_PAGAMENTO }
 
@@ -14,18 +15,16 @@ const ICONE_METODO: Record<(typeof METODOS_PAGAMENTO)[number], typeof Banknote> 
 
 const ESTILOS = {
   claro: {
+    ...TEMA_DUAS_PELES.claro,
     tile: 'border-neutral-200 text-neutral-600 hover:border-neutral-300',
     tileAtivo: 'border-orange-500 bg-orange-50 text-orange-700',
-    label: 'text-neutral-600',
-    input: 'border-neutral-200 bg-white text-neutral-900',
     trocoOk: 'text-green-600',
     trocoFalta: 'text-red-600',
   },
   escuro: {
+    ...TEMA_DUAS_PELES.escuro,
     tile: 'border-neutral-700 text-neutral-400 hover:border-neutral-600',
     tileAtivo: 'border-emerald-500 bg-emerald-500/10 text-emerald-400',
-    label: 'text-neutral-400',
-    input: 'border-neutral-700 bg-neutral-800 text-neutral-100 placeholder-neutral-500',
     trocoOk: 'text-emerald-400',
     trocoFalta: 'text-red-400',
   },

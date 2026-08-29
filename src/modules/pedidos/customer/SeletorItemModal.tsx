@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GrupoResolvido, VariacaoResolvida } from './tiposSelecao'
-import type { ComplementoSelecionado, VariacaoSelecionada } from '../types'
+import { precoEfetivo, type ComplementoSelecionado, type VariacaoSelecionada } from '../types'
 import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 interface SeletorItemModalProps {
@@ -108,8 +108,7 @@ export default function SeletorItemModal({
   // Preço promocional só faz sentido pro preço-base — uma vez escolhida
   // uma variação, o preço dela já é o específico daquele tamanho, sem
   // conceito de "variação promocional" no modelo de dados hoje.
-  const precoBaseComPromo =
-    precoPromocionalBase && precoPromocionalBase < precoBase ? precoPromocionalBase : precoBase
+  const precoBaseComPromo = precoEfetivo({ preco: precoBase, preco_promocional: precoPromocionalBase })
   const precoUnidade = (variacaoSelecionada ? variacaoSelecionada.preco : precoBaseComPromo) + precoComplementos
 
   function alternarOpcao(grupo: GrupoResolvido, opcaoId: string) {

@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 export default async function CtaDonosSecao() {
   const supabase = await createClient()
   const { count } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'active')
     .eq('ativo', true)

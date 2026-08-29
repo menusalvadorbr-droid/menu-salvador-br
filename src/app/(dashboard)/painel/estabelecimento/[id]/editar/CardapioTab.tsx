@@ -1,87 +1,27 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronRight, Plus, Download, Upload, Globe } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
-import ImageUpload from '@/app/(dashboard)/painel/components/ImageUpload'
+import { calcularPrecoPromocional } from '@/lib/promocaoItem'
+import { ALERGENOS_FALLBACK } from '@/lib/alergenos'
 import { baixarPlanilhaCardapio } from './planilha/planilhaCardapio'
 import SubirPlanilhaModal from './planilha/SubirPlanilhaModal'
 import { baixarPlanilhaTraducao, type TraducaoExistente } from './planilha/planilhaTraducao'
 import SubirPlanilhaTraducaoModal from './planilha/SubirPlanilhaTraducaoModal'
-import ItemRow from './ItemRow'
 import ModalItem from './ModalItem'
-import BlocoTraducoes from './BlocoTraducoes'
+import { useGruposComplementos } from './useGruposComplementos'
+import CardapioToolbar from './CardapioToolbar'
+import CategoriaBloco from './CategoriaBloco'
 import {
   IDIOMAS_SUPORTADOS, type Idioma, type TraducoesCampos, type TraducoesNome,
-  type Categoria, type VariacaoItem, type GrupoComplemento, type ItemCardapio, type Alergeno,
+  type Categoria, type VariacaoItem, type ItemCardapio, type Alergeno,
 } from './cardapioTipos'
 
 interface CardapioTabProps {
   estabelecimentoId: string
   readOnly?: boolean
 }
-
-// Shape cru devolvido pela query de grupos_complementos (com o embed de
-// opcoes_complemento + itens_cardapio) — mesma query e mesmo mapeamento
-// pra GrupoComplemento[] rodam em dois pontos deste arquivo (carregar()
-// e salvarGrupo()), extraído aqui pra não duplicar a lógica nem retipar
-// cada callback como `any` nos dois lugares.
-interface OpcaoComplementoRow {
-  id: string
-  item_id: string
-  preco_adicional: number | null
-  exibir_preco: boolean | null
-  ordem: number
-  itens_cardapio: { nome: string } | null
-}
-
-interface GrupoComplementoRow {
-  id: string
-  nome: string
-  selecao_minima: number | null
-  selecao_maxima: number | null
-  ordem: number
-  opcoes_complemento: OpcaoComplementoRow[] | null
-}
-
-function mapearGruposComplemento(gruposData: GrupoComplementoRow[] | null): GrupoComplemento[] {
-  return (gruposData || []).map((g) => ({
-    id: g.id,
-    nome: g.nome,
-    selecaoMinima: String(g.selecao_minima ?? 0),
-    selecaoMaxima: String(g.selecao_maxima ?? 1),
-    opcoes: (g.opcoes_complemento || [])
-      .sort((a, b) => a.ordem - b.ordem)
-      .map((o) => ({
-        id: o.id,
-        itemId: o.item_id,
-        itemNome: o.itens_cardapio?.nome || '',
-        precoAdicional: String(o.preco_adicional ?? 0).replace('.', ','),
-        exibirPreco: o.exibir_preco ?? true,
-      })),
-  }))
-}
-
-// ─────────────────────────────────────────────
-// ALERGENOS FALLBACK (ANVISA RDC 26/2015)
-// ─────────────────────────────────────────────
-const ALERGENOS_FALLBACK: Alergeno[] = [
-  { id: 'gluten',     nome: 'Glúten',      icone: '🌾' },
-  { id: 'crustaceos', nome: 'Crustáceos',  icone: '🦐' },
-  { id: 'ovo',        nome: 'Ovo',         icone: '🥚' },
-  { id: 'peixe',      nome: 'Peixe',       icone: '🐟' },
-  { id: 'amendoim',   nome: 'Amendoim',    icone: '🥜' },
-  { id: 'nozes',      nome: 'Nozes',       icone: '🌰' },
-  { id: 'soja',       nome: 'Soja',        icone: '🫘' },
-  { id: 'leite',      nome: 'Leite',       icone: '🥛' },
-  { id: 'aipo',       nome: 'Aipo',        icone: '🥬' },
-  { id: 'mostarda',   nome: 'Mostarda',    icone: '🟡' },
-  { id: 'sesamo',     nome: 'Sésamo',      icone: '⚪' },
-  { id: 'sulfitos',   nome: 'Sulfitos',    icone: '🍷' },
-  { id: 'tremoco',    nome: 'Tremoço',     icone: '🫛' },
-  { id: 'moluscos',   nome: 'Moluscos',    icone: '🐚' },
-]
 
 // ─────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
@@ -119,33 +59,27 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   // em cards no cardápio público (Configurações → Tema → Navegação de
   // categoria). Opcional, painel inline igual o de traduções.
   const [catEditandoFoto, setCatEditandoFoto] = useState<string | null>(null)
-  const [gruposEstabelecimento, setGruposEstabelecimento] = useState<GrupoComplemento[]>([])
   const [gruposVinculadosIds, setGruposVinculadosIds] = useState<string[]>([])
-  const [grupoEditandoIndex, setGrupoEditandoIndex] = useState<number | null>(null)
-  const [salvandoGrupo, setSalvandoGrupo] = useState(false)
   // Editor progressivo — as seções de tamanhos/grupos só aparecem abertas
   // de cara quando o item editado já tem algo configurado; senão ficam
   // atrás de um link, pra não poluir o formulário de item por padrão.
   const [mostrarVariacoes, setMostrarVariacoes] = useState(false)
   const [mostrarGrupos, setMostrarGrupos] = useState(false)
-  // Grupo(s) extra vinculado(s) por opção (opcao_grupo_complemento) — ex:
-  // escolher "Carne X" dentro de "Proteína base" libera o grupo "Ponto da
-  // carne". Carregado sob demanda quando o dono expande essa opção.
-  const [gruposExtrasPorOpcao, setGruposExtrasPorOpcao] = useState<Record<string, string[]>>({})
-  const [opcoesExtraExpandidas, setOpcoesExtraExpandidas] = useState<string[]>([])
 
-  // UI – nova categoria (campo fica escondido atrás de um botão, só
-  // aparece quando o dono clica "Adicionar categoria" — layout pensado
-  // pra celular, onde um formulário sempre visível ocupa espaço demais)
-  const [novaCategoria, setNovaCategoria]       = useState('')
-  const [criandoCategoria, setCriandoCategoria] = useState(false)
-  const [erroCategoria, setErroCategoria]       = useState<string | null>(null)
-  const [mostrarFormCategoria, setMostrarFormCategoria] = useState(false)
+  // Grupos de complementos reutilizáveis (fase 2) — extraído pro hook
+  // useGruposComplementos.ts; gruposVinculadosIds acima continua aqui
+  // porque é estado do ITEM em edição, não do grupo em si (ver comentário
+  // no próprio hook sobre os 2 pontos de acoplamento).
+  const grupos = useGruposComplementos({
+    estabelecimentoId,
+    setErro,
+    aoVincularGrupoNovo: (grupoId) => setGruposVinculadosIds((prev) => [...prev, grupoId]),
+    aoDesvincularGrupo: (grupoId) => setGruposVinculadosIds((prev) => prev.filter((id) => id !== grupoId)),
+  })
 
-  // UI – novo item: primeiro escolhe a categoria (campo compacto atrás de
-  // um botão), só depois abre o modal completo com os dados do item.
-  const [mostrarSeletorItemCategoria, setMostrarSeletorItemCategoria] = useState(false)
-  const [categoriaParaNovoItem, setCategoriaParaNovoItem] = useState('')
+  // Estado do mini-formulário "nova categoria"/"selecionar categoria pro
+  // novo item" foi pra dentro de CardapioToolbar.tsx — só as ações finais
+  // (criarCategoria, abrirModal) continuam aqui.
 
   // UI – categorias expansíveis: por padrão todas fechadas (menos rolagem
   // em cardápios com muita categoria/item); cada uma abre/fecha
@@ -354,13 +288,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       // 3c. Grupos de complementos reutilizáveis do estabelecimento (ex:
       // "Guarnições" — a mesma lista de 21 opções compartilhada por todas
       // as proteínas, em vez de recriada item por item).
-      const { data: gruposData } = await supabase
-        .from('grupos_complementos')
-        .select('id, nome, selecao_minima, selecao_maxima, ordem, opcoes_complemento(id, item_id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome))')
-        .eq('estabelecimento_id', estabelecimentoId)
-        .order('ordem', { ascending: true })
-
-      setGruposEstabelecimento(mapearGruposComplemento(gruposData as unknown as GrupoComplementoRow[] | null))
+      await grupos.carregarGrupos()
 
       // 4. Alergenos
       const { data: algs } = await supabase
@@ -374,7 +302,10 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     } finally {
       setLoading(false)
     }
-  }, [estabelecimentoId, supabase])
+    // `grupos` (o objeto retornado pelo hook) é recriado a cada render;
+    // depender dele inteiro recarregaria em loop. grupos.carregarGrupos
+    // já é estável (useCallback dentro do próprio hook) — dependência certa.
+  }, [estabelecimentoId, supabase, grupos.carregarGrupos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wrapper usado pelas ações manuais (criar/editar/excluir categoria ou
   // item, grupos de complementos etc.) — essas sim precisam resetar loading
@@ -391,16 +322,8 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   // ── CRIAR CATEGORIA ──────────────────────
   // Retorna se deu certo — o botão "Salvar" do formulário revelável usa
   // isso pra só fechar o campo quando a categoria realmente foi criada.
-  async function criarCategoria(): Promise<boolean> {
-    const nome = novaCategoria.trim()
-    if (!nome) return false
-    if (!menuId) {
-      setErroCategoria('Menu não carregado ainda. Aguarde.')
-      return false
-    }
-
-    setCriandoCategoria(true)
-    setErroCategoria(null)
+  async function criarCategoria(nome: string): Promise<{ ok: boolean; erro?: string }> {
+    if (!menuId) return { ok: false, erro: 'Menu não carregado ainda. Aguarde.' }
 
     const { error } = await supabase
       .from('categorias')
@@ -410,17 +333,12 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         ordem: categorias.length,
       })
 
-    let sucesso = false
     if (error) {
       logSupabaseError('Erro ao criar categoria', error)
-      setErroCategoria('Erro ao criar: ' + error.message)
-    } else {
-      setNovaCategoria('')
-      await carregar()
-      sucesso = true
+      return { ok: false, erro: 'Erro ao criar: ' + error.message }
     }
-    setCriandoCategoria(false)
-    return sucesso
+    await carregar()
+    return { ok: true }
   }
 
   async function deletarCategoria(id: string) {
@@ -652,8 +570,7 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
       for (const idi of idiomasAtivos) vazio[idi] = { nome: '', descricao: '' }
       setTraducoesItem(vazio)
     }
-    setGrupoEditandoIndex(null)
-    setOpcoesExtraExpandidas([])
+    grupos.resetarEdicao()
     setModalAberto(true)
   }
 
@@ -687,10 +604,8 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     let precoPromo: number | null = null
     let descPct: number | null = null
     if (fPromo && descNum > 0) {
-      precoPromo = fPromoTipo === 'pct'
-        ? parseFloat((precoNum * (1 - descNum / 100)).toFixed(2))
-        : parseFloat((precoNum - descNum).toFixed(2))
-      if (precoPromo <= 0) { setErro('Preço promocional inválido.'); setSalvando(false); return }
+      precoPromo = calcularPrecoPromocional(precoNum, fPromoTipo, descNum)
+      if (precoPromo === null) { setErro('Preço promocional inválido.'); setSalvando(false); return }
       descPct = fPromoTipo === 'pct' ? descNum : null
     }
 
@@ -883,187 +798,6 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
     )
   }
 
-  // Expande/recolhe o "+ Vincular grupo obrigatório extra" de uma opção —
-  // carrega os vínculos já existentes na primeira vez que abre (não a
-  // cada render), igual ao resto do editor (busca sob demanda).
-  async function toggleExtraDaOpcao(opcaoId: string) {
-    const jaExpandida = opcoesExtraExpandidas.includes(opcaoId)
-    if (jaExpandida) {
-      setOpcoesExtraExpandidas((prev) => prev.filter((id) => id !== opcaoId))
-      return
-    }
-    setOpcoesExtraExpandidas((prev) => [...prev, opcaoId])
-    if (!(opcaoId in gruposExtrasPorOpcao)) {
-      const { data } = await supabase
-        .from('opcao_grupo_complemento')
-        .select('grupo_id')
-        .eq('opcao_id', opcaoId)
-      setGruposExtrasPorOpcao((prev) => ({ ...prev, [opcaoId]: (data || []).map((v: { grupo_id: string }) => v.grupo_id) }))
-    }
-  }
-
-  // Vínculo condicional opção → grupo extra (opcao_grupo_complemento) —
-  // grava na hora, igual toggleVinculoGrupo, mas essa relação é por
-  // opção específica, não pelo item inteiro, então não dá pra esperar o
-  // "Salvar alterações do grupo" (que nem sabe qual opção é essa).
-  async function toggleGrupoExtra(opcaoId: string, grupoId: string) {
-    const atuais = gruposExtrasPorOpcao[opcaoId] || []
-    const vinculado = atuais.includes(grupoId)
-    setGruposExtrasPorOpcao((prev) => ({
-      ...prev,
-      [opcaoId]: vinculado ? atuais.filter((id) => id !== grupoId) : [...atuais, grupoId],
-    }))
-    if (vinculado) {
-      await supabase.from('opcao_grupo_complemento').delete().eq('opcao_id', opcaoId).eq('grupo_id', grupoId)
-    } else {
-      await supabase.from('opcao_grupo_complemento').insert({ opcao_id: opcaoId, grupo_id: grupoId })
-    }
-  }
-
-  // Abre um grupo em branco pra criar (ainda não existe no banco).
-  function iniciarNovoGrupo() {
-    setGruposEstabelecimento((prev) => [...prev, { nome: '', selecaoMinima: '0', selecaoMaxima: '1', opcoes: [] }])
-    setGrupoEditandoIndex(gruposEstabelecimento.length)
-  }
-
-  function atualizarCampoGrupoEditando(campo: 'nome' | 'selecaoMinima' | 'selecaoMaxima', valor: string) {
-    if (grupoEditandoIndex === null) return
-    setGruposEstabelecimento((prev) =>
-      prev.map((g, i) => (i === grupoEditandoIndex ? { ...g, [campo]: valor } : g))
-    )
-  }
-
-  function adicionarOpcaoNoGrupoEditando() {
-    if (grupoEditandoIndex === null) return
-    setGruposEstabelecimento((prev) =>
-      prev.map((g, i) => (i === grupoEditandoIndex ? { ...g, opcoes: [...g.opcoes, { itemId: '', precoAdicional: '', exibirPreco: true }] } : g))
-    )
-  }
-
-  function atualizarOpcaoNoGrupoEditando(opcaoIndex: number, campo: 'itemId' | 'precoAdicional' | 'exibirPreco', valor: string | boolean) {
-    if (grupoEditandoIndex === null) return
-    setGruposEstabelecimento((prev) =>
-      prev.map((g, i) =>
-        i === grupoEditandoIndex
-          ? { ...g, opcoes: g.opcoes.map((o, j) => (j === opcaoIndex ? { ...o, [campo]: valor } : o)) }
-          : g
-      )
-    )
-  }
-
-  function removerOpcaoNoGrupoEditando(opcaoIndex: number) {
-    if (grupoEditandoIndex === null) return
-    setGruposEstabelecimento((prev) =>
-      prev.map((g, i) => (i === grupoEditandoIndex ? { ...g, opcoes: g.opcoes.filter((_, j) => j !== opcaoIndex) } : g))
-    )
-  }
-
-  // Grava de verdade no banco — afeta todos os itens que usam esse grupo,
-  // por isso é uma ação separada do salvamento do item.
-  async function salvarGrupoEstabelecimento(index: number) {
-    const g = gruposEstabelecimento[index]
-    if (!g.nome.trim()) { setErro('Nome do grupo é obrigatório.'); return }
-
-    setSalvandoGrupo(true)
-    setErro(null)
-
-    try {
-      let grupoId = g.id
-
-      if (grupoId) {
-        const { error } = await supabase
-          .from('grupos_complementos')
-          .update({
-            nome: g.nome.trim(),
-            selecao_minima: parseInt(g.selecaoMinima) || 0,
-            selecao_maxima: parseInt(g.selecaoMaxima) || 1,
-          })
-          .eq('id', grupoId)
-        if (error) throw new Error(error.message)
-      } else {
-        const { data, error } = await supabase
-          .from('grupos_complementos')
-          .insert({
-            estabelecimento_id: estabelecimentoId,
-            nome: g.nome.trim(),
-            selecao_minima: parseInt(g.selecaoMinima) || 0,
-            selecao_maxima: parseInt(g.selecaoMaxima) || 1,
-            ordem: gruposEstabelecimento.length,
-          })
-          .select('id')
-          .single()
-        if (error) throw new Error(error.message)
-        grupoId = data.id
-        // Grupo novo: já deixa vinculado a este item, senão o dono cria e
-        // some da tela sem perceber que precisa marcar o checkbox.
-        setGruposVinculadosIds((prev) => [...prev, grupoId!])
-      }
-
-      // Opções: upsert (preserva o id das que já existiam) + apaga só as
-      // removidas da lista — não é mais delete-then-insert de tudo, porque
-      // isso trocava o id de toda opção a cada salvamento do grupo e
-      // quebrava (por CASCADE) qualquer vínculo de grupo extra
-      // (opcao_grupo_complemento) que já tivesse sido configurado nela,
-      // mesmo quando essa opção específica nem tinha mudado.
-      const opcoesValidas = g.opcoes
-        .filter((o) => o.itemId)
-        .map((o, j) => ({
-          ...(o.id ? { id: o.id } : {}),
-          grupo_id: grupoId,
-          item_id: o.itemId,
-          preco_adicional: parseFloat((o.precoAdicional || '0').replace(',', '.')) || 0,
-          exibir_preco: o.exibirPreco,
-          ordem: j,
-        }))
-
-      const idsMantidos = opcoesValidas.filter((o): o is typeof o & { id: string } => !!o.id).map((o) => o.id)
-      const { data: opcoesNoBanco } = await supabase.from('opcoes_complemento').select('id').eq('grupo_id', grupoId)
-      const idsParaApagar = (opcoesNoBanco || []).map((r) => r.id).filter((id) => !idsMantidos.includes(id))
-      if (idsParaApagar.length > 0) {
-        await supabase.from('opcoes_complemento').delete().in('id', idsParaApagar)
-      }
-
-      if (opcoesValidas.length > 0) {
-        const { error: opcoesError } = await supabase.from('opcoes_complemento').upsert(opcoesValidas)
-        if (opcoesError) throw new Error(opcoesError.message)
-      }
-
-      setGrupoEditandoIndex(null)
-
-      // Recarrega a lista de grupos do estabelecimento com os dados reais
-      const { data: gruposData } = await supabase
-        .from('grupos_complementos')
-        .select('id, nome, selecao_minima, selecao_maxima, ordem, opcoes_complemento(id, item_id, preco_adicional, exibir_preco, ordem, itens_cardapio(nome))')
-        .eq('estabelecimento_id', estabelecimentoId)
-        .order('ordem', { ascending: true })
-
-      setGruposEstabelecimento(mapearGruposComplemento(gruposData as unknown as GrupoComplementoRow[] | null))
-    } catch (err: unknown) {
-      logSupabaseError('Erro ao salvar grupo de complemento', err)
-      setErro('Erro ao salvar grupo: ' + (err instanceof Error ? err.message : String(err)))
-    } finally {
-      setSalvandoGrupo(false)
-    }
-  }
-
-  // Exclui o grupo de vez do estabelecimento — some de TODOS os itens
-  // que o usavam, por isso pede confirmação bem explícita.
-  async function excluirGrupoEstabelecimento(index: number) {
-    const g = gruposEstabelecimento[index]
-    if (!g.id) {
-      // Ainda nem foi salvo — só remove da tela.
-      setGruposEstabelecimento((prev) => prev.filter((_, i) => i !== index))
-      setGrupoEditandoIndex(null)
-      return
-    }
-    if (!confirm(`Excluir o grupo "${g.nome}"? Isso remove ele de TODOS os itens que o usam, não só deste.`)) return
-
-    await supabase.from('grupos_complementos').delete().eq('id', g.id)
-    setGruposEstabelecimento((prev) => prev.filter((_, i) => i !== index))
-    setGruposVinculadosIds((prev) => prev.filter((id) => id !== g.id))
-    setGrupoEditandoIndex(null)
-  }
-
   // ─────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────
@@ -1093,178 +827,24 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
         </div>
       )}
 
-      {/* TOOLBAR — pensada pra celular: linhas empilhadas, e as duas ações
-          que abrem formulário (categoria/item) ficam escondidas atrás de
-          um botão em vez de campo sempre visível ocupando espaço. */}
-      {!readOnly && (
-        <div className="space-y-3">
-          {/* Planilha (cardápio + tradução) */}
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={baixarPlanilha}
-              className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition whitespace-nowrap"
-            >
-              <Download className="h-4 w-4" /> Baixar planilha
-            </button>
-            <button
-              onClick={() => setModalPlanilhaAberto(true)}
-              disabled={!menuId}
-              className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
-            >
-              <Upload className="h-4 w-4" /> Subir planilha
-            </button>
-
-            {/* Planilha de tradução — só faz sentido com pelo menos um
-                idioma ativado em Configurações → Idiomas. */}
-            {idiomasAtivos.length > 0 && (
-              <>
-                <button
-                  onClick={baixarPlanilhaDeTraducao}
-                  disabled={carregandoPlanilhaTraducao}
-                  className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
-                >
-                  <Globe className="h-4 w-4" /> Baixar traduções
-                </button>
-                <button
-                  onClick={abrirModalPlanilhaTraducao}
-                  disabled={!menuId || carregandoPlanilhaTraducao}
-                  className="flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-40 transition whitespace-nowrap"
-                >
-                  <Globe className="h-4 w-4" /> Subir traduções
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Categoria (esquerda) e item (direita) na mesma linha — só
-              quebram pra linha de baixo se a tela não comportar as duas. */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            {/* Nova categoria — botão revela o campo de nome */}
-            {!mostrarFormCategoria ? (
-              <button
-                onClick={() => setMostrarFormCategoria(true)}
-                disabled={!menuId}
-                className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition"
-              >
-                <Plus className="h-4 w-4" /> Adicionar categoria
-              </button>
-            ) : (
-              <div className="flex flex-col gap-1">
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    value={novaCategoria}
-                    onChange={e => setNovaCategoria(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') criarCategoria().then(ok => ok && setMostrarFormCategoria(false))
-                    }}
-                    placeholder="Nome da categoria…"
-                    autoFocus
-                    disabled={!menuId || criandoCategoria}
-                    className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50 bg-white text-gray-900"
-                  />
-                  <button
-                    onClick={() => criarCategoria().then(ok => ok && setMostrarFormCategoria(false))}
-                    disabled={criandoCategoria || !novaCategoria.trim() || !menuId}
-                    className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition whitespace-nowrap"
-                  >
-                    {criandoCategoria ? 'Salvando…' : 'Salvar'}
-                  </button>
-                  <button
-                    onClick={() => { setMostrarFormCategoria(false); setNovaCategoria(''); setErroCategoria(null) }}
-                    className="text-sm text-gray-500 hover:underline px-1"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-                {erroCategoria && (
-                  <p className="text-xs text-red-500">{erroCategoria}</p>
-                )}
-                {!menuId && !loading && (
-                  <p className="text-xs text-yellow-600">⚠️ Menu não localizado — recarregue a página</p>
-                )}
-              </div>
-            )}
-
-            {/* Novo item — primeiro escolhe a categoria, só depois abre o
-                formulário completo com os dados do item */}
-            {!mostrarSeletorItemCategoria ? (
-              <button
-                onClick={() => {
-                  setCategoriaParaNovoItem(categorias[0]?.id || '')
-                  setMostrarSeletorItemCategoria(true)
-                }}
-                disabled={categorias.length === 0}
-                title={categorias.length === 0 ? 'Crie uma categoria primeiro' : ''}
-                className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition"
-              >
-                <Plus className="h-4 w-4" /> Adicionar item
-              </button>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                <select
-                  value={categoriaParaNovoItem}
-                  onChange={(e) => setCategoriaParaNovoItem(e.target.value)}
-                  autoFocus
-                  className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-900"
-                >
-                  {categorias.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.nome}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => {
-                    setMostrarSeletorItemCategoria(false)
-                    abrirModal(undefined, categoriaParaNovoItem)
-                  }}
-                  disabled={!categoriaParaNovoItem}
-                  className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition whitespace-nowrap"
-                >
-                  Continuar
-                </button>
-                <button
-                  onClick={() => setMostrarSeletorItemCategoria(false)}
-                  className="text-sm text-gray-500 hover:underline px-1"
-                >
-                  Cancelar
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ATALHO DE CATEGORIA — fica fixo e visível no topo ao rolar o
-          cardápio, pra achar rápido numa lista grande sem perder a
-          referência de onde se está. */}
-      {categorias.length > 1 && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-gray-100 bg-white/95 py-2 backdrop-blur">
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) irParaCategoria(e.target.value) }}
-            className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-gray-700"
-          >
-            <option value="">Ir para categoria…</option>
-            {categorias.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.nome} ({itensDaCategoria(cat.id).length})
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={expandirTodas}
-            className="text-xs font-medium text-gray-500 hover:text-orange-600 hover:underline whitespace-nowrap"
-          >
-            Expandir todas
-          </button>
-          <span className="text-gray-300">·</span>
-          <button
-            onClick={recolherTodas}
-            className="text-xs font-medium text-gray-500 hover:text-orange-600 hover:underline whitespace-nowrap"
-          >
-            Recolher todas
-          </button>
-        </div>
-      )}
+      <CardapioToolbar
+        readOnly={readOnly}
+        loading={loading}
+        menuId={menuId}
+        categorias={categorias}
+        idiomasAtivos={idiomasAtivos}
+        carregandoPlanilhaTraducao={carregandoPlanilhaTraducao}
+        itensPorCategoria={(catId) => itensDaCategoria(catId).length}
+        onBaixarPlanilha={baixarPlanilha}
+        onAbrirModalPlanilha={() => setModalPlanilhaAberto(true)}
+        onBaixarPlanilhaTraducao={baixarPlanilhaDeTraducao}
+        onAbrirModalPlanilhaTraducao={abrirModalPlanilhaTraducao}
+        onCriarCategoria={criarCategoria}
+        onAdicionarItem={(catId) => abrirModal(undefined, catId)}
+        onIrParaCategoria={irParaCategoria}
+        onExpandirTodas={expandirTodas}
+        onRecolherTodas={recolherTodas}
+      />
 
       {/* LISTA DE CATEGORIAS */}
       {categorias.length === 0 ? (
@@ -1278,171 +858,40 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           const catItens = itensDaCategoria(cat.id)
           const expandida = categoriasExpandidas.has(cat.id)
           return (
-            <div
+            <CategoriaBloco
               key={cat.id}
-              ref={(el) => { categoriaRefs.current[cat.id] = el }}
-              className="border border-gray-200 rounded-xl overflow-hidden shadow-sm scroll-mt-4"
-            >
-              {/* cabeçalho */}
-              <div className="bg-gray-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200">
-                {/* esquerda: nome + ações sobre a categoria em si */}
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <button
-                    onClick={() => toggleCategoriaExpandida(cat.id)}
-                    aria-label={expandida ? 'Recolher categoria' : 'Expandir categoria'}
-                    aria-expanded={expandida}
-                    className="shrink-0 rounded-lg p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-600"
-                  >
-                    <ChevronRight className={`h-4 w-4 transition-transform ${expandida ? 'rotate-90' : ''}`} />
-                  </button>
-                  {catEditandoNome === cat.id ? (
-                    <>
-                      <input
-                        value={nomeCategoriaEdicao}
-                        onChange={(e) => setNomeCategoriaEdicao(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && salvarNomeCategoria(cat.id)}
-                        autoFocus
-                        className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-                      />
-                      <button
-                        onClick={() => salvarNomeCategoria(cat.id)}
-                        disabled={salvandoNomeCategoria || !nomeCategoriaEdicao.trim()}
-                        className="text-xs font-semibold text-orange-600 hover:underline disabled:opacity-50"
-                      >
-                        {salvandoNomeCategoria ? 'salvando…' : 'salvar'}
-                      </button>
-                      <button
-                        onClick={() => setCatEditandoNome(null)}
-                        className="text-xs text-gray-500 hover:underline"
-                      >
-                        cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => toggleCategoriaExpandida(cat.id)}
-                      className="font-semibold text-gray-800 transition hover:text-orange-600"
-                    >
-                      {cat.nome}
-                    </button>
-                  )}
-                  <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
-                    {catItens.length} {catItens.length === 1 ? 'item' : 'itens'}
-                  </span>
-                  {!readOnly && catEditandoNome !== cat.id && (
-                    <div className="flex items-center gap-3 text-xs">
-                      <button
-                        onClick={() => iniciarEdicaoNomeCategoria(cat)}
-                        className="text-gray-500 hover:underline font-medium"
-                        title="Renomear categoria"
-                      >
-                        ✏️ editar nome
-                      </button>
-                      <button
-                        onClick={() => setCatEditandoFoto(catEditandoFoto === cat.id ? null : cat.id)}
-                        className="text-gray-500 hover:underline font-medium"
-                        title="Foto da categoria (navegação por cards no cardápio público)"
-                      >
-                        🖼️ {cat.foto_url ? 'foto' : 'add. foto'}
-                      </button>
-                      {idiomasAtivos.length > 0 && (
-                        <button
-                          onClick={() => abrirTraducoesCategoria(cat.id)}
-                          className="text-gray-500 hover:underline font-medium"
-                        >
-                          🌐 Traduções
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deletarCategoria(cat.id)}
-                        className="text-red-400 hover:text-red-600 hover:underline"
-                      >
-                        remover categoria
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* direita: ação separada — adicionar algo dentro da categoria */}
-                {!readOnly && (
-                  <button
-                    onClick={() => abrirModal(undefined, cat.id)}
-                    className="shrink-0 text-orange-600 hover:underline font-medium text-xs"
-                  >
-                    + item
-                  </button>
-                )}
-              </div>
-
-              {/* painel inline da foto da categoria */}
-              {catEditandoFoto === cat.id && (
-                <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-                  <p className="text-xs font-medium text-gray-600 mb-2">
-                    🖼️ Foto da categoria — {cat.nome}
-                    <span className="ml-1 font-normal text-gray-400">(usada na navegação por cards no cardápio público)</span>
-                  </p>
-                  <ImageUpload
-                    onUpload={(url) => salvarFotoCategoria(cat.id, url)}
-                    onRemove={() => removerFotoCategoria(cat.id)}
-                    currentImage={cat.foto_url}
-                    label="Foto da categoria"
-                    aspectRatio="16:9"
-                    maxSize={2}
-                  />
-                </div>
-              )}
-
-              {/* painel inline de traduções da categoria */}
-              {catEditandoTraducoes === cat.id && (
-                <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-                  <p className="text-xs font-medium text-gray-600 mb-2">🌐 Traduções — {cat.nome}</p>
-                  <BlocoTraducoes
-                    idiomasAtivos={idiomasAtivos}
-                    campos={['nome']}
-                    valores={traducoesCategoria}
-                    onChange={(idi, _campo, valor) => atualizarTraducaoCategoria(idi, valor)}
-                  />
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={() => salvarTraducoesCategoria(cat.id)}
-                      disabled={salvandoTraducoesCategoria}
-                      className="text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-1.5 disabled:opacity-50"
-                    >
-                      {salvandoTraducoesCategoria ? 'Salvando…' : 'Salvar traduções'}
-                    </button>
-                    <button
-                      onClick={() => setCatEditandoTraducoes(null)}
-                      className="text-xs text-gray-500 hover:underline px-1"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* itens — só renderiza quando a categoria está expandida */}
-              {expandida && (
-                catItens.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-gray-400 text-center">
-                    Nenhum item — clique em &quot;+ item&quot; para adicionar
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {catItens.map(item => (
-                      <ItemRow
-                        key={item.id}
-                        item={item}
-                        readOnly={!!readOnly}
-                        onEditar={() => abrirModal(item)}
-                        onToggleDisponivel={() => toggleDisponivel(item)}
-                        onTogglePromo={() => marcarPromo(item)}
-                        onDeletar={() => deletarItem(item.id)}
-                      />
-                    ))}
-                  </div>
-                )
-              )}
-            </div>
+              cat={cat}
+              catItens={catItens}
+              expandida={expandida}
+              readOnly={readOnly}
+              idiomasAtivos={idiomasAtivos}
+              refCallback={(el) => { categoriaRefs.current[cat.id] = el }}
+              onToggleExpandida={() => toggleCategoriaExpandida(cat.id)}
+              catEditandoNome={catEditandoNome}
+              nomeCategoriaEdicao={nomeCategoriaEdicao}
+              setNomeCategoriaEdicao={setNomeCategoriaEdicao}
+              salvandoNomeCategoria={salvandoNomeCategoria}
+              onIniciarEdicaoNomeCategoria={iniciarEdicaoNomeCategoria}
+              onSalvarNomeCategoria={salvarNomeCategoria}
+              onCancelarEdicaoNome={() => setCatEditandoNome(null)}
+              catEditandoFoto={catEditandoFoto}
+              onToggleFotoCategoria={(id) => setCatEditandoFoto(catEditandoFoto === id ? null : id)}
+              onSalvarFotoCategoria={salvarFotoCategoria}
+              onRemoverFotoCategoria={removerFotoCategoria}
+              catEditandoTraducoes={catEditandoTraducoes}
+              traducoesCategoria={traducoesCategoria}
+              onAbrirTraducoesCategoria={abrirTraducoesCategoria}
+              onAtualizarTraducaoCategoria={atualizarTraducaoCategoria}
+              onSalvarTraducoesCategoria={salvarTraducoesCategoria}
+              salvandoTraducoesCategoria={salvandoTraducoesCategoria}
+              onCancelarTraducoes={() => setCatEditandoTraducoes(null)}
+              onDeletarCategoria={deletarCategoria}
+              onAdicionarItem={(catId) => abrirModal(undefined, catId)}
+              onEditarItem={(item) => abrirModal(item)}
+              onToggleDisponivel={toggleDisponivel}
+              onTogglePromo={marcarPromo}
+              onDeletarItem={deletarItem}
+            />
           )
         })
       )}
@@ -1481,25 +930,25 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           mostrarVariacoes={mostrarVariacoes}
           setMostrarVariacoes={setMostrarVariacoes}
           complementosAtivado={complementosAtivado}
-          gruposEstabelecimento={gruposEstabelecimento}
+          gruposEstabelecimento={grupos.gruposEstabelecimento}
           gruposVinculadosIds={gruposVinculadosIds}
           toggleVinculoGrupo={toggleVinculoGrupo}
-          grupoEditandoIndex={grupoEditandoIndex}
-          setGrupoEditandoIndex={setGrupoEditandoIndex}
-          iniciarNovoGrupo={iniciarNovoGrupo}
-          atualizarCampoGrupoEditando={atualizarCampoGrupoEditando}
-          adicionarOpcaoNoGrupoEditando={adicionarOpcaoNoGrupoEditando}
-          atualizarOpcaoNoGrupoEditando={atualizarOpcaoNoGrupoEditando}
-          removerOpcaoNoGrupoEditando={removerOpcaoNoGrupoEditando}
-          salvarGrupoEstabelecimento={salvarGrupoEstabelecimento}
-          excluirGrupoEstabelecimento={excluirGrupoEstabelecimento}
-          salvandoGrupo={salvandoGrupo}
+          grupoEditandoIndex={grupos.grupoEditandoIndex}
+          setGrupoEditandoIndex={grupos.setGrupoEditandoIndex}
+          iniciarNovoGrupo={grupos.iniciarNovoGrupo}
+          atualizarCampoGrupoEditando={grupos.atualizarCampoGrupoEditando}
+          adicionarOpcaoNoGrupoEditando={grupos.adicionarOpcaoNoGrupoEditando}
+          atualizarOpcaoNoGrupoEditando={grupos.atualizarOpcaoNoGrupoEditando}
+          removerOpcaoNoGrupoEditando={grupos.removerOpcaoNoGrupoEditando}
+          salvarGrupoEstabelecimento={grupos.salvarGrupoEstabelecimento}
+          excluirGrupoEstabelecimento={grupos.excluirGrupoEstabelecimento}
+          salvandoGrupo={grupos.salvandoGrupo}
           mostrarGrupos={mostrarGrupos}
           setMostrarGrupos={setMostrarGrupos}
-          opcoesExtraExpandidas={opcoesExtraExpandidas}
-          toggleExtraDaOpcao={toggleExtraDaOpcao}
-          gruposExtrasPorOpcao={gruposExtrasPorOpcao}
-          toggleGrupoExtra={toggleGrupoExtra}
+          opcoesExtraExpandidas={grupos.opcoesExtraExpandidas}
+          toggleExtraDaOpcao={grupos.toggleExtraDaOpcao}
+          gruposExtrasPorOpcao={grupos.gruposExtrasPorOpcao}
+          toggleGrupoExtra={grupos.toggleGrupoExtra}
           idiomasAtivos={idiomasAtivos}
           traducoesItem={traducoesItem}
           atualizarTraducaoItem={atualizarTraducaoItem}

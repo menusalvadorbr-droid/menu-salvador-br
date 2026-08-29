@@ -5,6 +5,7 @@ import { useFecharContaMesa } from '../hooks/useFecharContaMesa'
 import { ETIQUETA_STATUS } from '../../types'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
 import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../../components/SeletorFormaPagamento'
+import { TEMA_DUAS_PELES } from '../../temaDuasPeles'
 import type { Mesa } from '../types'
 
 // Compartilhado com o resto do mapa de mesas (tema="claro", padrão — não
@@ -13,12 +14,8 @@ import type { Mesa } from '../types'
 // painel, entra com tema="escuro" — mesmo componente, duas peles.
 const ESTILOS = {
   claro: {
+    ...TEMA_DUAS_PELES.claro,
     overlay: 'bg-black/40',
-    modal: 'bg-white',
-    borda: 'border-neutral-100',
-    titulo: 'text-neutral-900',
-    fechar: 'text-neutral-400 hover:text-neutral-600',
-    vazio: 'text-neutral-400',
     cardPedido: 'border-neutral-100',
     nomeCliente: 'text-neutral-900',
     statusPedido: 'text-neutral-400',
@@ -28,20 +25,12 @@ const ESTILOS = {
     labelTotal: 'text-neutral-500',
     totalPago: 'text-green-600',
     faltaPagar: 'text-neutral-900',
-    label: 'text-neutral-600',
-    input: 'border-neutral-200 bg-white text-neutral-900',
     botaoVerde: 'bg-green-600 hover:bg-green-700 text-white',
-    separador: 'bg-neutral-100',
-    separadorTexto: 'text-neutral-400',
     botaoNeutro: 'bg-neutral-800 hover:bg-neutral-700 text-white',
   },
   escuro: {
+    ...TEMA_DUAS_PELES.escuro,
     overlay: 'bg-black/60',
-    modal: 'bg-neutral-900',
-    borda: 'border-neutral-800',
-    titulo: 'text-white',
-    fechar: 'text-neutral-500 hover:text-neutral-300',
-    vazio: 'text-neutral-500',
     cardPedido: 'border-neutral-800',
     nomeCliente: 'text-white',
     statusPedido: 'text-neutral-500',
@@ -51,11 +40,7 @@ const ESTILOS = {
     labelTotal: 'text-neutral-500',
     totalPago: 'text-emerald-400',
     faltaPagar: 'text-white',
-    label: 'text-neutral-400',
-    input: 'border-neutral-700 bg-neutral-800 text-neutral-100 placeholder-neutral-500',
     botaoVerde: 'bg-emerald-600 hover:bg-emerald-500 text-white',
-    separador: 'bg-neutral-800',
-    separadorTexto: 'text-neutral-500',
     botaoNeutro: 'border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-100',
   },
 } as const

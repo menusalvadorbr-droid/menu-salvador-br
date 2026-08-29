@@ -86,7 +86,7 @@ type ClientePublico = ReturnType<typeof createPublicClient>
 export async function buildCardapioContext(slug: string): Promise<EstabelecimentoContexto | null> {
   const supabase = createPublicClient()
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select(SELECT_ESTABELECIMENTO)
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
@@ -101,7 +101,7 @@ export async function buildCardapioContext(slug: string): Promise<Estabeleciment
 export async function buildCardapioContextPorId(estabelecimentoId: string): Promise<EstabelecimentoContexto | null> {
   const supabase = createPublicClient()
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select(SELECT_ESTABELECIMENTO)
     .eq('id', estabelecimentoId).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
@@ -135,7 +135,7 @@ export interface DadosLocalizacaoEstabelecimento {
 export async function buscarDadosLocalizacao(estabelecimentoId: string): Promise<DadosLocalizacaoEstabelecimento | null> {
   const supabase = createPublicClient()
   const { data } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('nome, nome_fantasia, endereco, numero, tipo_logradouro, latitude, longitude, bairros(nome), cidades(nome)')
     .eq('id', estabelecimentoId)
     .maybeSingle()

@@ -127,6 +127,26 @@ export interface PedidoAcompanhamento {
   updated_at: string
 }
 
+/** "Pix pendente" não tem estado dedicado (status não tem valor
+ *  "aguardando pix", metodo_pagamento é texto livre) — é sempre derivado
+ *  assim, tanto no filtro de query (operadorRepository.ts) quanto num
+ *  pedido já carregado (AcompanharPedido.tsx). Centralizado aqui pra não
+ *  divergir se um novo status intermediário (ex: "estornado") entrar. */
+/** Preço de verdade de um item — o promocional só vale se existir e for
+ *  menor que o preço cheio. Mesma regra repetida em useSacola.ts,
+ *  SeletorItemModal.tsx e na tela de acompanhamento do pedido;
+ *  centralizada aqui pra não divergir (useFinalizarPedido.ts, por
+ *  exemplo, calculava o subtotal da mensagem de contingência do
+ *  WhatsApp sem aplicar promoção nenhuma — bug silencioso corrigido ao
+ *  reaproveitar esta função). */
+export function precoEfetivo(item: { preco: number; preco_promocional?: number | null }): number {
+  return item.preco_promocional && item.preco_promocional < item.preco ? item.preco_promocional : item.preco
+}
+
+export function ehPixPendente(pedido: { metodo_pagamento: string | null; status: StatusPedido }): boolean {
+  return pedido.metodo_pagamento === 'Pix' && pedido.status !== 'pago' && pedido.status !== 'cancelado'
+}
+
 export const ETIQUETA_STATUS: Record<StatusPedido, string> = {
   recebido: '🆕 Recebido',
   aprovado: '✅ Aprovado',

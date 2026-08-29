@@ -33,7 +33,7 @@ export async function obterAvaliacoesGoogle(estabelecimentoId: string): Promise<
   const supabase = await createClient()
 
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('google_place_id')
     .eq('id', estabelecimentoId)
     .maybeSingle()

@@ -10,6 +10,7 @@ import { useSacola } from '../customer/useSacola'
 import { criarPedido, finalizarVendaImediata, atualizarItensPedido } from '../ordersRepository'
 import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
 import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
+import { TEMA_DUAS_PELES } from '../temaDuasPeles'
 import type { Mesa } from '../mesas/types'
 import type { Pedido, TipoPedido } from '../types'
 
@@ -21,11 +22,7 @@ const LIMITE_CATEGORIAS_VISIVEIS = 5
 // resto do painel.
 const ESTILOS = {
   claro: {
-    modal: 'bg-white',
-    borda: 'border-neutral-100',
-    titulo: 'text-neutral-900',
-    fechar: 'text-neutral-400 hover:text-neutral-600',
-    vazio: 'text-neutral-400',
+    ...TEMA_DUAS_PELES.claro,
     categoria: 'text-neutral-400',
     itemBotao: 'border-neutral-100 hover:border-orange-200 hover:bg-orange-50',
     itemNome: 'text-neutral-800',
@@ -33,19 +30,11 @@ const ESTILOS = {
     sacolaTexto: 'text-neutral-700',
     qtdBotao: 'border-neutral-200 text-neutral-500',
     total: 'text-neutral-900',
-    label: 'text-neutral-600',
-    input: 'border-neutral-200 bg-white text-neutral-900',
     botaoPrincipal: 'bg-orange-600 hover:bg-orange-700 text-white',
     botaoToggleAtivo: 'bg-orange-600 text-white',
-    separador: 'bg-neutral-100',
-    separadorTexto: 'text-neutral-400',
   },
   escuro: {
-    modal: 'bg-neutral-900',
-    borda: 'border-neutral-800',
-    titulo: 'text-white',
-    fechar: 'text-neutral-500 hover:text-neutral-300',
-    vazio: 'text-neutral-500',
+    ...TEMA_DUAS_PELES.escuro,
     categoria: 'text-neutral-500',
     itemBotao: 'border-neutral-800 hover:border-emerald-500/40 hover:bg-emerald-500/10',
     itemNome: 'text-neutral-200',
@@ -53,12 +42,8 @@ const ESTILOS = {
     sacolaTexto: 'text-neutral-300',
     qtdBotao: 'border-neutral-700 text-neutral-400',
     total: 'text-white',
-    label: 'text-neutral-400',
-    input: 'border-neutral-700 bg-neutral-800 text-neutral-100 placeholder-neutral-500',
     botaoPrincipal: 'bg-emerald-600 hover:bg-emerald-500 text-white',
     botaoToggleAtivo: 'bg-emerald-600 text-white',
-    separador: 'bg-neutral-800',
-    separadorTexto: 'text-neutral-500',
   },
 } as const
 

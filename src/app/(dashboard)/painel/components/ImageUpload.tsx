@@ -142,8 +142,8 @@ export default function ImageUpload({
       <div className="flex items-center gap-4">
         {preview ? (
           <div className="relative">
-            <div className={`w-24 h-24 rounded-lg overflow-hidden border border-gray-200 ${aspectRatioClass}`}>
-              <NextImage src={preview} alt="Prévia" fill className="object-cover" />
+            <div className={`relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 ${aspectRatioClass}`}>
+              <NextImage src={preview} alt="Prévia" fill sizes="96px" className="object-cover" />
             </div>
             <button
               type="button"

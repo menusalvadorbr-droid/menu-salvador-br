@@ -87,6 +87,43 @@ const DEFAULT_CONFIG: CardapioConfig = {
   titulo: '',
 }
 
+// Os 3 grupos de opções abaixo (Formato, Navegação de categoria, Posição da
+// foto) usam o mesmo padrão visual de botões segmentados — extraído aqui
+// pra não repetir o mesmo JSX de estilo condicional 3 vezes.
+function GrupoOpcoesSegmentado<T extends string>({
+  opcoes,
+  valorAtual,
+  onEscolher,
+  readOnly,
+  colunas = 'grid-cols-2',
+}: {
+  opcoes: Array<{ value: T; label: string; icon?: ReactNode }>
+  valorAtual: T
+  onEscolher: (valor: T) => void
+  readOnly: boolean
+  colunas?: string
+}) {
+  return (
+    <div className={`grid ${colunas} gap-2`}>
+      {opcoes.map(op => (
+        <button
+          key={op.value}
+          onClick={() => onEscolher(op.value)}
+          disabled={readOnly}
+          className={`flex items-center justify-center gap-1 py-2 text-xs font-medium rounded-lg border transition
+            ${valorAtual === op.value
+              ? 'border-orange-500 bg-orange-50 text-orange-700'
+              : 'border-gray-200 text-gray-600 hover:border-gray-300'}
+            ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+        >
+          {op.icon ? op.icon : null}
+          {op.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function TemaEditor({
   estabelecimentoId,
   temaAtualId,
@@ -390,51 +427,32 @@ export default function TemaEditor({
             {/* Formato do cardápio */}
             <div className="mb-5">
               <label className="block text-xs font-medium text-gray-600 mb-2">Formato</label>
-              <div className="grid grid-cols-2 gap-2">
-                {([
+              <GrupoOpcoesSegmentado
+                opcoes={[
                   { value: 'lista', label: 'Lista' },
                   { value: 'catalogo', label: 'Catálogo' },
-                ] as Array<{ value: 'lista' | 'catalogo'; label: string }>).map(op => (
-                  <button
-                    key={op.value}
-                    onClick={() => updFormato(op.value)}
-                    disabled={readOnly}
-                    className={`flex items-center justify-center gap-1 py-2 text-xs font-medium rounded-lg border transition
-                      ${formato === op.value
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'}
-                      ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    {op.label}
-                  </button>
-                ))}
-              </div>
+                ] as Array<{ value: 'lista' | 'catalogo'; label: string }>}
+                valorAtual={formato}
+                onEscolher={updFormato}
+                readOnly={readOnly}
+              />
             </div>
 
             {/* Navegação de categoria — independente do Formato (Lista/Catálogo):
                 qualquer combinação funciona. */}
             <div className="mb-5">
               <label className="block text-xs font-medium text-gray-600 mb-2">Navegação de categoria</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {([
+              <GrupoOpcoesSegmentado
+                opcoes={[
                   { value: 'pilulas', label: 'Pílulas fixas no topo' },
                   { value: 'faixas', label: 'Faixas expansíveis' },
                   { value: 'cards', label: 'Cards de categoria com foto' },
-                ] as Array<{ value: 'pilulas' | 'faixas' | 'cards'; label: string }>).map(op => (
-                  <button
-                    key={op.value}
-                    onClick={() => updNavegacaoCategoria(op.value)}
-                    disabled={readOnly}
-                    className={`flex items-center justify-center gap-1 py-2 text-xs font-medium rounded-lg border transition
-                      ${navegacaoCategoria === op.value
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'}
-                      ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    {op.label}
-                  </button>
-                ))}
-              </div>
+                ] as Array<{ value: 'pilulas' | 'faixas' | 'cards'; label: string }>}
+                valorAtual={navegacaoCategoria}
+                onEscolher={updNavegacaoCategoria}
+                readOnly={readOnly}
+                colunas="grid-cols-1 sm:grid-cols-3"
+              />
               <p className="mt-1.5 text-[11px] text-gray-400">
                 {navegacaoCategoria === 'faixas'
                   ? 'Faixas expansíveis carregam os itens de cada categoria só quando ela é aberta — mais leve pra cardápios grandes.'
@@ -449,28 +467,18 @@ export default function TemaEditor({
             {formato === 'lista' && (
               <div className="mb-5">
                 <label className="block text-xs font-medium text-gray-600 mb-2">Posição da foto</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {([
+                <GrupoOpcoesSegmentado
+                  opcoes={[
                     { value: 'left', label: 'Esquerda' },
                     { value: 'right', label: 'Direita' },
                     { value: 'top', label: 'Acima' },
                     { value: 'none', label: 'Sem foto', icon: <EyeOff className="w-3 h-3" /> },
-                  ] as Array<{ value: CardapioConfig['foto_posicao']; label: string; icon?: ReactNode }>).map(op => (
-                    <button
-                      key={op.value}
-                      onClick={() => updCfg({ foto_posicao: op.value })}
-                      disabled={readOnly}
-                      className={`flex items-center justify-center gap-1 py-2 text-xs font-medium rounded-lg border transition
-                        ${cfg.foto_posicao === op.value
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'}
-                        ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    >
-                      {op.icon ? op.icon : null}
-                      {op.label}
-                    </button>
-                  ))}
-                </div>
+                  ] as Array<{ value: CardapioConfig['foto_posicao']; label: string; icon?: ReactNode }>}
+                  valorAtual={cfg.foto_posicao}
+                  onEscolher={(v) => updCfg({ foto_posicao: v })}
+                  readOnly={readOnly}
+                  colunas="grid-cols-2 sm:grid-cols-4"
+                />
               </div>
             )}
 

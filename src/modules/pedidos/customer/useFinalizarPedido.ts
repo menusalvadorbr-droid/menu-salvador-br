@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { criarPedido } from '../ordersRepository'
 import { normalizarTelefone } from '@/lib/telefone'
-import type { ItemPedido, TipoPedido } from '../types'
+import { precoEfetivo, type ItemPedido, type TipoPedido } from '../types'
 
 interface DadosFinalizacao {
   estabelecimentoId: string
@@ -38,7 +38,8 @@ function montarMensagemWhatsApp(dados: DadosFinalizacao): string {
   if (dados.observacoes) mensagem += `📝 *Observação:* ${dados.observacoes}\n`
   mensagem += `\n━━━━━━━━━━━━━━━━━━\n📋 *ITENS DO PEDIDO*\n━━━━━━━━━━━━━━━━━━\n\n`
   dados.items.forEach((item, i) => {
-    const subtotal = (item.preco * item.quantidade).toFixed(2)
+    const preco = precoEfetivo(item)
+    const subtotal = (preco * item.quantidade).toFixed(2)
     mensagem += `${i + 1}️⃣  *${item.quantidade}x*  ${item.nome}\n`
     if (item.variacao) {
       mensagem += `       Tamanho: ${item.variacao.nome}\n`
@@ -46,7 +47,7 @@ function montarMensagemWhatsApp(dados: DadosFinalizacao): string {
     if (item.complementos && item.complementos.length > 0) {
       mensagem += `       Complementos: ${item.complementos.map((c) => c.opcaoNome).join(', ')}\n`
     }
-    mensagem += `       R$ ${item.preco.toFixed(2)} cada  |  Subtotal: R$ ${subtotal}\n\n`
+    mensagem += `       R$ ${preco.toFixed(2)} cada  |  Subtotal: R$ ${subtotal}\n\n`
   })
   mensagem += `━━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ ${dados.total.toFixed(2)}*\n━━━━━━━━━━━━━━━━━━\n\n`
   mensagem += `⚠️ _Pedido enviado em modo de contingência (sistema fora do ar)_`

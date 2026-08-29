@@ -65,7 +65,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const supabase = createPublicClient()
   const { data: est } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('nome, nome_fantasia, descricao, bairro, foto_capa')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()
@@ -91,7 +91,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
   // 1. Estabelecimento
   const { data: est, error: estErr } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()

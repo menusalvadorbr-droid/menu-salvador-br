@@ -19,12 +19,18 @@ export default async function ClaimPage({ searchParams }: PageProps) {
 
   const supabase = await createClient()
   const { data: est } = await supabase
-    .from('estabelecimentos')
-    .select('cnpj')
+    .from('estabelecimentos_publico')
+    .select('slug, cnpj')
     .eq('slug', slug)
     .maybeSingle()
 
   if (!est) notFound()
+
+  // cnpj só vem preenchido pra estabelecimento sem dono (ver view
+  // estabelecimentos_publico) — se já foi reivindicado, não faz sentido
+  // mandar pro formulário de reivindicação; manda pro cardápio, que já
+  // existe de verdade.
+  if (!est.cnpj) redirect(`/cardapio/${est.slug}`)
 
   redirect(`/estabelecimentos/novo?cnpj=${est.cnpj}`)
 }

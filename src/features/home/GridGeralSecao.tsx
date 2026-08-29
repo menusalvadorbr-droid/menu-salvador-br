@@ -55,7 +55,7 @@ export default async function GridGeralSecao({
 
   if (termo) {
     let query = supabase
-      .from('estabelecimentos')
+      .from('estabelecimentos_publico')
       .select('*, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
       .eq('status', 'active')
       .eq('ativo', true)

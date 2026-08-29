@@ -23,7 +23,7 @@ export default async function PaginaCulinaria({ params }: { params: Promise<{ sl
   // Estabelecimentos que possuem esse tipo de culinária — join com a tabela
   // de junção estabelecimento_tipos_cozinha, filtrado pela coluna relacionada.
   const { data: estabelecimentos } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*, estabelecimento_tipos_cozinha!inner(tipo_cozinha_id)')
     .eq('estabelecimento_tipos_cozinha.tipo_cozinha_id', tipoCozinha.id)
     .eq('status', 'active')

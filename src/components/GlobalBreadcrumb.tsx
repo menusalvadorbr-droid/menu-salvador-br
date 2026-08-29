@@ -37,7 +37,7 @@ function useNomesReais(segments: string[]) {
       // /cidade/[cidade]/[bairro]/[tipo]/[slug]  → página pública do estabelecimento
       if (segments.length === 4 && !PREFIXOS_SISTEMA.includes(segments[0])) {
         const { data } = await supabase
-          .from('estabelecimentos')
+          .from('estabelecimentos_publico')
           .select('nome_fantasia, nome')
           .eq('slug', segments[3])
           .maybeSingle()
@@ -47,7 +47,7 @@ function useNomesReais(segments: string[]) {
       // /cardapio/[slug]
       if (segments[0] === 'cardapio' && segments[1]) {
         const { data } = await supabase
-          .from('estabelecimentos')
+          .from('estabelecimentos_publico')
           .select('nome_fantasia, nome')
           .eq('slug', segments[1])
           .maybeSingle()
@@ -69,7 +69,7 @@ function useNomesReais(segments: string[]) {
       // /painel/estabelecimento/[id]/...
       if (segments[0] === 'painel' && segments[1] === 'estabelecimento' && segments[2]) {
         const { data } = await supabase
-          .from('estabelecimentos')
+          .from('estabelecimentos_publico')
           .select('nome_fantasia, nome')
           .eq('id', segments[2])
           .maybeSingle()

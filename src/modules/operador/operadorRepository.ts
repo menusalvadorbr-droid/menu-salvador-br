@@ -4,6 +4,13 @@ import { vincularPedidoASessaoAberta } from '../financeiro/caixaRepository'
 import type { Pedido } from '../pedidos/types'
 import type { ValidacaoPedido } from './types'
 
+// Mesma regra de "Pix pendente" de ehPixPendente() (types.ts), na forma
+// de filtro de query — os dois nunca podem divergir sobre o que conta
+// como pendente, daí os dois lados citando a mesma constante de status
+// excluídos por extenso.
+const METODO_PIX = 'Pix'
+const STATUS_PIX_JA_CONCLUIDO = '(pago,cancelado)'
+
 /** Pix ainda não confirmado — não existe estado dedicado pra isso (status
  *  não tem valor "aguardando pix", metodo_pagamento é texto livre), então é
  *  derivado: pago em Pix, mas ainda não chegou em "pago" nem foi cancelado. */
@@ -13,8 +20,8 @@ export async function listarPixPendentes(estabelecimentoId: string): Promise<Ped
     .from('orders')
     .select('*')
     .eq('estabelecimento_id', estabelecimentoId)
-    .eq('metodo_pagamento', 'Pix')
-    .not('status', 'in', '(pago,cancelado)')
+    .eq('metodo_pagamento', METODO_PIX)
+    .not('status', 'in', STATUS_PIX_JA_CONCLUIDO)
     .order('created_at', { ascending: true })
 
   if (error) throw new Error(error.message)
@@ -107,8 +114,8 @@ export async function contarPendenciasOperador(estabelecimentoId: string): Promi
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .eq('estabelecimento_id', estabelecimentoId)
-      .eq('metodo_pagamento', 'Pix')
-      .not('status', 'in', '(pago,cancelado)'),
+      .eq('metodo_pagamento', METODO_PIX)
+      .not('status', 'in', STATUS_PIX_JA_CONCLUIDO),
     supabase
       .from('validacao_pedidos')
       .select('id', { count: 'exact', head: true })

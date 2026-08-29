@@ -34,7 +34,7 @@ export async function generateMetadata({
   const { slug, categoriaId } = await params
   const supabase = await createClient()
   const [{ data: est }, { data: categoria }] = await Promise.all([
-    supabase.from('estabelecimentos').select('nome, nome_fantasia').eq('slug', slug).eq('status', 'active').eq('ativo', true).limit(1).single(),
+    supabase.from('estabelecimentos_publico').select('nome, nome_fantasia').eq('slug', slug).eq('status', 'active').eq('ativo', true).limit(1).single(),
     supabase.from('categorias').select('nome').eq('id', categoriaId).maybeSingle(),
   ])
   if (!est) return { title: 'Cardápio Digital' }
@@ -64,7 +64,7 @@ export default async function CategoriaCardapioPage({
   // que o select('*') da página principal, que carrega hero/bairro/etc.
   // que não aparecem aqui).
   const { data: est, error: estErr } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('id, slug, nome, nome_fantasia, tema_atual_id, cardapio_config, cardapio_formato, cardapio_clique_expande_ativado, cardapio_carrinho_ativado, idiomas_ativos, whatsapp')
     .eq('slug', slug).eq('status', 'active').eq('ativo', true)
     .limit(1).single()

@@ -24,7 +24,7 @@ export default async function HeroSecao({
   const inicioDoDiaSalvador = dataEmSalvador(new Date(), 0, 0)
 
   const [{ count: totalEstabs }, { count: scansHoje }] = await Promise.all([
-    supabase.from('estabelecimentos').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('ativo', true),
+    supabase.from('estabelecimentos_publico').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('ativo', true),
     supabase.from('scans_qrcode').select('*', { count: 'exact', head: true }).gte('scanned_at', inicioDoDiaSalvador.toISOString()),
   ])
 

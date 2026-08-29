@@ -12,7 +12,7 @@ import type { EstabelecimentoComJoins } from './tipos'
 export default async function RecomendadosSecao() {
   const supabase = await createClient()
   const { data } = await supabase
-    .from('estabelecimentos')
+    .from('estabelecimentos_publico')
     .select('*, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome, icone))')
     .eq('status', 'active')
     .eq('ativo', true)
