@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { listarPixPendentes } from '../operadorRepository'
 import type { Pedido } from '../../pedidos/types'
@@ -18,6 +18,11 @@ export function useFilaPix(estabelecimentoId: string) {
     }
   }, [estabelecimentoId])
 
+  // Sufixo único por montagem — ver useFilaIA.ts pro motivo (nome fixo
+  // colide entre montagens simultâneas do hook e quebra com "cannot add
+  // postgres_changes callbacks... after subscribe()").
+  const idCanalRef = useRef(crypto.randomUUID())
+
   useEffect(() => {
     carregar()
     // Realtime não filtra por metodo_pagamento (o filtro só aceita
@@ -26,7 +31,7 @@ export function useFilaPix(estabelecimentoId: string) {
     // usePedidosEstabelecimento.ts já tem hoje, não é regressão.
     const supabase = createClient()
     const canal = supabase
-      .channel(`fila-pix-${estabelecimentoId}`)
+      .channel(`fila-pix-${estabelecimentoId}-${idCanalRef.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `estabelecimento_id=eq.${estabelecimentoId}` },

@@ -30,5 +30,11 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "src ae 1207 15h", "src ae 1207 15h/**/*"]
+  "exclude": [
+    "node_modules",
+    "src ae 1207 15h",
+    "src ae 1207 15h/**/*",
+    "entrega-central-operador",
+    "entrega-central-operador/**/*"
+  ]
 }

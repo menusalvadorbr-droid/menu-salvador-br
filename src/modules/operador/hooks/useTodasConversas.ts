@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { ConversaFilaIA } from '../types'
 
@@ -32,11 +32,14 @@ export function useTodasConversas(estabelecimentoId: string) {
     }
   }, [estabelecimentoId])
 
+  // Sufixo único por montagem — ver useFilaIA.ts pro motivo.
+  const idCanalRef = useRef(crypto.randomUUID())
+
   useEffect(() => {
     carregar()
     const supabase = createClient()
     const canal = supabase
-      .channel(`todas-conversas-${estabelecimentoId}`)
+      .channel(`todas-conversas-${estabelecimentoId}-${idCanalRef.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'whatsapp_conversas', filter: `estabelecimento_id=eq.${estabelecimentoId}` },

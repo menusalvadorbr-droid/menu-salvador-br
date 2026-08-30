@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Lock, ClipboardList, Package, Wallet, Truck, ListChecks } from 'lucide-react'
+import { Lock, ClipboardList, Package, Wallet, Truck, MessagesSquare } from 'lucide-react'
 import { contarInsumosAbaixoDoPontoReposicao } from '@/modules/estoque/estoqueRepository'
 import { contarPendenciasOperador } from '@/modules/operador/operadorRepository'
 
@@ -20,12 +20,17 @@ interface ModuloGestaoProps {
 // duplicar. "atendimento" foi removido daqui: a IA escalada agora se
 // resolve direto na faixa de pendências do board de comandas
 // (FaixaPendencias.tsx), a rota /atendimento não existe mais.
+//
+// "operador" e "conversas" eram dois destinos pra praticamente o mesmo
+// dado (conversas de WhatsApp) — viraram um destino só, "Central do
+// Operador" (mesma rota /operador; /conversas passou a redirecionar pra
+// cá). Reduz de 6 pra 5 atalhos.
 export const ITENS = [
   { slug: 'pedidos', label: 'Pedidos', Icone: ClipboardList, bg: 'bg-sky-50', text: 'text-sky-600', hoverBorder: 'hover:border-sky-200' },
   { slug: 'estoque', label: 'Estoque', Icone: Package, bg: 'bg-amber-50', text: 'text-amber-600', hoverBorder: 'hover:border-amber-200' },
   { slug: 'caixa', label: 'Caixa', Icone: Wallet, bg: 'bg-emerald-50', text: 'text-emerald-600', hoverBorder: 'hover:border-emerald-200' },
   { slug: 'fornecedores', label: 'Fornecedores', Icone: Truck, bg: 'bg-violet-50', text: 'text-violet-600', hoverBorder: 'hover:border-violet-200' },
-  { slug: 'operador', label: 'Fila do Operador', Icone: ListChecks, bg: 'bg-rose-50', text: 'text-rose-600', hoverBorder: 'hover:border-rose-200' },
+  { slug: 'operador', label: 'Central do Operador', Icone: MessagesSquare, bg: 'bg-rose-50', text: 'text-rose-600', hoverBorder: 'hover:border-rose-200' },
 ] as const
 
 /**
@@ -72,7 +77,7 @@ export default function ModuloGestao({ estabelecimentoId, ativado }: ModuloGesta
               )}
               {item.slug === 'operador' && pendenciasOperador > 0 && (
                 <span
-                  title={`${pendenciasOperador} pendência(s) na Fila do Operador`}
+                  title={`${pendenciasOperador} pendência(s) na Central do Operador`}
                   className="absolute top-2 right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-xs font-bold text-white"
                 >
                   {pendenciasOperador}

@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { enviarMensagemWhatsApp } from '@/lib/whatsapp/metaApi'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { enviarMensagemWhatsApp, ErroTokenWhatsApp } from '@/lib/whatsapp/metaApi'
 
 /** Resposta manual pelo painel — usada quando o robô está desligado, ou
  *  quando a conversa foi marcada como "precisa humano" (o cliente pediu
@@ -32,7 +33,24 @@ export async function responderConversaManualmente(
     .single()
   if (conversaErro || !conversa) throw new Error('Conversa não encontrada.')
 
-  await enviarMensagemWhatsApp(est.whatsapp_phone_number_id, est.whatsapp_access_token, conversa.telefone, texto)
+  try {
+    await enviarMensagemWhatsApp(est.whatsapp_phone_number_id, est.whatsapp_access_token, conversa.telefone, texto)
+  } catch (err) {
+    if (err instanceof ErroTokenWhatsApp) {
+      // RLS de UPDATE em estabelecimentos só permite dono/gerente — quem
+      // chama esta função normalmente é funcionário/operador, por isso
+      // precisa do client admin aqui (mesma gravação que
+      // enviarComTratamentoDeErro já faz do lado da IA, em
+      // whatsappHandler.ts, pro mesmo campo).
+      try {
+        await supabaseAdmin.from('estabelecimentos').update({ whatsapp_status: 'erro' }).eq('id', estabelecimentoId)
+      } catch {
+        // Best-effort — não trava o fluxo principal se essa gravação falhar.
+      }
+      throw new Error('Token do WhatsApp expirado ou inválido — peça pro dono/gerente reconectar em Configurações → WhatsApp.')
+    }
+    throw err
+  }
 
   const mensagens = [...(conversa.mensagens || []), { role: 'assistant', content: texto, timestamp: new Date().toISOString() }]
   const { error: updErro } = await supabase

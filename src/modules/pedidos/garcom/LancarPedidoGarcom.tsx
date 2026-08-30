@@ -371,16 +371,16 @@ export default function LancarPedidoGarcom({
         // Modo caixa: carrinho sempre visível (esquerda no desktop, embaixo
         // no mobile) mostrando o que já foi lançado e o subtotal ao vivo —
         // a venda só fecha quando o caixa confirma no fim, não item a item.
-        <div className="flex flex-1 flex-col overflow-hidden sm:flex-row">
-          <div className="order-1 flex-1 overflow-y-auto p-4 sm:order-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row">
+          <div className="order-1 min-h-0 flex-1 overflow-y-auto p-4 sm:order-2">
             {listaCardapio}
           </div>
 
           <div
-            className={`order-2 flex flex-col gap-3 border-t p-4 sm:order-1 sm:w-72 sm:flex-shrink-0 sm:border-r sm:border-t-0 ${c.borda}`}
+            className={`order-2 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-1 sm:w-72 sm:flex-shrink-0 sm:border-r sm:border-t-0 ${c.borda}`}
           >
-            <p className={`text-xs font-semibold uppercase tracking-wide ${c.label}`}>🧾 Itens da venda</p>
-            <div className="flex-1 space-y-1.5 overflow-y-auto text-sm">
+            <p className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${c.label}`}>🧾 Itens da venda</p>
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto text-sm">
               {sacola.itens.length === 0 ? (
                 <p className={`text-sm ${c.vazio}`}>Toque num item do cardápio pra adicionar.</p>
               ) : (
@@ -441,7 +441,7 @@ export default function LancarPedidoGarcom({
             </div>
 
             {sacola.itens.length > 0 && (
-              <div className={`space-y-3 border-t pt-3 ${c.borda}`}>
+              <div className={`shrink-0 space-y-3 border-t pt-3 ${c.borda}`}>
                 <div>
                   <label className={`mb-1 block text-xs font-medium ${c.label}`}>
                     Desconto <span className="font-normal opacity-70">(opcional)</span>
@@ -530,7 +530,7 @@ export default function LancarPedidoGarcom({
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto p-4">{listaCardapio}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">{listaCardapio}</div>
 
           {sacola.itens.length > 0 && (
             <div className={`border-t ${c.borda} p-4`}>
@@ -615,7 +615,14 @@ export default function LancarPedidoGarcom({
   )
 
   if (modo === 'inline') {
-    return <div className={`flex min-h-[60vh] flex-col rounded-xl border ${c.borda} ${c.modal}`}>{corpo}</div>
+    // Altura limitada (não só mínima) — sem isso o cardápio e a lista de
+    // itens da venda cresciam junto com o conteúdo em vez de rolar dentro
+    // do próprio espaço, e o botão "Confirmar venda" (que fica abaixo da
+    // lista de itens, dentro dessa mesma coluna) podia acabar fora da
+    // tela, exigindo rolar a página inteira do Caixa pra confirmar.
+    return (
+      <div className={`flex h-[75vh] min-h-[520px] flex-col rounded-xl border ${c.borda} ${c.modal}`}>{corpo}</div>
+    )
   }
 
   return (

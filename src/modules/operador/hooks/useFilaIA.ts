@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { ConversaFilaIA } from '../types'
 
@@ -34,11 +34,21 @@ export function useFilaIA(estabelecimentoId: string) {
     }
   }, [estabelecimentoId])
 
+  // Sufixo único por montagem — o nome do canal não precisa ter
+  // significado, só precisa ser único no registro do client Supabase.
+  // Com o nome fixo (só estabelecimentoId), duas montagens simultâneas
+  // deste hook (StrictMode em dev, ou trocar de tela antes do cleanup da
+  // anterior terminar) podiam pegar o MESMO objeto de canal já inscrito e
+  // quebrar com "cannot add postgres_changes callbacks... after
+  // subscribe()". O filtro (que decide quais linhas chegam) continua
+  // igual — só o rótulo do canal muda.
+  const idCanalRef = useRef(crypto.randomUUID())
+
   useEffect(() => {
     carregar()
     const supabase = createClient()
     const canal = supabase
-      .channel(`fila-ia-${estabelecimentoId}`)
+      .channel(`fila-ia-${estabelecimentoId}-${idCanalRef.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'whatsapp_conversas', filter: `estabelecimento_id=eq.${estabelecimentoId}` },

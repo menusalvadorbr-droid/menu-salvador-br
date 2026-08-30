@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { listarValidacoesPendentes } from '../operadorRepository'
 import type { ValidacaoPedido } from '../types'
@@ -18,11 +18,14 @@ export function useFilaValidacao(estabelecimentoId: string) {
     }
   }, [estabelecimentoId])
 
+  // Sufixo único por montagem — ver useFilaIA.ts pro motivo.
+  const idCanalRef = useRef(crypto.randomUUID())
+
   useEffect(() => {
     carregar()
     const supabase = createClient()
     const canal = supabase
-      .channel(`fila-validacao-${estabelecimentoId}`)
+      .channel(`fila-validacao-${estabelecimentoId}-${idCanalRef.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'validacao_pedidos', filter: `estabelecimento_id=eq.${estabelecimentoId}` },
