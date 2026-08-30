@@ -9,8 +9,9 @@ import MesasComContaAberta from './MesasComContaAberta'
 import PedidosAvulsosPendentes from './PedidosAvulsosPendentes'
 import MovimentacoesCaixa from './MovimentacoesCaixa'
 import InputMoeda from './InputMoeda'
-import ConfirmarAcaoModal from './ConfirmarAcaoModal'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import LancarPedidoGarcom from '@/modules/pedidos/garcom/LancarPedidoGarcom'
+import { formatarReais } from '@/lib/moeda'
 import { caixaTema } from '../caixaTema'
 
 // Turno aberto por mais que isso acende o alerta de "turno longo" na barra
@@ -112,13 +113,13 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
     return (
       <div className={`mx-auto max-w-sm ${caixaTema.painel} p-8 text-center`}>
         <div className="mb-2 text-5xl">{diferenca === 0 ? '✅' : diferenca > 0 ? '📈' : '📉'}</div>
-        <h2 className="text-lg font-bold text-white">Caixa fechado</h2>
-        <p className="mt-1 text-sm text-neutral-400">
+        <h2 className="text-lg font-bold text-neutral-900">Caixa fechado</h2>
+        <p className="mt-1 text-sm text-neutral-500">
           {diferenca === 0
             ? 'Bateu certinho com o valor esperado.'
             : diferenca > 0
-              ? `Sobrou R$ ${diferenca.toFixed(2)} em relação ao esperado.`
-              : `Faltou R$ ${Math.abs(diferenca).toFixed(2)} em relação ao esperado.`}
+              ? `Sobrou R$ ${formatarReais(diferenca)} em relação ao esperado.`
+              : `Faltou R$ ${formatarReais(Math.abs(diferenca))} em relação ao esperado.`}
         </p>
         <button
           onClick={() => setResultadoFechamento(null)}
@@ -138,10 +139,10 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
             sugerir que dá pra fechar mesa com o caixa fechado. */}
         <div className={`mx-auto max-w-sm ${caixaTema.painel} p-8 text-center`}>
           <div className="mb-3 text-5xl">🔒</div>
-          <h2 className="text-lg font-bold text-white">Caixa fechado</h2>
-          <p className="mt-1 text-sm text-neutral-400">Informe o valor inicial para abrir o caixa.</p>
+          <h2 className="text-lg font-bold text-neutral-900">Caixa fechado</h2>
+          <p className="mt-1 text-sm text-neutral-500">Informe o valor inicial para abrir o caixa.</p>
           {erro && (
-            <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
           )}
           <InputMoeda
             value={valorAbertura}
@@ -172,7 +173,7 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </span>
           <div>
-            <p className="flex items-center gap-2 text-sm font-semibold text-white">
+            <p className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
               Caixa aberto
               {turnoLongo && (
                 <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${caixaTema.badgeAlerta}`}>
@@ -195,13 +196,13 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
         <div className="flex items-center gap-3">
           <Link
             href={`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessaoAberta.id}`}
-            className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-emerald-400"
+            className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-emerald-700"
           >
             <BarChart3 className="h-3.5 w-3.5" /> Relatório
           </Link>
           <button
             onClick={() => setConfirmandoFechamento(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20"
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
           >
             <Square className="h-3.5 w-3.5" /> Fechar caixa
           </button>
@@ -215,7 +216,6 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           key={sessaoAberta.id}
           estabelecimentoId={estabelecimentoId}
           mesa={null}
-          tema="escuro"
           finalizarNoAto
           modo="inline"
           onPedidoLancado={() => {}}
@@ -232,19 +232,22 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           />
           <Link
             href={`/painel/estabelecimento/${estabelecimentoId}/pedidos`}
-            className="block text-center text-xs font-medium text-emerald-400 hover:underline"
+            className="block text-center text-xs font-medium text-emerald-700 hover:underline"
           >
             Ver quadro de comandas completo →
           </Link>
         </div>
       )}
 
-      {/* Botões grandes de alternância — sempre visíveis, sem precisar
-          rolar a tela pra trocar entre vender e acompanhar mesas. */}
-      <div className="sticky bottom-4 z-10 grid grid-cols-2 gap-3">
+      {/* Botões de alternância — sempre visíveis, sem precisar rolar a
+          tela pra trocar entre vender e acompanhar mesas. Alinhados à
+          direita (desktop) pra ficar sob a coluna do cardápio, que também
+          fica à direita dentro de LancarPedidoGarcom — não empurram mais
+          a largura toda como um bloco só. */}
+      <div className="sticky bottom-4 z-10 flex flex-col gap-3 sm:flex-row sm:justify-end">
         <button
           onClick={() => setTela('venda')}
-          className={`flex items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition ${
+          className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition sm:w-56 ${
             tela === 'venda' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
           }`}
         >
@@ -252,7 +255,7 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
         </button>
         <button
           onClick={() => setTela('mesas')}
-          className={`flex items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition ${
+          className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition sm:w-56 ${
             tela === 'mesas' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
           }`}
         >
@@ -271,33 +274,33 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           descricao={
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-neutral-400">Valor contado na gaveta</label>
+                <label className="mb-1 block text-xs font-medium text-neutral-500">Valor contado na gaveta</label>
                 <InputMoeda value={valorFechamento} onChange={setValorFechamento} autoFocus className={`w-full ${caixaTema.input}`} />
               </div>
               {erro && (
-                <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
               )}
-              <div className="space-y-1 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 text-xs">
+              <div className="space-y-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
                 <div className="flex justify-between">
                   <span>Esperado na gaveta</span>
-                  <span className="font-semibold text-neutral-200">R$ {valorEsperado.toFixed(2)}</span>
+                  <span className="font-semibold text-neutral-900">R$ {formatarReais(valorEsperado)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Valor contado</span>
-                  <span className="font-semibold text-neutral-200">R$ {valorFechamento.toFixed(2)}</span>
+                  <span className="font-semibold text-neutral-900">R$ {formatarReais(valorFechamento)}</span>
                 </div>
-                <div className="flex justify-between border-t border-neutral-800 pt-1">
+                <div className="flex justify-between border-t border-neutral-200 pt-1">
                   <span>Diferença</span>
                   <span
                     className={`font-semibold ${
                       valorFechamento - valorEsperado === 0
-                        ? 'text-emerald-400'
+                        ? 'text-emerald-600'
                         : valorFechamento - valorEsperado > 0
-                          ? 'text-sky-400'
-                          : 'text-red-400'
+                          ? 'text-sky-600'
+                          : 'text-red-600'
                     }`}
                   >
-                    R$ {(valorFechamento - valorEsperado).toFixed(2)}
+                    R$ {formatarReais(valorFechamento - valorEsperado)}
                   </span>
                 </div>
               </div>

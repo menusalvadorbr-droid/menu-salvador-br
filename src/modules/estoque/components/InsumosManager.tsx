@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useInsumos } from '../hooks/useInsumos'
 import type { UnidadeInsumo, Insumo } from '../types'
 import type { DadosInsumo } from '../estoqueRepository'
+import { formatarReais } from '@/lib/moeda'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 
 const UNIDADES: UnidadeInsumo[] = ['un', 'kg', 'g', 'l', 'ml']
 
@@ -39,6 +41,7 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [form, setForm] = useState(FORM_VAZIO)
   const [enviando, setEnviando] = useState(false)
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState<Insumo | null>(null)
 
   function fecharForm() {
     setMostrarForm(false)
@@ -323,14 +326,14 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
                     {insumo.estoque_minimo} {insumo.unidade}
                   </td>
                   <td className="px-4 py-2 text-neutral-500">
-                    R$ {insumo.custo_unitario.toFixed(2)} / {insumo.unidade}
+                    R$ {formatarReais(insumo.custo_unitario)} / {insumo.unidade}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     <button onClick={() => iniciarEdicao(insumo)} className="text-xs text-neutral-500 hover:underline">
                       Editar
                     </button>{' '}
                     <button
-                      onClick={() => confirm(`Remover ${insumo.nome}?`) && remover(insumo.id)}
+                      onClick={() => setConfirmandoRemocao(insumo)}
                       className="ml-2 text-xs text-red-500 hover:underline"
                     >
                       Remover
@@ -349,6 +352,21 @@ export default function InsumosManager({ estabelecimentoId }: { estabelecimentoI
           </tbody>
         </table>
       </div>
+
+      {confirmandoRemocao && (
+        <ConfirmarAcaoModal
+          tema="claro"
+          tom="perigo"
+          titulo="Remover insumo"
+          descricao={`Remover ${confirmandoRemocao.nome}?`}
+          confirmarLabel="Remover"
+          onCancelar={() => setConfirmandoRemocao(null)}
+          onConfirmar={() => {
+            remover(confirmandoRemocao.id)
+            setConfirmandoRemocao(null)
+          }}
+        />
+      )}
     </div>
   )
 }

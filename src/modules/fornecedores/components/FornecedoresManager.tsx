@@ -3,10 +3,13 @@
 import { useState } from 'react'
 import { useFornecedores } from '../hooks/useFornecedores'
 import { formatarCnpj, validarCnpj } from '@/lib/cnpj'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
+import type { Fornecedor } from '../types'
 
 export default function FornecedoresManager({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { fornecedores, carregando, adicionar, remover } = useFornecedores(estabelecimentoId)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState<Fornecedor | null>(null)
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
@@ -151,7 +154,7 @@ export default function FornecedoresManager({ estabelecimentoId }: { estabelecim
                 <td className="px-4 py-2 text-neutral-500">{f.email || '—'}</td>
                 <td className="px-4 py-2 text-right">
                   <button
-                    onClick={() => confirm(`Remover ${f.nome}?`) && remover(f.id)}
+                    onClick={() => setConfirmandoRemocao(f)}
                     className="text-xs text-red-500 hover:underline"
                   >
                     Remover
@@ -169,6 +172,21 @@ export default function FornecedoresManager({ estabelecimentoId }: { estabelecim
           </tbody>
         </table>
       </div>
+
+      {confirmandoRemocao && (
+        <ConfirmarAcaoModal
+          tema="claro"
+          tom="perigo"
+          titulo="Remover fornecedor"
+          descricao={`Remover ${confirmandoRemocao.nome}?`}
+          confirmarLabel="Remover"
+          onCancelar={() => setConfirmandoRemocao(null)}
+          onConfirmar={() => {
+            remover(confirmandoRemocao.id)
+            setConfirmandoRemocao(null)
+          }}
+        />
+      )}
     </div>
   )
 }

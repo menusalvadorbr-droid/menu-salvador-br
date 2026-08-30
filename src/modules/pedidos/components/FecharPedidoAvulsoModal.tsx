@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
+import { formatarReais } from '@/lib/moeda'
 import { finalizarVendaImediata } from '../ordersRepository'
 import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepository'
 import SeletorFormaPagamento, { calcularTroco } from './SeletorFormaPagamento'
+import PainelPixCobranca from './PainelPixCobranca'
+import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
 import { ETIQUETA_TIPO_PEDIDO, type Pedido } from '../types'
 
 // Mesmo princípio de tema do FecharContaMesaModal — claro é o padrão
@@ -66,14 +69,29 @@ export default function FecharPedidoAvulsoModal({
   const [descontoInput, setDescontoInput] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [dadosPix, setDadosPix] = useState<DadosPixEstabelecimento | null>(null)
+  const [pixConfirmado, setPixConfirmado] = useState(false)
 
   const descontoNum = calcularDesconto(pedido.total, tipoDesconto, parseFloat(descontoInput.replace(',', '.')) || 0)
   const totalACobrar = Math.max(0, pedido.total - descontoNum)
   const troco = calcularTroco(formaPagamento, valorRecebido, totalACobrar)
   const trocoInsuficiente = troco !== null && troco < 0
 
+  useEffect(() => {
+    if (formaPagamento === 'Pix' && !dadosPix) {
+      buscarDadosPixEstabelecimento(estabelecimentoId).then(setDadosPix)
+    }
+  }, [formaPagamento, dadosPix, estabelecimentoId])
+
+  // Reação direta à troca (não um efeito sincronizando com formaPagamento
+  // — ver mesmo comentário em FecharContaMesaModal.tsx).
+  function handleFormaPagamentoChange(nova: string) {
+    setFormaPagamento(nova)
+    if (nova !== 'Pix') setPixConfirmado(false)
+  }
+
   async function handleFechar() {
-    if (!caixaAberto || trocoInsuficiente || enviando) return
+    if (!caixaAberto || trocoInsuficiente || enviando || (formaPagamento === 'Pix' && !pixConfirmado)) return
     setEnviando(true)
     setErro(null)
     try {
@@ -111,7 +129,7 @@ export default function FecharPedidoAvulsoModal({
               {pedido.items.map((item, i) => (
                 <li key={i} className="flex items-center justify-between gap-3">
                   <span>{item.quantidade}x {item.nome}</span>
-                  <span className="flex-shrink-0">R$ {(item.preco * item.quantidade).toFixed(2)}</span>
+                  <span className="flex-shrink-0">R$ {formatarReais(item.preco * item.quantidade)}</span>
                 </li>
               ))}
             </ul>
@@ -129,12 +147,34 @@ export default function FecharPedidoAvulsoModal({
 
           <SeletorFormaPagamento
             formaPagamento={formaPagamento}
-            onChangeFormaPagamento={setFormaPagamento}
+            onChangeFormaPagamento={handleFormaPagamentoChange}
             valorRecebido={valorRecebido}
             onChangeValorRecebido={setValorRecebido}
             total={totalACobrar}
             tema={tema}
           />
+
+          {formaPagamento === 'Pix' && (
+            <>
+              <PainelPixCobranca
+                chavePix={dadosPix?.chavePix ?? null}
+                nomeFantasia={dadosPix?.nomeFantasia ?? ''}
+                cidade={dadosPix?.cidade ?? null}
+                valor={totalACobrar}
+                referencia={pedido.codigo_pedido}
+                tema={tema}
+              />
+              <label className={`flex items-center gap-2 text-sm ${c.labelTotal}`}>
+                <input
+                  type="checkbox"
+                  checked={pixConfirmado}
+                  onChange={(e) => setPixConfirmado(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Confirmei que o Pix caiu
+              </label>
+            </>
+          )}
 
           <div>
             <label className={`mb-1 block text-xs font-medium ${c.labelTotal}`}>
@@ -175,17 +215,17 @@ export default function FecharPedidoAvulsoModal({
           <div className={`space-y-1 border-t pt-3 text-sm ${c.borda}`}>
             <div className={`flex justify-between ${c.labelTotal}`}>
               <span>Subtotal</span>
-              <span>R$ {pedido.total.toFixed(2)}</span>
+              <span>R$ {formatarReais(pedido.total)}</span>
             </div>
             {descontoNum > 0 && (
               <div className={`flex justify-between ${c.labelTotal}`}>
                 <span>Desconto</span>
-                <span>− R$ {descontoNum.toFixed(2)}</span>
+                <span>− R$ {formatarReais(descontoNum)}</span>
               </div>
             )}
             <div className={`flex justify-between text-base font-bold ${c.faltaPagar}`}>
               <span>Total a cobrar</span>
-              <span>R$ {totalACobrar.toFixed(2)}</span>
+              <span>R$ {formatarReais(totalACobrar)}</span>
             </div>
           </div>
 
@@ -195,10 +235,10 @@ export default function FecharPedidoAvulsoModal({
 
           <button
             onClick={handleFechar}
-            disabled={enviando || !caixaAberto || trocoInsuficiente}
+            disabled={enviando || !caixaAberto || trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)}
             className={`w-full rounded-lg py-2.5 font-semibold transition disabled:opacity-50 ${c.botaoVerde}`}
           >
-            {enviando ? 'Processando...' : `Fechar conta — R$ ${totalACobrar.toFixed(2)}`}
+            {enviando ? 'Processando...' : `Fechar conta — R$ ${formatarReais(totalACobrar)}`}
           </button>
         </div>
       </div>

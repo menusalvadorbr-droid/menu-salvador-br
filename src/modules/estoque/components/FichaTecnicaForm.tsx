@@ -19,6 +19,7 @@ import {
 } from '../fichaTecnicaRepository'
 import { listarInsumos, listarItensCardapioSimples } from '../estoqueRepository'
 import { converterParaUnidadeDoInsumo, unidadesCompativeisComInsumo, unidadesDaMesmaFamilia } from '../conversaoUnidade'
+import { formatarReais } from '@/lib/moeda'
 import type {
   FichaTecnica,
   Insumo,
@@ -421,7 +422,7 @@ export default function FichaTecnicaForm({
                       <td className="py-1.5 pr-3 text-neutral-500">{item.qtdBruta} {item.unidade}</td>
                       <td className="py-1.5 pr-3 text-neutral-500">{item.fatorCorrecao}</td>
                       <td className="py-1.5 pr-3 text-neutral-500">{item.qtdLiquida.toFixed(3)} {item.unidade}</td>
-                      <td className="py-1.5 pr-3 font-medium text-neutral-900">R$ {item.custoItem.toFixed(2)}</td>
+                      <td className="py-1.5 pr-3 font-medium text-neutral-900">R$ {formatarReais(item.custoItem)}</td>
                       <td className="py-1.5 text-right">
                         <button onClick={() => handleRemoverItem(item.id)} className="text-xs text-red-500 hover:underline">
                           Remover
@@ -548,7 +549,7 @@ export default function FichaTecnicaForm({
             <div className="flex flex-wrap gap-6 text-sm">
               <div>
                 <p className="text-xs text-neutral-400">Custo total da composição</p>
-                <p className="text-lg font-bold text-neutral-900">R$ {(composicao?.custoTotal || 0).toFixed(2)}</p>
+                <p className="text-lg font-bold text-neutral-900">R$ {formatarReais(composicao?.custoTotal || 0)}</p>
               </div>
               <div>
                 <p className="text-xs text-neutral-400">CMV calculado</p>
@@ -572,7 +573,7 @@ export default function FichaTecnicaForm({
                 <div>
                   <p className="text-xs text-neutral-400">Custo por {cabecalho.rendimentoUnidade}</p>
                   <p className="text-lg font-bold text-neutral-900">
-                    R$ {(composicao.custoTotal / (parseFloat(cabecalho.rendimentoQtd.replace(',', '.')) || 1)).toFixed(2)}
+                    R$ {formatarReais(composicao.custoTotal / (parseFloat(cabecalho.rendimentoQtd.replace(',', '.')) || 1))}
                   </p>
                 </div>
               )}

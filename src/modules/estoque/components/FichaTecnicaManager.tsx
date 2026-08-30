@@ -4,11 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { listarFichasTecnicas, removerFichaTecnica } from '../fichaTecnicaRepository'
 import type { FichaTecnica } from '../types'
 import FichaTecnicaForm from './FichaTecnicaForm'
+import { formatarReais } from '@/lib/moeda'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 
 export default function FichaTecnicaManager({ estabelecimentoId }: { estabelecimentoId: string }) {
   const [fichas, setFichas] = useState<FichaTecnica[]>([])
   const [carregando, setCarregando] = useState(true)
   const [fichaAberta, setFichaAberta] = useState<string | null | 'nova'>(null)
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState<FichaTecnica | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   const carregar = useCallback(async () => {
     try {
@@ -22,13 +26,16 @@ export default function FichaTecnicaManager({ estabelecimentoId }: { estabelecim
     carregar()
   }, [carregar])
 
-  async function remover(id: string, nome: string) {
-    if (!confirm(`Remover a ficha técnica "${nome}"? Isso também remove fichas que a usem como sub-ficha só se elas não tiverem itens vinculados a ela.`)) return
+  async function remover(id: string) {
+    setRemovendo(true)
     try {
       await removerFichaTecnica(id)
       await carregar()
+      setConfirmandoRemocao(null)
     } catch (err) {
       alert(`Não foi possível remover: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    } finally {
+      setRemovendo(false)
     }
   }
 
@@ -82,12 +89,12 @@ export default function FichaTecnicaManager({ estabelecimentoId }: { estabelecim
               {ficha.categoria_venda && <p className="mt-0.5 text-xs text-neutral-400">{ficha.categoria_venda}</p>}
               <div className="mt-3 flex items-center justify-between text-xs text-neutral-500">
                 <span>Rende {ficha.rendimento_qtd} {ficha.rendimento_unidade}</span>
-                {ficha.preco_venda != null && <span>R$ {ficha.preco_venda.toFixed(2)}</span>}
+                {ficha.preco_venda != null && <span>R$ {formatarReais(ficha.preco_venda)}</span>}
               </div>
               <span
                 onClick={(e) => {
                   e.stopPropagation()
-                  remover(ficha.id, ficha.nome)
+                  setConfirmandoRemocao(ficha)
                 }}
                 className="mt-3 inline-block text-xs text-red-500 hover:underline"
               >
@@ -96,6 +103,19 @@ export default function FichaTecnicaManager({ estabelecimentoId }: { estabelecim
             </button>
           ))}
         </div>
+      )}
+
+      {confirmandoRemocao && (
+        <ConfirmarAcaoModal
+          tema="claro"
+          tom="perigo"
+          titulo="Remover ficha técnica"
+          descricao={`Remover a ficha técnica "${confirmandoRemocao.nome}"? Isso também remove fichas que a usem como sub-ficha só se elas não tiverem itens vinculados a ela.`}
+          confirmarLabel="Remover"
+          enviando={removendo}
+          onCancelar={() => setConfirmandoRemocao(null)}
+          onConfirmar={() => remover(confirmandoRemocao.id)}
+        />
       )}
     </div>
   )

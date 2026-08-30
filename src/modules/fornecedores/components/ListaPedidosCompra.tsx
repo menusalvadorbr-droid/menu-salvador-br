@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { usePedidosCompra } from '../hooks/usePedidosCompra'
 import PedidoCompraForm from './PedidoCompraForm'
+import { formatarReais } from '@/lib/moeda'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 
 const ETIQUETA_STATUS: Record<string, { label: string; cor: string }> = {
   pendente: { label: '🕓 Pendente', cor: 'text-amber-600' },
@@ -13,6 +15,7 @@ const ETIQUETA_STATUS: Record<string, { label: string; cor: string }> = {
 export default function ListaPedidosCompra({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { pedidos, carregando, processando, receber, cancelar } = usePedidosCompra(estabelecimentoId)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null)
 
   if (carregando) return <div className="py-12 text-center text-neutral-400">Carregando pedidos de compra...</div>
 
@@ -44,7 +47,7 @@ export default function ListaPedidosCompra({ estabelecimentoId }: { estabelecime
                   {pedido.fornecedor?.nome || 'Sem fornecedor definido'}
                 </p>
                 <p className="text-xs text-neutral-500">
-                  {new Date(pedido.criado_em).toLocaleString('pt-BR')} · R$ {pedido.valor_total.toFixed(2)}
+                  {new Date(pedido.criado_em).toLocaleString('pt-BR')} · R$ {formatarReais(pedido.valor_total)}
                 </p>
                 {pedido.observacoes && <p className="text-xs text-neutral-400">{pedido.observacoes}</p>}
               </div>
@@ -60,7 +63,7 @@ export default function ListaPedidosCompra({ estabelecimentoId }: { estabelecime
                       Confirmar recebimento
                     </button>
                     <button
-                      onClick={() => confirm('Cancelar este pedido?') && cancelar(pedido.id)}
+                      onClick={() => setConfirmandoCancelamentoId(pedido.id)}
                       className="text-xs text-red-500 hover:underline"
                     >
                       Cancelar
@@ -77,6 +80,22 @@ export default function ListaPedidosCompra({ estabelecimentoId }: { estabelecime
           </p>
         )}
       </div>
+
+      {confirmandoCancelamentoId && (
+        <ConfirmarAcaoModal
+          tema="claro"
+          tom="perigo"
+          titulo="Cancelar pedido de compra"
+          descricao="Cancelar este pedido?"
+          confirmarLabel="Cancelar pedido"
+          enviando={processando}
+          onCancelar={() => setConfirmandoCancelamentoId(null)}
+          onConfirmar={() => {
+            cancelar(confirmandoCancelamentoId)
+            setConfirmandoCancelamentoId(null)
+          }}
+        />
+      )}
     </div>
   )
 }

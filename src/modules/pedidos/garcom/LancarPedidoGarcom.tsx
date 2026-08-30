@@ -1,28 +1,32 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
+import { formatarReais } from '@/lib/moeda'
 import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
 import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepository'
 import { useSacola } from '../customer/useSacola'
 import { criarPedido, finalizarVendaImediata, atualizarItensPedido } from '../ordersRepository'
 import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
 import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
+import PainelPixCobranca from '../components/PainelPixCobranca'
+import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
 import { TEMA_DUAS_PELES } from '../temaDuasPeles'
 import type { Mesa } from '../mesas/types'
 import type { Pedido, TipoPedido } from '../types'
 
 const LIMITE_CATEGORIAS_VISIVEIS = 5
 
-// Mesmo princípio do FecharContaMesaModal: claro é o padrão (mapa de mesas
-// e "Venda no balcão" em /pedidos, inalterados); escuro só quando aberto
-// de dentro do Caixa (tema="escuro"), que tem visual de PDV isolado do
-// resto do painel.
+// Mesmo princípio do FecharContaMesaModal: claro é o único tema em uso
+// hoje (mapa de mesas, "Venda no balcão" em /pedidos, e também o Caixa
+// desde que sua paleta foi unificada com o resto do painel) — `escuro`
+// segue existindo como opção reutilizável, sem consumidor no momento.
 const ESTILOS = {
   claro: {
     ...TEMA_DUAS_PELES.claro,
+    fundoCardapio: 'bg-neutral-100',
     categoria: 'text-neutral-400',
     itemBotao: 'border-neutral-100 hover:border-orange-200 hover:bg-orange-50',
     itemNome: 'text-neutral-800',
@@ -35,6 +39,7 @@ const ESTILOS = {
   },
   escuro: {
     ...TEMA_DUAS_PELES.escuro,
+    fundoCardapio: 'bg-neutral-950/40',
     categoria: 'text-neutral-500',
     itemBotao: 'border-neutral-800 hover:border-emerald-500/40 hover:bg-emerald-500/10',
     itemNome: 'text-neutral-200',
@@ -106,7 +111,41 @@ export default function LancarPedidoGarcom({
   // muita categoria virava uma parede de blocos antes de chegar nos itens;
   // "+ mais" revela o resto sob demanda.
   const [mostrarTodasCategorias, setMostrarTodasCategorias] = useState(false)
+  const [dadosPix, setDadosPix] = useState<DadosPixEstabelecimento | null>(null)
+  const [pixConfirmado, setPixConfirmado] = useState(false)
+  // Referência do BR Code — regenerada a cada início de venda nova (ver
+  // reiniciarVenda), não só uma vez, porque este componente fica montado
+  // pra várias vendas seguidas dentro da mesma sessão de caixa (ao
+  // contrário de FecharContaMesaModal/FecharPedidoAvulsoModal, que abrem
+  // e fecham por venda). Contador via ref em vez de Date.now(): chamar
+  // Date.now() de dentro de uma função do corpo do componente quebra a
+  // regra de pureza do React (é sinalizado mesmo só sendo usada num
+  // handler, nunca durante o render em si).
+  const referenciaPixSeqRef = useRef(0)
+  const [referenciaPix, setReferenciaPix] = useState('venda-0')
   const sacola = useSacola(pedidoEmEdicao?.items)
+
+  function reiniciarVenda() {
+    setDescontoInput('')
+    setValorRecebido('')
+    setLinhaEmEdicao(null)
+    setPixConfirmado(false)
+    referenciaPixSeqRef.current += 1
+    setReferenciaPix(`venda-${referenciaPixSeqRef.current}`)
+  }
+
+  useEffect(() => {
+    if (formaPagamento === 'Pix' && !dadosPix) {
+      buscarDadosPixEstabelecimento(estabelecimentoId).then(setDadosPix)
+    }
+  }, [formaPagamento, dadosPix, estabelecimentoId])
+
+  // Reação direta à troca (não um efeito sincronizando com formaPagamento
+  // — dispara "cascading renders" no linter).
+  function handleFormaPagamentoChange(nova: string) {
+    setFormaPagamento(nova)
+    if (nova !== 'Pix') setPixConfirmado(false)
+  }
 
   const tipoPedido: TipoPedido = pedidoEmEdicao ? pedidoEmEdicao.tipo_pedido : mesa ? 'mesa' : 'balcao'
   const titulo = pedidoEmEdicao
@@ -131,8 +170,8 @@ export default function LancarPedidoGarcom({
     }))
     .filter((cat) => cat.itens.length > 0)
 
+  const podeExpandirCategorias = categorias.length > LIMITE_CATEGORIAS_VISIVEIS
   const categoriasNaGrade = mostrarTodasCategorias ? categorias : categorias.slice(0, LIMITE_CATEGORIAS_VISIVEIS)
-  const categoriasEscondidas = categorias.length - categoriasNaGrade.length
 
   useEffect(() => {
     listarCardapioParaGarcom(estabelecimentoId)
@@ -143,10 +182,8 @@ export default function LancarPedidoGarcom({
   function cancelarVenda() {
     if (sacola.itens.length > 0 && !confirm('Cancelar essa venda e limpar os itens já lançados?')) return
     sacola.limparSacola()
-    setDescontoInput('')
-    setValorRecebido('')
     setFormaPagamento(METODOS_PAGAMENTO[0])
-    setLinhaEmEdicao(null)
+    reiniciarVenda()
   }
 
   async function salvarEdicao() {
@@ -165,6 +202,7 @@ export default function LancarPedidoGarcom({
   async function lancarPedido() {
     if (sacola.itens.length === 0) return
     if (trocoInsuficiente) return
+    if (finalizarNoAto && formaPagamento === 'Pix' && !pixConfirmado) return
     setEnviando(true)
 
     // Registra quem lançou o pedido — usado no demonstrativo de caixa como
@@ -214,9 +252,7 @@ export default function LancarPedidoGarcom({
         setTimeout(() => {
           sacola.limparSacola()
           setVendaConfirmada(null)
-          setDescontoInput('')
-          setValorRecebido('')
-          setLinhaEmEdicao(null)
+          reiniciarVenda()
           onPedidoLancado()
         }, 1500)
         return
@@ -224,7 +260,7 @@ export default function LancarPedidoGarcom({
         setEnviando(false)
         alert(`Pedido criado, mas não foi possível confirmar o pagamento: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
         sacola.limparSacola()
-        setLinhaEmEdicao(null)
+        reiniciarVenda()
         onPedidoLancado()
         return
       }
@@ -239,12 +275,12 @@ export default function LancarPedidoGarcom({
       setTimeout(() => {
         sacola.limparSacola()
         setModoContingencia(false)
-        setLinhaEmEdicao(null)
+        reiniciarVenda()
         onPedidoLancado()
       }, 1800)
     } else {
       sacola.limparSacola()
-      setLinhaEmEdicao(null)
+      reiniciarVenda()
       onPedidoLancado()
     }
   }
@@ -259,24 +295,37 @@ export default function LancarPedidoGarcom({
         className={`w-full rounded-lg border px-3 py-2 text-sm ${c.input}`}
       />
       {/* Grade de categorias em vez de pílulas — alvo de toque maior,
-          melhor pra um terminal de caixa usado com o dedo. */}
+          melhor pra um terminal de caixa usado com o dedo. "Todas" faz
+          dois papéis: limpa o filtro de categoria (lista volta a mostrar
+          item de todas) E expande/recolhe a grade quando há mais
+          categorias do que cabe (LIMITE_CATEGORIAS_VISIVEIS) — antes eram
+          dois botões (Todas + "+N mais"/"Mostrar menos"), unificados
+          porque os dois só fazem sentido juntos: não tem porquê ver a
+          grade cheia sem também limpar o filtro. Escolher uma categoria
+          específica sempre recolhe a grade de volta (ver onClick abaixo),
+          então "Mostrar menos" nunca aparece com uma categoria ativa. */}
       {categorias.length > 1 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <button
-            onClick={() => setCategoriaAtiva(null)}
+            onClick={() => {
+              setCategoriaAtiva(null)
+              if (podeExpandirCategorias) setMostrarTodasCategorias((v) => !v)
+            }}
             className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
-              !categoriaAtiva ? c.botaoToggleAtivo : `${c.itemBotao}`
+              !categoriaAtiva ? c.botaoToggleAtivo : c.itemBotao
             }`}
           >
-            Todas
+            {podeExpandirCategorias && mostrarTodasCategorias ? 'Mostrar menos' : 'Todas'}
             <span className="mt-0.5 block text-xs font-normal opacity-70">
-              {categorias.reduce((soma, cat) => soma + cat.itens.length, 0)} itens
+              {podeExpandirCategorias && mostrarTodasCategorias
+                ? 'ver menos categorias'
+                : `${categorias.reduce((soma, cat) => soma + cat.itens.length, 0)} itens`}
             </span>
           </button>
           {categoriasNaGrade.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setCategoriaAtiva(cat.id)}
+              onClick={() => { setCategoriaAtiva(cat.id); setMostrarTodasCategorias(false) }}
               className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
                 categoriaAtiva === cat.id ? c.botaoToggleAtivo : c.itemBotao
               }`}
@@ -285,25 +334,6 @@ export default function LancarPedidoGarcom({
               <span className="mt-0.5 block text-xs font-normal opacity-70">{cat.itens.length} itens</span>
             </button>
           ))}
-          {categoriasEscondidas > 0 ? (
-            <button
-              onClick={() => setMostrarTodasCategorias(true)}
-              className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${c.itemBotao}`}
-            >
-              + {categoriasEscondidas} mais
-              <span className="mt-0.5 block text-xs font-normal opacity-70">ver categorias</span>
-            </button>
-          ) : (
-            mostrarTodasCategorias &&
-            categorias.length > LIMITE_CATEGORIAS_VISIVEIS && (
-              <button
-                onClick={() => setMostrarTodasCategorias(false)}
-                className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${c.itemBotao}`}
-              >
-                Mostrar menos
-              </button>
-            )
-          )}
         </div>
       )}
     </div>
@@ -329,7 +359,7 @@ export default function LancarPedidoGarcom({
                   className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${c.itemBotao}`}
                 >
                   <span className={c.itemNome}>{item.nome}</span>
-                  <span className={`font-semibold ${c.itemPreco}`}>R$ {preco.toFixed(2)}</span>
+                  <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco)}</span>
                 </button>
               )
             })}
@@ -356,7 +386,7 @@ export default function LancarPedidoGarcom({
       {vendaConfirmada !== null ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
           <span className="text-3xl">✅</span>
-          <p className={`text-sm font-medium ${c.titulo}`}>Venda registrada — R$ {vendaConfirmada.toFixed(2)}</p>
+          <p className={`text-sm font-medium ${c.titulo}`}>Venda registrada — R$ {formatarReais(vendaConfirmada)}</p>
         </div>
       ) : modoContingencia ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -371,13 +401,13 @@ export default function LancarPedidoGarcom({
         // Modo caixa: carrinho sempre visível (esquerda no desktop, embaixo
         // no mobile) mostrando o que já foi lançado e o subtotal ao vivo —
         // a venda só fecha quando o caixa confirma no fim, não item a item.
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row">
-          <div className="order-1 min-h-0 flex-1 overflow-y-auto p-4 sm:order-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:h-full sm:flex-row">
+          <div className={`order-1 min-h-0 flex-1 overflow-y-auto p-4 sm:order-2 sm:h-full ${c.fundoCardapio}`}>
             {listaCardapio}
           </div>
 
           <div
-            className={`order-2 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-1 sm:w-72 sm:flex-shrink-0 sm:border-r sm:border-t-0 ${c.borda}`}
+            className={`order-2 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-1 sm:h-full sm:w-72 sm:flex-shrink-0 sm:border-r sm:border-t-0 ${c.borda} ${c.modal}`}
           >
             <p className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${c.label}`}>🧾 Itens da venda</p>
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto text-sm">
@@ -395,7 +425,7 @@ export default function LancarPedidoGarcom({
                           {item.quantidade}x {item.nome}
                         </span>
                         <div className="flex flex-shrink-0 items-center gap-2">
-                          <span className={`font-semibold ${c.itemPreco}`}>R$ {(preco * item.quantidade).toFixed(2)}</span>
+                          <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco * item.quantidade)}</span>
                           <button
                             onClick={() => setLinhaEmEdicao(editando ? null : linhaId)}
                             title="Alterar quantidade"
@@ -476,27 +506,49 @@ export default function LancarPedidoGarcom({
 
                 <SeletorFormaPagamento
                   formaPagamento={formaPagamento}
-                  onChangeFormaPagamento={setFormaPagamento}
+                  onChangeFormaPagamento={handleFormaPagamentoChange}
                   valorRecebido={valorRecebido}
                   onChangeValorRecebido={setValorRecebido}
                   total={totalComDesconto}
                   tema={tema}
                 />
 
+                {formaPagamento === 'Pix' && (
+                  <>
+                    <PainelPixCobranca
+                      chavePix={dadosPix?.chavePix ?? null}
+                      nomeFantasia={dadosPix?.nomeFantasia ?? ''}
+                      cidade={dadosPix?.cidade ?? null}
+                      valor={totalComDesconto}
+                      referencia={referenciaPix}
+                      tema={tema}
+                    />
+                    <label className={`flex items-center gap-2 text-sm ${c.label}`}>
+                      <input
+                        type="checkbox"
+                        checked={pixConfirmado}
+                        onChange={(e) => setPixConfirmado(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      Confirmei que o Pix caiu
+                    </label>
+                  </>
+                )}
+
                 <div className={`space-y-1 border-t pt-3 text-sm ${c.borda}`}>
                   <div className={`flex justify-between ${c.label}`}>
                     <span>Subtotal</span>
-                    <span>R$ {sacola.total.toFixed(2)}</span>
+                    <span>R$ {formatarReais(sacola.total)}</span>
                   </div>
                   {descontoNum > 0 && (
                     <div className={`flex justify-between ${c.label}`}>
                       <span>Desconto</span>
-                      <span>− R$ {descontoNum.toFixed(2)}</span>
+                      <span>− R$ {formatarReais(descontoNum)}</span>
                     </div>
                   )}
                   <div className={`flex justify-between text-base font-bold ${c.total}`}>
                     <span>Total a pagar</span>
-                    <span>R$ {totalComDesconto.toFixed(2)}</span>
+                    <span>R$ {formatarReais(totalComDesconto)}</span>
                   </div>
                 </div>
 
@@ -517,11 +569,11 @@ export default function LancarPedidoGarcom({
                   </button>
                   <button
                     onClick={lancarPedido}
-                    disabled={enviando || trocoInsuficiente}
+                    disabled={enviando || trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)}
                     title="F10 — Pagamento / Finalizar"
                     className={`flex-1 rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
                   >
-                    {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${totalComDesconto.toFixed(2)}`}
+                    {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${formatarReais(totalComDesconto)}`}
                   </button>
                 </div>
               </div>
@@ -546,7 +598,7 @@ export default function LancarPedidoGarcom({
                         {item.quantidade}x {item.nome}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${c.itemPreco}`}>R$ {(preco * item.quantidade).toFixed(2)}</span>
+                        <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco * item.quantidade)}</span>
                         <button
                           onClick={() => setLinhaEmEdicao(editando ? null : linhaId)}
                           title="Alterar quantidade"
@@ -592,7 +644,7 @@ export default function LancarPedidoGarcom({
 
               <div className={`mb-3 flex justify-between text-base font-bold ${c.total}`}>
                 <span>Total</span>
-                <span>R$ {sacola.total.toFixed(2)}</span>
+                <span>R$ {formatarReais(sacola.total)}</span>
               </div>
               <button
                 onClick={pedidoEmEdicao ? salvarEdicao : lancarPedido}

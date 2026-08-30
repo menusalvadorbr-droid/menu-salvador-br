@@ -26,7 +26,7 @@ export default function MesasComContaAberta({ estabelecimentoId }: { estabelecim
   return (
     <div className={`${caixaTema.painel} p-5`}>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-white">🍽️ Mesas com conta aberta</p>
+        <p className="text-sm font-semibold text-neutral-900">🍽️ Mesas com conta aberta</p>
         {mesasOcupadas.length > 4 && (
           <input
             type="text"
@@ -45,10 +45,10 @@ export default function MesasComContaAberta({ estabelecimentoId }: { estabelecim
           <button
             key={mesa.id}
             onClick={() => setMesaSelecionada(mesa)}
-            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-center transition hover:border-amber-400/60 hover:bg-amber-500/20"
+            className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center transition hover:border-amber-300 hover:bg-amber-100"
           >
-            <div className="text-lg font-bold text-amber-300">{mesa.numero}</div>
-            <div className="mt-0.5 text-xs font-medium text-amber-400/80">💳 Fechar conta</div>
+            <div className="text-lg font-bold text-amber-800">{mesa.numero}</div>
+            <div className="mt-0.5 text-xs font-medium text-amber-700">💳 Fechar conta</div>
           </button>
         ))}
       </div>
@@ -60,7 +60,6 @@ export default function MesasComContaAberta({ estabelecimentoId }: { estabelecim
           mesa={mesaSelecionada}
           onFechar={() => setMesaSelecionada(null)}
           onContaFechada={() => setMesaSelecionada(null)}
-          tema="escuro"
         />
       )}
     </div>

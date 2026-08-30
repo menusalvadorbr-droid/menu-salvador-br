@@ -6,6 +6,7 @@ import { useFornecedores } from '../hooks/useFornecedores'
 import { listarInsumos } from '@/modules/estoque/estoqueRepository'
 import type { Insumo } from '@/modules/estoque/types'
 import type { NovoItemPedidoCompra } from '../types'
+import { formatarReais } from '@/lib/moeda'
 
 interface LinhaItem extends NovoItemPedidoCompra {
   chave: string
@@ -130,7 +131,7 @@ export default function PedidoCompraForm({
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-3">
-        <span className="text-sm font-semibold text-neutral-700">Total: R$ {total.toFixed(2)}</span>
+        <span className="text-sm font-semibold text-neutral-700">Total: R$ {formatarReais(total)}</span>
         <button
           onClick={handleCriar}
           disabled={enviando || itens.length === 0}

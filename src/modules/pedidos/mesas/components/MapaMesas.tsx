@@ -5,11 +5,13 @@ import { useMesas } from '../hooks/useMesas'
 import { ETIQUETA_STATUS_MESA, type Mesa } from '../types'
 import LancarPedidoGarcom from '../../garcom/LancarPedidoGarcom'
 import FecharContaMesaModal from './FecharContaMesaModal'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 
 export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { mesas, carregando, adicionar, mudarStatus, remover } = useMesas(estabelecimentoId)
   const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null)
   const [mesaFechandoConta, setMesaFechandoConta] = useState<Mesa | null>(null)
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState<Mesa | null>(null)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [numeroNovo, setNumeroNovo] = useState('')
   const [capacidadeNova, setCapacidadeNova] = useState('')
@@ -84,7 +86,7 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
               <div className="mt-2 flex justify-center gap-2 text-xs">
                 <select
                   value={mesa.status}
-                  onChange={(e) => mudarStatus(mesa.id, e.target.value as any)}
+                  onChange={(e) => mudarStatus(mesa.id, e.target.value as Mesa['status'])}
                   className="rounded border border-white/50 bg-white/60 px-1 py-0.5 text-xs"
                 >
                   <option value="livre">Livre</option>
@@ -102,8 +104,9 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
                   </button>
                 )}
                 <button
-                  onClick={() => confirm(`Remover mesa ${mesa.numero}?`) && remover(mesa.id)}
+                  onClick={() => setConfirmandoRemocao(mesa)}
                   className="opacity-60 hover:opacity-100"
+                  title="Remover mesa"
                 >
                   🗑️
                 </button>
@@ -133,6 +136,21 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
           mesa={mesaFechandoConta}
           onFechar={() => setMesaFechandoConta(null)}
           onContaFechada={() => setMesaFechandoConta(null)}
+        />
+      )}
+
+      {confirmandoRemocao && (
+        <ConfirmarAcaoModal
+          tema="claro"
+          tom="perigo"
+          titulo="Remover mesa"
+          descricao={`Remover mesa ${confirmandoRemocao.numero}?`}
+          confirmarLabel="Remover"
+          onCancelar={() => setConfirmandoRemocao(null)}
+          onConfirmar={() => {
+            remover(confirmandoRemocao.id)
+            setConfirmandoRemocao(null)
+          }}
         />
       )}
     </div>

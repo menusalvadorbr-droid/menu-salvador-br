@@ -5,6 +5,8 @@ import { ArrowDownCircle, ArrowUpCircle, Banknote } from 'lucide-react'
 import { registrarMovimentacaoCaixa } from '../caixaRepository'
 import type { MovimentacaoCaixa, TipoMovimentacaoCaixa } from '../types'
 import InputMoeda from './InputMoeda'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
+import { formatarReais } from '@/lib/moeda'
 import { caixaTema } from '../caixaTema'
 
 const fmtHora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -57,19 +59,19 @@ export default function MovimentacoesCaixa({
   return (
     <div className={`${caixaTema.painel} p-5`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm font-semibold text-white">
-          <Banknote className="h-4 w-4 text-neutral-400" /> Sangrias e suprimentos
+        <p className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
+          <Banknote className="h-4 w-4 text-neutral-500" /> Sangrias e suprimentos
         </p>
         <div className="flex gap-2">
           <button
             onClick={() => setModalAberto('suprimento')}
-            className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-400 transition hover:bg-sky-500/20"
+            className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
           >
             <ArrowUpCircle className="h-3.5 w-3.5" /> Suprimento
           </button>
           <button
             onClick={() => setModalAberto('sangria')}
-            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/20"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
           >
             <ArrowDownCircle className="h-3.5 w-3.5" /> Sangria
           </button>
@@ -90,9 +92,9 @@ export default function MovimentacoesCaixa({
               >
                 {m.tipo === 'sangria' ? 'Sangria' : 'Suprimento'}
               </span>
-              <span className="flex-1 truncate text-neutral-400">{m.motivo || '—'}</span>
-              <span className={`flex-shrink-0 font-semibold ${m.tipo === 'sangria' ? 'text-amber-400' : 'text-sky-400'}`}>
-                {m.tipo === 'sangria' ? '−' : '+'} R$ {m.valor.toFixed(2)}
+              <span className="flex-1 truncate text-neutral-500">{m.motivo || '—'}</span>
+              <span className={`flex-shrink-0 font-semibold ${m.tipo === 'sangria' ? 'text-amber-700' : 'text-sky-700'}`}>
+                {m.tipo === 'sangria' ? '−' : '+'} R$ {formatarReais(m.valor)}
               </span>
             </div>
           ))}
@@ -100,59 +102,44 @@ export default function MovimentacoesCaixa({
       )}
 
       {modalAberto && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={fecharModal} />
-          <div className="relative w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">
-              {modalAberto === 'sangria' ? '− Registrar sangria' : '+ Registrar suprimento'}
-            </h3>
-            <p className="mt-1 text-xs text-neutral-500">
-              {modalAberto === 'sangria'
-                ? 'Retirada de dinheiro da gaveta — ex: depósito, pagamento a fornecedor.'
-                : 'Reforço de troco colocado na gaveta durante o turno.'}
-            </p>
+        <ConfirmarAcaoModal
+          titulo={modalAberto === 'sangria' ? '− Registrar sangria' : '+ Registrar suprimento'}
+          tom={modalAberto === 'sangria' ? 'atencao' : 'info'}
+          confirmarLabel={enviando ? 'Salvando...' : 'Confirmar'}
+          enviando={enviando}
+          onCancelar={fecharModal}
+          onConfirmar={() => { if (valor > 0) confirmar() }}
+          descricao={
+            <div className="space-y-3">
+              <p>
+                {modalAberto === 'sangria'
+                  ? 'Retirada de dinheiro da gaveta — ex: depósito, pagamento a fornecedor.'
+                  : 'Reforço de troco colocado na gaveta durante o turno.'}
+              </p>
 
-            {erro && (
-              <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>
-            )}
+              {erro && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
+              )}
 
-            <div className="mt-4">
-              <label className="mb-1 block text-xs font-medium text-neutral-400">Valor</label>
-              <InputMoeda value={valor} onChange={setValor} autoFocus className={`w-full ${caixaTema.input}`} />
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-500">Valor</label>
+                <InputMoeda value={valor} onChange={setValor} autoFocus className={`w-full ${caixaTema.input}`} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-500">
+                  Motivo <span className="font-normal opacity-70">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ex: Troco, pagamento entregador..."
+                  className={`w-full ${caixaTema.input}`}
+                />
+              </div>
             </div>
-            <div className="mt-3">
-              <label className="mb-1 block text-xs font-medium text-neutral-400">
-                Motivo <span className="font-normal opacity-70">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Ex: Troco, pagamento entregador..."
-                className={`w-full ${caixaTema.input}`}
-              />
-            </div>
-
-            <div className="mt-5 flex gap-2">
-              <button
-                onClick={fecharModal}
-                disabled={enviando}
-                className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800 py-2.5 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:opacity-40"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmar}
-                disabled={enviando || valor <= 0}
-                className={`flex-1 rounded-lg py-2.5 text-sm font-bold text-white transition disabled:opacity-40 ${
-                  modalAberto === 'sangria' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-sky-600 hover:bg-sky-500'
-                }`}
-              >
-                {enviando ? 'Salvando...' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   )

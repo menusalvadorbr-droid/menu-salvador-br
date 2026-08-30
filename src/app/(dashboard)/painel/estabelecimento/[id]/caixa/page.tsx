@@ -23,51 +23,50 @@ export default function CaixaPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className={`min-h-screen ${caixaTema.pagina}`}>
-      {/* Cabeçalho próprio dessa área — não reaproveita o CabecalhoGerenciar
-          de propósito: essa tela é pensada como terminal de operação, não
-          como página de conteúdo do painel, e não precisa combinar com o
-          resto do produto. */}
-      <header className="flex items-center justify-between gap-4 border-b border-neutral-800 bg-neutral-950 px-4 py-3 md:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <button
-            onClick={() => router.push(`/painel/estabelecimento/${id}/gerenciar`)}
-            aria-label="Voltar"
-            className="shrink-0 rounded-lg p-1.5 text-neutral-400 transition hover:bg-neutral-800 hover:text-white"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Terminal de caixa</p>
-            <h1 className="truncate text-sm font-semibold text-white">{nomeEstabelecimento}</h1>
+      <div className="mx-auto max-w-5xl p-4 md:p-6">
+        {/* Mesma paleta e estrutura de cabeçalho que o resto do painel de
+            Gestão usa (ver operador/page.tsx) — antes essa área era
+            deliberadamente escura e desacoplada; a paleta foi unificada. */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-neutral-100 bg-white px-5 py-4 shadow-sm">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={() => router.push(`/painel/estabelecimento/${id}/gerenciar`)}
+              aria-label="Voltar"
+              className="shrink-0 rounded-lg p-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Terminal de caixa</p>
+              <h1 className="truncate text-sm font-semibold text-neutral-900">{nomeEstabelecimento}</h1>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 gap-1 rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+            <button
+              onClick={() => setAba('caixa')}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                aba === 'caixa' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              Caixa atual
+            </button>
+            <button
+              onClick={() => setAba('historico')}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                aba === 'historico' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              Histórico
+            </button>
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-1 rounded-lg border border-neutral-800 bg-neutral-900 p-1">
-          <button
-            onClick={() => setAba('caixa')}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-              aba === 'caixa' ? 'bg-emerald-600 text-white' : 'text-neutral-400 hover:text-neutral-100'
-            }`}
-          >
-            Caixa atual
-          </button>
-          <button
-            onClick={() => setAba('historico')}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-              aba === 'historico' ? 'bg-emerald-600 text-white' : 'text-neutral-400 hover:text-neutral-100'
-            }`}
-          >
-            Histórico
-          </button>
+        <GestaoNav estabelecimentoId={id} />
+
+        <div className="mt-6">
+          {aba === 'caixa' ? <PainelCaixa estabelecimentoId={id} /> : <HistoricoCaixa estabelecimentoId={id} />}
         </div>
-      </header>
-
-      <div className="px-4 pt-3 md:px-6">
-        <GestaoNav estabelecimentoId={id} tema="escuro" />
-      </div>
-
-      <div className="mx-auto max-w-5xl p-4 md:p-6">
-        {aba === 'caixa' ? <PainelCaixa estabelecimentoId={id} /> : <HistoricoCaixa estabelecimentoId={id} />}
       </div>
     </div>
   )

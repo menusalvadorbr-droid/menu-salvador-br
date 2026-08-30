@@ -1,12 +1,13 @@
 /**
  * Tokens compartilhados pelos componentes "duas peles" do fluxo de
- * pedidos — claro por padrão (mapa de mesas, /pedidos), escuro quando
- * abertos de dentro da área de Caixa (tema="escuro", visual de PDV
- * isolado do resto do painel, ver caixaTema.ts). LancarPedidoGarcom.tsx,
- * FecharContaMesaModal.tsx e SeletorFormaPagamento.tsx tinham a mesma
- * paleta claro/escuro copiada campo por campo pros elementos que os três
- * compartilham — cada arquivo estende isto com suas próprias chaves
- * extras (específicas do que só ele renderiza).
+ * pedidos — claro é o único tema em uso hoje (mapa de mesas, /pedidos, e
+ * também a área de Caixa desde que sua paleta foi unificada com o resto
+ * do painel, ver caixaTema.ts). A variante `escuro` continua aqui como
+ * infraestrutura reutilizável, sem consumidor no momento.
+ * LancarPedidoGarcom.tsx, FecharContaMesaModal.tsx e
+ * SeletorFormaPagamento.tsx tinham a mesma paleta copiada campo por campo
+ * pros elementos que os três compartilham — cada arquivo estende isto com
+ * suas próprias chaves extras (específicas do que só ele renderiza).
  */
 export const TEMA_DUAS_PELES = {
   claro: {

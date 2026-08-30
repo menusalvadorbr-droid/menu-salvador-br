@@ -3,6 +3,7 @@
 import { Banknote, CreditCard, Smartphone } from 'lucide-react'
 import { METODOS_PAGAMENTO } from '../metodosPagamento'
 import { TEMA_DUAS_PELES } from '../temaDuasPeles'
+import { formatarReais } from '@/lib/moeda'
 
 export { METODOS_PAGAMENTO }
 
@@ -103,7 +104,7 @@ export default function SeletorFormaPagamento({
               inputMode="decimal"
               value={valorRecebido}
               onChange={(e) => onChangeValorRecebido(e.target.value)}
-              placeholder={`Ex: ${total.toFixed(2).replace('.', ',')}`}
+              placeholder={`Ex: ${formatarReais(total)}`}
               className={`w-full rounded-lg border px-3 py-2 text-sm ${c.input}`}
             />
           </div>
@@ -111,7 +112,7 @@ export default function SeletorFormaPagamento({
             <div className="pb-2 text-right text-sm">
               <span className={c.label}>Troco </span>
               <span className={`font-bold ${troco >= 0 ? c.trocoOk : c.trocoFalta}`}>
-                R$ {Math.max(0, troco).toFixed(2)}
+                R$ {formatarReais(Math.max(0, troco))}
               </span>
             </div>
           )}

@@ -7,7 +7,8 @@ import { useChamadosGarcom } from '../hooks/useChamadosGarcom'
 import { useValidacoesBloqueantes } from '../hooks/useValidacoesBloqueantes'
 import { aceitarValidacao } from '@/modules/operador/operadorRepository'
 import FaixaPendencias from './FaixaPendencias'
-import { ETIQUETA_STATUS, ETIQUETA_TIPO_PEDIDO, type StatusPedido } from '../types'
+import { ETIQUETA_STATUS, ETIQUETA_TIPO_PEDIDO, type Pedido, type StatusPedido } from '../types'
+import { formatarReais } from '@/lib/moeda'
 
 const COLUNAS: StatusPedido[] = ['recebido', 'aprovado', 'em_preparo', 'pronto', 'entregue']
 
@@ -20,6 +21,29 @@ const PROXIMO_STATUS: Partial<Record<StatusPedido, StatusPedido>> = {
   aprovado: 'em_preparo',
   em_preparo: 'pronto',
   pronto: 'entregue',
+}
+
+/** "Pago" não é um estágio de preparo — é um selo que pode acontecer a
+ *  qualquer momento (Pix online confirma pagamento antes de a cozinha
+ *  sequer aprovar; mesa/balcão só paga depois de entregue). Antes disso,
+ *  um pedido pago simplesmente sumia do quadro assim que `status` virava
+ *  'pago' (não está em COLUNAS) — a cozinha perdia de vista pedidos que
+ *  ainda precisavam ser preparados só porque já tinham sido pagos.
+ *  Reconstrói em que coluna o pedido realmente está a partir dos
+ *  timestamps de preparo (que continuam gravados independente do
+ *  pagamento) — `null` quando já chegou a "entregue" e está pago: aí sim
+ *  não há mais nada a fazer, some do quadro como qualquer pedido fechado.
+ *  "Está pago" continua sendo lido de `paid_at` (não do valor literal de
+ *  `status`) em todo o resto do componente — assim o selo "💰 Pago"
+ *  continua aparecendo mesmo depois que o botão "Marcar como X" avança o
+ *  pedido pra um `status` novo (que precisa sobrescrever 'pago' pra
+ *  literalmente avançar, já que é um campo só). */
+function colunaEfetiva(pedido: Pedido): StatusPedido | null {
+  if (pedido.status !== 'pago') return pedido.status
+  if (pedido.delivered_at) return null
+  if (pedido.ready_at) return 'pronto'
+  if (pedido.approved_at) return 'aprovado'
+  return 'recebido'
 }
 
 export default function PainelComandas({ estabelecimentoId }: { estabelecimentoId: string }) {
@@ -72,7 +96,7 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
 
       <div className="grid grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-3 lg:grid-cols-5">
         {COLUNAS.map((status) => {
-          const pedidosDaColuna = pedidos.filter((p) => p.status === status)
+          const pedidosDaColuna = pedidos.filter((p) => colunaEfetiva(p) === status)
           return (
             <div key={status} className="flex min-w-[220px] flex-col gap-2">
               <h3 className="text-sm font-semibold text-neutral-700">
@@ -80,7 +104,11 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
               </h3>
               <div className="flex flex-col gap-2">
                 {pedidosDaColuna.map((pedido) => {
-                  const proximo = PROXIMO_STATUS[pedido.status]
+                  // Usa a coluna (não pedido.status direto) pra achar o
+                  // próximo passo — um pedido pago tem status literal
+                  // 'pago', que não está em PROXIMO_STATUS; a coluna já é
+                  // o estágio real dele (ver colunaEfetiva).
+                  const proximo = PROXIMO_STATUS[status]
                   // Pedido de entrega ainda não liberado pela Fila do
                   // Operador (Validar entrega) — bloqueia só a transição
                   // aprovado→em_preparo, que é literalmente "entrar na
@@ -92,8 +120,16 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
                       className="rounded-xl border border-neutral-100 bg-white p-3 shadow-sm"
                     >
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-neutral-900">
+                        <p className="flex items-center gap-1.5 text-sm font-medium text-neutral-900">
                           {pedido.nome_cliente || 'Cliente'}
+                          {pedido.paid_at && (
+                            <span
+                              title="Pagamento já confirmado"
+                              className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700"
+                            >
+                              💰 Pago
+                            </span>
+                          )}
                         </p>
                         {pedido.origem === 'whatsapp_contingencia' && (
                           <span title="Recebido via WhatsApp em contingência">📲</span>
@@ -117,7 +153,7 @@ export default function PainelComandas({ estabelecimentoId }: { estabelecimentoI
                         ))}
                       </ul>
                       <p className="mt-2 text-sm font-semibold text-neutral-900">
-                        R$ {pedido.total.toFixed(2)}
+                        R$ {formatarReais(pedido.total)}
                       </p>
                       {bloqueio ? (
                         bloqueio.status === 'pendente' ? (

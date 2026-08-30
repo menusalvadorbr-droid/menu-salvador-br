@@ -16,6 +16,23 @@ function formatarHora(iso: string | null): string | null {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
+/** "Pago" não é um passo do preparo — é um selo que pode acontecer a
+ *  qualquer momento da linha (pedido Pix online paga antes de a cozinha
+ *  sequer aprovar; pedido de mesa paga só depois de entregue). Quando o
+ *  status atual é "pago", o valor literal do campo já não diz em que
+ *  passo o preparo realmente está (foi sobrescrito na confirmação do
+ *  pagamento) — reconstrói a partir dos timestamps de preparo, que
+ *  continuam gravados independente do pagamento. Sem isso, todo pedido
+ *  pago aparecia como "Entregue" na hora, mesmo quando a cozinha ainda
+ *  nem tinha começado. */
+function statusRealDoPreparo(pedido: PedidoAcompanhamento): StatusPedido {
+  if (pedido.status !== 'pago') return pedido.status
+  if (pedido.delivered_at) return 'entregue'
+  if (pedido.ready_at) return 'pronto'
+  if (pedido.approved_at) return 'aprovado'
+  return 'recebido'
+}
+
 export default function StatusPedidoTimeline({ pedido }: { pedido: PedidoAcompanhamento }) {
   if (pedido.status === 'cancelado') {
     return (
@@ -25,9 +42,7 @@ export default function StatusPedidoTimeline({ pedido }: { pedido: PedidoAcompan
     )
   }
 
-  // "pago" acontece depois de "entregue" — na linha do tempo é o mesmo que
-  // "tudo concluído", não é um passo visual à parte.
-  const statusEfetivo: StatusPedido = pedido.status === 'pago' ? 'entregue' : pedido.status
+  const statusEfetivo = statusRealDoPreparo(pedido)
   const indiceAtual = PASSOS.indexOf(statusEfetivo)
 
   return (

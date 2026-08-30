@@ -1,17 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFecharContaMesa } from '../hooks/useFecharContaMesa'
 import { ETIQUETA_STATUS } from '../../types'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
+import { formatarReais } from '@/lib/moeda'
 import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../../components/SeletorFormaPagamento'
+import PainelPixCobranca from '../../components/PainelPixCobranca'
+import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
 import { TEMA_DUAS_PELES } from '../../temaDuasPeles'
 import type { Mesa } from '../types'
 
 // Compartilhado com o resto do mapa de mesas (tema="claro", padrão — não
-// mexe no visual de lá). Aberto a partir da área de Caixa, que foi
-// redesenhada com um visual escuro tipo PDV desacoplado do resto do
-// painel, entra com tema="escuro" — mesmo componente, duas peles.
+// mexe no visual de lá). A área de Caixa também usa claro desde que sua
+// paleta foi unificada com o resto do painel — `escuro` segue existindo
+// como opção reutilizável, sem consumidor no momento.
 const ESTILOS = {
   claro: {
     ...TEMA_DUAS_PELES.claro,
@@ -67,6 +70,28 @@ export default function FecharContaMesaModal({
   const [valorParcial, setValorParcial] = useState('')
   const [tipoDesconto, setTipoDesconto] = useState<TipoDesconto>('valor')
   const [descontoInput, setDescontoInput] = useState('')
+  const [dadosPix, setDadosPix] = useState<DadosPixEstabelecimento | null>(null)
+  const [pixConfirmado, setPixConfirmado] = useState(false)
+  // Referência do BR Code fixa pra esse fechamento — gerada uma vez, não a
+  // cada render (senão o QR mudaria sozinho enquanto o operador olha pra
+  // ele). É o fechamento de uma mesa inteira, não de um pedido só, então
+  // não existe um codigo_pedido único pra reaproveitar aqui.
+  const [referenciaPix] = useState(() => `mesa-${mesa.numero}-${Date.now()}`)
+
+  useEffect(() => {
+    if (formaPagamento === 'Pix' && !dadosPix) {
+      buscarDadosPixEstabelecimento(estabelecimentoId).then(setDadosPix)
+    }
+  }, [formaPagamento, dadosPix, estabelecimentoId])
+
+  // Reseta a confirmação ao trocar de forma de pagamento (não num efeito
+  // separado sincronizando com formaPagamento — isso dispara "cascading
+  // renders" no linter; aqui é reação direta à ação de trocar, não uma
+  // derivação de estado).
+  function handleFormaPagamentoChange(nova: string) {
+    setFormaPagamento(nova)
+    if (nova !== 'Pix') setPixConfirmado(false)
+  }
 
   const totalPago = total - saldo
   const descontoNum = calcularDesconto(saldo, tipoDesconto, parseFloat(descontoInput.replace(',', '.')) || 0)
@@ -86,7 +111,7 @@ export default function FecharContaMesaModal({
   }
 
   async function handleFecharTudo() {
-    if (trocoInsuficiente) return
+    if (trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)) return
     const resultado = await fecharTudo(formaPagamento, nomePagador, descontoNum)
     if (resultado.ok) onContaFechada()
   }
@@ -120,11 +145,11 @@ export default function FecharContaMesaModal({
                     {pedido.items.map((item, i) => (
                       <li key={i} className="flex items-center justify-between gap-3">
                         <span>{item.quantidade}x {item.nome}</span>
-                        <span className="flex-shrink-0">R$ {(item.preco * item.quantidade).toFixed(2)}</span>
+                        <span className="flex-shrink-0">R$ {formatarReais(item.preco * item.quantidade)}</span>
                       </li>
                     ))}
                   </ul>
-                  <p className={`mt-1 text-right text-sm font-semibold ${c.totalPedido}`}>R$ {pedido.total.toFixed(2)}</p>
+                  <p className={`mt-1 text-right text-sm font-semibold ${c.totalPedido}`}>R$ {formatarReais(pedido.total)}</p>
                 </div>
               ))}
             </div>
@@ -153,12 +178,34 @@ export default function FecharContaMesaModal({
 
               <SeletorFormaPagamento
                 formaPagamento={formaPagamento}
-                onChangeFormaPagamento={setFormaPagamento}
+                onChangeFormaPagamento={handleFormaPagamentoChange}
                 valorRecebido={valorRecebido}
                 onChangeValorRecebido={setValorRecebido}
                 total={valorACobrar}
                 tema={tema}
               />
+
+              {formaPagamento === 'Pix' && (
+                <>
+                  <PainelPixCobranca
+                    chavePix={dadosPix?.chavePix ?? null}
+                    nomeFantasia={dadosPix?.nomeFantasia ?? ''}
+                    cidade={dadosPix?.cidade ?? null}
+                    valor={valorACobrar}
+                    referencia={referenciaPix}
+                    tema={tema}
+                  />
+                  <label className={`flex items-center gap-2 text-sm ${c.label}`}>
+                    <input
+                      type="checkbox"
+                      checked={pixConfirmado}
+                      onChange={(e) => setPixConfirmado(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Confirmei que o Pix caiu
+                  </label>
+                </>
+              )}
 
               <div>
                 <label className={`mb-1 block text-xs font-medium ${c.label}`}>
@@ -195,27 +242,27 @@ export default function FecharContaMesaModal({
               <div className={`space-y-1 border-t pt-3 text-sm ${c.borda}`}>
                 <div className={`flex justify-between ${c.labelTotal}`}>
                   <span>Total da mesa</span>
-                  <span>R$ {total.toFixed(2)}</span>
+                  <span>R$ {formatarReais(total)}</span>
                 </div>
                 {totalPago > 0 && (
                   <div className={`flex justify-between ${c.totalPago}`}>
                     <span>Já pago</span>
-                    <span>R$ {totalPago.toFixed(2)}</span>
+                    <span>R$ {formatarReais(totalPago)}</span>
                   </div>
                 )}
                 <div className={`flex justify-between ${c.labelTotal}`}>
                   <span>Subtotal a cobrar</span>
-                  <span>R$ {Math.max(0, saldo).toFixed(2)}</span>
+                  <span>R$ {formatarReais(Math.max(0, saldo))}</span>
                 </div>
                 {descontoNum > 0 && (
                   <div className={`flex justify-between ${c.labelTotal}`}>
                     <span>Desconto</span>
-                    <span>− R$ {descontoNum.toFixed(2)}</span>
+                    <span>− R$ {formatarReais(descontoNum)}</span>
                   </div>
                 )}
                 <div className={`flex justify-between text-base font-bold ${c.faltaPagar}`}>
                   <span>Total a cobrar</span>
-                  <span>R$ {valorACobrar.toFixed(2)}</span>
+                  <span>R$ {formatarReais(valorACobrar)}</span>
                 </div>
               </div>
 
@@ -225,11 +272,11 @@ export default function FecharContaMesaModal({
 
               <button
                 onClick={handleFecharTudo}
-                disabled={enviando || !caixaAberto || trocoInsuficiente}
+                disabled={enviando || !caixaAberto || trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)}
                 title="F10 — Pagamento / Finalizar"
                 className={`w-full rounded-lg py-2.5 font-semibold transition disabled:opacity-50 ${c.botaoVerde}`}
               >
-                {enviando ? 'Processando...' : `Fechar tudo agora — R$ ${valorACobrar.toFixed(2)}`}
+                {enviando ? 'Processando...' : `Fechar tudo agora — R$ ${formatarReais(valorACobrar)}`}
               </button>
 
               <div className={`flex items-center gap-2 text-xs ${c.separadorTexto}`}>

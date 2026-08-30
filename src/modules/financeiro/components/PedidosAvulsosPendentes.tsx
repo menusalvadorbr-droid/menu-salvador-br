@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { listarPedidosAvulsosAguardandoPagamento } from '@/modules/pedidos/ordersRepository'
 import FecharPedidoAvulsoModal from '@/modules/pedidos/components/FecharPedidoAvulsoModal'
 import { ETIQUETA_TIPO_PEDIDO, type Pedido } from '@/modules/pedidos/types'
+import { formatarReais } from '@/lib/moeda'
 import { caixaTema } from '../caixaTema'
 
 /**
@@ -45,22 +46,22 @@ export default function PedidosAvulsosPendentes({
 
   return (
     <div className={`${caixaTema.painel} p-5`}>
-      <p className="mb-3 text-sm font-semibold text-white">🧾 Pedidos aguardando pagamento</p>
+      <p className="mb-3 text-sm font-semibold text-neutral-900">🧾 Pedidos aguardando pagamento</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
         {pedidos.map((pedido) => (
           <button
             key={pedido.id}
             onClick={() => setPedidoSelecionado(pedido)}
-            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-left transition hover:border-amber-400/60 hover:bg-amber-500/20"
+            className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-left transition hover:border-amber-300 hover:bg-amber-100"
           >
-            <div className="flex items-center justify-between gap-2 text-xs font-medium text-amber-400/80">
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-amber-700">
               <span>{ETIQUETA_TIPO_PEDIDO[pedido.tipo_pedido]}</span>
-              <span>R$ {pedido.total.toFixed(2)}</span>
+              <span>R$ {formatarReais(pedido.total)}</span>
             </div>
-            <div className="mt-0.5 truncate text-sm font-semibold text-amber-200">
+            <div className="mt-0.5 truncate text-sm font-semibold text-amber-900">
               {pedido.nome_cliente || 'Cliente'}
             </div>
-            <div className="mt-0.5 text-xs font-medium text-amber-400/80">💳 Fechar conta</div>
+            <div className="mt-0.5 text-xs font-medium text-amber-700">💳 Fechar conta</div>
           </button>
         ))}
       </div>
@@ -76,7 +77,6 @@ export default function PedidosAvulsosPendentes({
             carregar()
             onFechado?.()
           }}
-          tema="escuro"
         />
       )}
     </div>

@@ -20,17 +20,17 @@ export default function SessaoCaixaPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className={`min-h-screen ${caixaTema.pagina} print:bg-white print:text-black`}>
-      <header className="flex items-center gap-3 border-b border-neutral-800 bg-neutral-950 px-4 py-3 md:px-6 print:hidden">
+      <header className="flex items-center gap-3 border-b border-neutral-100 bg-white px-4 py-3 shadow-sm md:px-6 print:hidden">
         <button
           onClick={() => router.push(`/painel/estabelecimento/${id}/caixa`)}
           aria-label="Voltar ao caixa"
-          className="shrink-0 rounded-lg p-1.5 text-neutral-400 transition hover:bg-neutral-800 hover:text-white"
+          className="shrink-0 rounded-lg p-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Demonstrativo de caixa</p>
-          <h1 className="truncate text-sm font-semibold text-white">{nomeEstabelecimento}</h1>
+          <h1 className="truncate text-sm font-semibold text-neutral-900">{nomeEstabelecimento}</h1>
         </div>
       </header>
 
