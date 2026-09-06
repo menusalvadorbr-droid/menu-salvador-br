@@ -9,14 +9,11 @@ import { obterFonteTema } from '@/lib/fontesTema'
 
 // Cardápio V2 — página pública mínima da Fase 2 (ver cardapio-v2-visao.md):
 // sem editor, sem tema customizável, sem carrinho — só leitura, rápida em
-// 4G. Mesmo padrão de ISR do V1 (revalidate + generateStaticParams vazio,
-// obrigatório neste Next 16 ou a rota vira full-dynamic e ignora o cache).
-export const revalidate = 120
-
-export async function generateStaticParams() {
-  return []
-}
-
+// 4G. Sem cacheComponents habilitado no next.config, ler searchParams (canal)
+// junto de generateStaticParams/revalidate derruba a rota com
+// DYNAMIC_SERVER_USAGE em vez de só marcar como dinâmica — então, ao
+// contrário do V1 (que não usa searchParams), esta rota fica full-dynamic,
+// mesmo padrão de /cardapio/[slug]/categoria/[categoriaId].
 interface PageProps {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ canal?: string }>
