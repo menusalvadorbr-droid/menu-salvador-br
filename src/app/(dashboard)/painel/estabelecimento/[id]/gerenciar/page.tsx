@@ -15,6 +15,7 @@ import {
   Eye,
   QrCode,
   ShoppingBag,
+  FlaskConical,
 } from 'lucide-react'
 import EstadoCarregamento from './EstadoCarregamento'
 import { useEstabelecimentoGerenciar } from './useEstabelecimentoGerenciar'
@@ -36,6 +37,12 @@ const CORES_MODULO = {
     text: 'text-indigo-600',
     hoverBorder: 'hover:border-indigo-200',
     groupHoverText: 'group-hover:text-indigo-500',
+  },
+  roxo: {
+    bg: 'bg-purple-50',
+    text: 'text-purple-600',
+    hoverBorder: 'hover:border-purple-200',
+    groupHoverText: 'group-hover:text-purple-500',
   },
   esmeralda: {
     bg: 'bg-emerald-50',
@@ -237,6 +244,18 @@ export default function GerenciarEstabelecimentoPage({
             titulo="Gestão"
             descricao="Pedidos, estoque, caixa e fornecedores"
             disabledTitle="Módulo de Gestão desativado — ative em Configurações → Módulo de Gestão"
+          />
+
+          {/* Cardápio V2 — reconstrução isolada do zero, ver
+              cardapio-v2-visao.md. Roda em paralelo ao Cardápio (V1) acima,
+              sem nenhum dado/código compartilhado. Card removível a
+              qualquer momento sem afetar o V1. */}
+          <CardModulo
+            href={`/painel/estabelecimento/${id}/gerenciar/cardapio-v2`}
+            icon={<FlaskConical className="h-6 w-6" />}
+            cor={CORES_MODULO.roxo}
+            titulo="Cardápio V2 (piloto)"
+            descricao="Nova versão do cardápio, em teste"
           />
         </div>
 
