@@ -1,17 +1,16 @@
-import { redirect } from 'next/navigation'
+import EditorPerfilEspelho from './EditorPerfilEspelho'
 
 interface PageProps {
   params: Promise<{ id: string }>
 }
 
 /**
- * Esta rota foi unificada com /gerenciar — antes existiam duas telas
- * diferentes editando o mesmo estabelecimento (/editar e /gerenciar),
- * o que causava confusão (edições em uma não refletiam claramente na
- * outra, e só o dono tinha acesso aqui). Agora /gerenciar cobre tudo,
- * para dono e para a equipe, com abas adequadas a cada papel.
+ * Espelho clicável do perfil público — ver plano "Editor de Perfil V1".
+ * Substitui o antigo redirect pra /gerenciar (que existia porque duas
+ * telas editando o mesmo estabelecimento causavam confusão): agora esta
+ * rota passa a ser a única tela de edição de perfil, então o motivo do
+ * redirect deixou de existir.
  */
-export default async function EditarEstabelecimentoRedirectPage({ params }: PageProps) {
-  const { id } = await params
-  redirect(`/painel/estabelecimento/${id}/gerenciar`)
+export default function EditarEstabelecimentoPage({ params }: PageProps) {
+  return <EditorPerfilEspelho params={params} />
 }
