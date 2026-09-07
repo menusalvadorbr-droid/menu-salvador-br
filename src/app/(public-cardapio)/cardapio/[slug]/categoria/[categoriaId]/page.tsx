@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/publicServer'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
@@ -6,6 +6,24 @@ import { TraducaoProvider, Texto, TextoInterface, SeletorIdioma, type TraducaoRo
 import BotaoVoltarCategorias from '@/components/public/BotaoVoltarCategorias'
 import CategoriaItensClient from '@/components/public/CategoriaItensClient'
 import { obterFonteTema } from '@/lib/fontesTema'
+
+// ISR — mesmo motivo/valor da página principal (cardapio/[slug]/page.tsx):
+// createPublicClient() (sem cookies) em vez de createClient() (que lê
+// cookies de sessão e força a rota inteira pro modo dinâmico) é o que
+// permite cache aqui. Nenhuma consulta desta página depende de sessão —
+// é tudo leitura pública (estabelecimentos_publico, menus, categorias,
+// traducoes), já liberada por RLS pro mesmo client público que a página
+// principal usa.
+export const revalidate = 120
+
+// Sem isso (mesmo retornando vazio), o Next trata a rota como totalmente
+// dinâmica e ignora o revalidate acima por completo — mesmo
+// comportamento documentado na página principal. dynamicParams (padrão
+// true) já cobre gerar sob demanda qualquer slug/categoriaId não
+// devolvido aqui.
+export async function generateStaticParams() {
+  return []
+}
 
 interface TemaConfigParcial {
   cor_primaria?: string
@@ -32,7 +50,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string; categoriaId: string }>
 }): Promise<Metadata> {
   const { slug, categoriaId } = await params
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const [{ data: est }, { data: categoria }] = await Promise.all([
     supabase.from('estabelecimentos_publico').select('nome, nome_fantasia').eq('slug', slug).eq('status', 'active').eq('ativo', true).limit(1).single(),
     supabase.from('categorias').select('nome').eq('id', categoriaId).maybeSingle(),
@@ -57,7 +75,7 @@ export default async function CategoriaCardapioPage({
 }: {
   params: Promise<{ slug: string; categoriaId: string }>
 }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { slug, categoriaId } = await params
 
   // 1. Estabelecimento — só os campos que essa página precisa (mais leve
