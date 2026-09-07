@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { ImageUpload } from '@/app/(dashboard)/painel/components/upload/ImageUpload'
 import { salvarItem, atualizarAlergenosDoItem, atualizarTagsDoItem } from '../itemRepository'
 import { listarAlergenos } from '../alergenoRepository'
 import { listarGruposComplemento, type GrupoComplementoComOpcoes } from '../grupoComplementoRepository'
 import RegraExibicaoEditor from './RegraExibicaoEditor'
 import TraducaoEditor from './TraducaoEditor'
+import UploadImagemV2 from './UploadImagemV2'
 import VariacaoEditor from './VariacaoEditor'
 import type { CardapioV2Alergeno, CardapioV2ItemCompleto, CardapioV2VariacaoInput, RecursosOpcionaisCardapio } from '../types'
 
@@ -137,7 +137,14 @@ export default function ItemForm({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Foto</label>
-            <ImageUpload onUpload={setFotoUrl} defaultImage={fotoUrl || null} shape="rectangle" label="Enviar foto" />
+            <UploadImagemV2
+              estabelecimentoId={estabelecimento.id}
+              pasta="itens"
+              onUpload={setFotoUrl}
+              defaultImage={fotoUrl || null}
+              shape="rectangle"
+              label="Enviar foto"
+            />
           </div>
 
           <div>

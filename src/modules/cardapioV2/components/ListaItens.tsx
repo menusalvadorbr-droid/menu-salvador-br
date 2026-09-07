@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import { formatarReais } from '@/lib/moeda'
+import { getCloudflareImageUrl } from '@/lib/cloudflareImage'
 import { alternarAtivoItem, excluirItem, listarItensCompletos, reordenarItens } from '../itemRepository'
 import { podeUsar } from '../permissoes'
 import type { CardapioV2Cardapio, CardapioV2ItemCompleto } from '../types'
@@ -69,9 +71,19 @@ export default function ListaItens({
         {itens.length === 0 && <p className="text-sm text-neutral-400">Nenhum item nesta categoria ainda.</p>}
         {itens.map((item, index) => (
           <div key={item.id} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-2.5">
+            {item.foto_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={getCloudflareImageUrl(item.foto_url, { width: 40, height: 40 })!}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="h-10 w-10 shrink-0 rounded-lg bg-neutral-100" />
+            )}
             <div className="min-w-0 flex-1">
               <p className={`truncate text-sm font-medium ${item.ativo ? 'text-neutral-800' : 'text-neutral-400 line-through'}`}>{item.nome}</p>
-              <p className="text-xs text-neutral-400">R$ {item.preco_base.toFixed(2)}{item.variacoes.length > 0 && ` + ${item.variacoes.length} variação(ões)`}</p>
+              <p className="text-xs text-neutral-400">R$ {formatarReais(item.preco_base)}{item.variacoes.length > 0 && ` + ${item.variacoes.length} variação(ões)`}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-neutral-400">
               <button title="Subir" disabled={index === 0} onClick={() => handleMover(index, -1)} className="disabled:opacity-30">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
+import { formatarReais } from '@/lib/moeda'
 import {
   criarGrupoComplemento,
   criarOpcaoComplemento,
@@ -84,7 +85,7 @@ export default function GrupoComplementoEditor({ estabelecimentoId }: { estabele
           <ul className="mt-2 flex flex-col gap-1">
             {grupo.opcoes.map((opcao) => (
               <li key={opcao.id} className="flex items-center justify-between text-sm text-neutral-600">
-                <span>{opcao.nome} {opcao.preco_adicional > 0 && `(+R$ ${opcao.preco_adicional.toFixed(2)})`}</span>
+                <span>{opcao.nome} {opcao.preco_adicional > 0 && `(+R$ ${formatarReais(opcao.preco_adicional)})`}</span>
                 <button onClick={() => excluirOpcaoComplemento(opcao.id).then(recarregar)} className="text-red-400 hover:text-red-600">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

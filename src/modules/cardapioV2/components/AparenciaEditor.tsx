@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ImageUpload } from '@/app/(dashboard)/painel/components/upload/ImageUpload'
 import { FONTES_TEMA } from '@/lib/fontesTema'
 import { atualizarAparencia } from '../cardapioRepository'
 import type { AparenciaCardapio, CardapioV2Cardapio, FormatoExibicaoCardapio, FotoItemPosicao } from '../types'
+import UploadImagemV2 from './UploadImagemV2'
 
 /**
  * Cada mudança aplica na hora via onAtualizado (estado do pai, sem ida ao
@@ -88,7 +88,14 @@ export default function AparenciaEditor({
 
       <div>
         <label className="mb-1 block text-xs font-medium text-neutral-600">Imagem de capa (opcional)</label>
-        <ImageUpload onUpload={(url) => atualizarCampo('capa_url', url || null)} defaultImage={cardapio.capa_url} shape="rectangle" label="Enviar capa" />
+        <UploadImagemV2
+          estabelecimentoId={cardapio.estabelecimento_id}
+          pasta="capas"
+          onUpload={(url) => atualizarCampo('capa_url', url || null)}
+          defaultImage={cardapio.capa_url}
+          shape="rectangle"
+          label="Enviar capa"
+        />
       </div>
 
       <div>

@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { getCloudflareImageUrl } from '@/lib/cloudflareImage'
 import { resolverEstadoExibicao } from '@/modules/cardapioV2/regrasExibicao'
 import type { CanalCardapioV2, CardapioV2Alergeno, CardapioV2Cardapio, CardapioV2ItemCompleto } from '@/modules/cardapioV2/types'
 import PrecoComVariacao from './PrecoComVariacao'
@@ -32,6 +33,11 @@ export default function ItemCard({
   const catalogo = cardapio.formato_exibicao === 'catalogo'
   const posicao = catalogo ? 'top' : cardapio.foto_item_posicao
   const temFoto = posicao !== 'none' && !!item.foto_url
+  // Miniatura já vem redimensionada pela Cloudflare Image Transformations
+  // (ver README.md) — 2x a largura exibida, pra ficar nítido em tela
+  // retina sem baixar o arquivo original inteiro em cada card.
+  const fotoGrande = catalogo || posicao === 'top'
+  const fotoUrl = getCloudflareImageUrl(item.foto_url, { width: fotoGrande ? 800 : 128, height: fotoGrande ? 800 : 128 })
 
   return (
     <div className={`flex gap-3 rounded-xl border border-neutral-200 bg-white p-3 ${catalogo ? 'flex-col' : CLASSES_POR_POSICAO[posicao]}`}>
@@ -41,7 +47,7 @@ export default function ItemCard({
             catalogo ? 'aspect-square w-full' : posicao === 'top' ? 'h-32 w-full' : 'h-16 w-16'
           }`}
         >
-          <Image src={item.foto_url!} alt={item.nome} fill className="object-cover" sizes={catalogo || posicao === 'top' ? '100vw' : '64px'} unoptimized />
+          <Image src={fotoUrl!} alt={item.nome} fill className="object-cover" sizes={fotoGrande ? '100vw' : '64px'} unoptimized />
         </div>
       )}
       <div className="min-w-0 flex-1">

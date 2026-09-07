@@ -5,6 +5,7 @@ import { buscarCardapioPublico, registrarAcessoQr } from '@/modules/cardapioV2/p
 import type { CanalCardapioV2 } from '@/modules/cardapioV2/types'
 import CategoriaSecao from '@/components/cardapioV2/CategoriaSecao'
 import NavegacaoCategoriasV2 from '@/components/cardapioV2/NavegacaoCategoriasV2'
+import { getCloudflareImageUrl } from '@/lib/cloudflareImage'
 import { obterFonteTema } from '@/lib/fontesTema'
 
 // Cardápio V2 — página pública mínima da Fase 2 (ver cardapio-v2-visao.md):
@@ -57,7 +58,9 @@ export default async function CardapioV2Page({ params, searchParams }: PageProps
   const corFundo = cardapioPublico?.cardapio.cor_fundo ?? '#F9FAFB'
   const corTexto = cardapioPublico?.cardapio.cor_texto ?? '#1F2937'
   const fonte = obterFonteTema(cardapioPublico?.cardapio.fonte)
-  const capaUrl = cardapioPublico?.cardapio.capa_url
+  // Capa vem do R2 (ver README.md) — redimensionada via Cloudflare Image
+  // Transformations em vez de servir o arquivo original inteiro.
+  const capaUrl = getCloudflareImageUrl(cardapioPublico?.cardapio.capa_url, { width: 1200, height: 448 })
   const categoriasComItens = cardapioPublico?.categorias.filter((c) => c.itens.length > 0) ?? []
 
   return (

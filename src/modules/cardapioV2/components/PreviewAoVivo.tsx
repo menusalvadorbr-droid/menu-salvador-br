@@ -5,6 +5,7 @@ import { listarItensCompletos } from '../itemRepository'
 import { listarRegrasDaCategoria } from '../regrasExibicaoRepository'
 import { listarAlergenos } from '../alergenoRepository'
 import CategoriaSecao from '@/components/cardapioV2/CategoriaSecao'
+import { getCloudflareImageUrl } from '@/lib/cloudflareImage'
 import { obterFonteTema } from '@/lib/fontesTema'
 import type { CardapioV2Alergeno, CardapioV2Cardapio, CardapioV2CategoriaComItens, CardapioV2Categoria } from '../types'
 
@@ -55,7 +56,7 @@ export default function PreviewAoVivo({
     >
       {cardapio.capa_url && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={cardapio.capa_url} alt="" className="h-24 w-full object-cover" />
+        <img src={getCloudflareImageUrl(cardapio.capa_url, { width: 400, height: 96 })!} alt="" className="h-24 w-full object-cover" />
       )}
       <div className="p-4">
         <CategoriaSecao categoria={categoriaComItens} canal="presencial" alergenos={alergenos} cardapio={cardapio} agora={new Date()} />
