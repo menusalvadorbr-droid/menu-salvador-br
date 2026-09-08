@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { atualizarCategoria, criarCategoria, excluirCategoria, reordenarCategorias } from '../categoriaRepository'
 import { podeUsar } from '../permissoes'
 import type { CardapioV2Categoria } from '../types'
@@ -23,6 +24,8 @@ export default function CategoriaManager({
 }) {
   const [novoNome, setNovoNome] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [categoriaParaExcluir, setCategoriaParaExcluir] = useState<CardapioV2Categoria | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
 
   async function handleCriar() {
     if (!novoNome.trim() || !podeUsar(estabelecimento, 'cardapio_v2.categorias.criar')) return
@@ -46,8 +49,10 @@ export default function CategoriaManager({
   }
 
   async function handleExcluir(id: string) {
-    if (!confirm('Excluir esta categoria e todos os itens dela?')) return
+    setExcluindo(true)
     await excluirCategoria(id)
+    setExcluindo(false)
+    setCategoriaParaExcluir(null)
     onMudou()
   }
 
@@ -80,7 +85,7 @@ export default function CategoriaManager({
             >
               {cat.ativo ? 'ocultar' : 'ativar'}
             </button>
-            <button title="Excluir" onClick={() => handleExcluir(cat.id)} className="text-red-400 hover:text-red-600">
+            <button title="Excluir" onClick={() => setCategoriaParaExcluir(cat)} className="text-red-400 hover:text-red-600">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -103,6 +108,18 @@ export default function CategoriaManager({
           <Plus className="h-3.5 w-3.5" /> Adicionar
         </button>
       </div>
+
+      {categoriaParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir categoria?"
+          descricao={`Excluir "${categoriaParaExcluir.nome}" e todos os itens dela?`}
+          confirmarLabel="Excluir"
+          tom="perigo"
+          enviando={excluindo}
+          onCancelar={() => setCategoriaParaExcluir(null)}
+          onConfirmar={() => handleExcluir(categoriaParaExcluir.id)}
+        />
+      )}
     </div>
   )
 }

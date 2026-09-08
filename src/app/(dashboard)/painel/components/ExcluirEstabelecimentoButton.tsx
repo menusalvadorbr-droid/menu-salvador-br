@@ -1,7 +1,8 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { Trash2 } from 'lucide-react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { excluirEstabelecimento } from '../actions'
 
 interface Props {
@@ -11,12 +12,9 @@ interface Props {
 
 export function ExcluirEstabelecimentoButton({ estabelecimentoId, nomeExibicao }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [confirmando, setConfirmando] = useState(false)
 
-  const handleExcluir = async () => {
-    if (!confirm(`Tem certeza que deseja excluir "${nomeExibicao}"? Esta ação pode ser desfeita apenas pelo suporte.`)) {
-      return
-    }
-
+  const handleExcluir = () => {
     const formData = new FormData()
     formData.append('id', estabelecimentoId)
 
@@ -37,13 +35,30 @@ export function ExcluirEstabelecimentoButton({ estabelecimentoId, nomeExibicao }
   }
 
   return (
-    <button
-      onClick={handleExcluir}
-      disabled={isPending}
-      className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition disabled:opacity-50"
-      title="Excluir estabelecimento"
-    >
-      <Trash2 className="w-4 h-4" />
-    </button>
+    <>
+      <button
+        onClick={() => setConfirmando(true)}
+        disabled={isPending}
+        className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition disabled:opacity-50"
+        title="Excluir estabelecimento"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+
+      {confirmando && (
+        <ConfirmarAcaoModal
+          titulo="Excluir estabelecimento?"
+          descricao={`Tem certeza que deseja excluir "${nomeExibicao}"? Esta ação pode ser desfeita apenas pelo suporte.`}
+          confirmarLabel="Excluir"
+          tom="perigo"
+          enviando={isPending}
+          onCancelar={() => setConfirmando(false)}
+          onConfirmar={() => {
+            setConfirmando(false)
+            handleExcluir()
+          }}
+        />
+      )}
+    </>
   )
 }

@@ -2,10 +2,9 @@ import { createPublicClient } from '@/lib/supabase/publicServer'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { Metadata } from 'next'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
-import { TraducaoProvider, TextoInterface, SeletorIdioma, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
+import { TraducaoProvider, TextoInterface, type TraducaoRow, type TraducaoInterfaceRow } from '@/components/public/TraducaoCardapio'
 import PromocoesContador, { type ItemComPromo } from '@/components/public/PromocoesContador'
 import NavegacaoCategorias from '@/components/public/NavegacaoCategorias'
 import NavegacaoCategoriasCardsClient from '@/components/public/NavegacaoCategoriasCardsClient'
@@ -13,6 +12,7 @@ import FaixasCategorias from '@/components/public/FaixasCategorias'
 import PilulasCardapioClient from '@/components/public/PilulasCardapioClient'
 import { obterFonteTema } from '@/lib/fontesTema'
 import { gradienteHeroImagem } from '@/lib/temaHero'
+import CardapioHero from '@/components/public/CardapioHero'
 import { SELECT_ITEM_CARDAPIO_PUBLICO, type ItemCardapioBruto } from '@/lib/resolverItemCardapio'
 import type { CategoriaCache } from '@/lib/cardapioCache'
 
@@ -215,6 +215,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
     ? totalItensFaixas
     : Object.values(itensPorCat).reduce((a, b) => a + b.length, 0)
 
+  const culinariaTexto = (est.estabelecimento_tipos_cozinha || [])
+    .map((v: { tipos_cozinha: { nome: string } | null }) => v.tipos_cozinha?.nome)
+    .filter(Boolean)
+    .join(', ')
+
   // Formato do cardápio — campo independente do tema (estabelecimentos.
   // cardapio_formato), escolhido em Configurações → Tema. Desacoplado de
   // temas.config: um estabelecimento pode trocar de tema sem perder o
@@ -269,52 +274,21 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
         {/* ── CABEÇALHO / HERO ── */}
         <div className="overflow-hidden rounded-2xl shadow mb-4"
           style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
-          {/* Bloco de identidade — só essa parte vira o "hero": fundo em cor
-              sólida (padrão) ou foto + véu escuro por cima, configurados no
-              tema. Com foto, a cor do texto vira branco (herdada pelos
-              parágrafos abaixo, que não têm cor própria); sem foto, segue
-              corP/corT normalmente. */}
-          <div className="p-5"
-            style={
-              heroComImagem
-                ? {
-                    backgroundImage: `${heroGradiente}, url(${temaConfig.hero_imagem_url})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    color: '#ffffff',
-                  }
-                : undefined
-            }>
-            <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-4">
-              {est.logo_url && (
-                <div className="relative w-14 h-14 flex-shrink-0 overflow-hidden rounded-full border-2"
-                  style={{ borderColor: heroComImagem ? '#ffffff' : corP }}>
-                  <Image src={est.logo_url} alt={tituloCardapio} fill
-                    className="object-cover" sizes="56px" unoptimized priority />
-                </div>
-              )}
-              <div>
-                <h1 className="text-xl font-bold" style={{ color: heroComImagem ? '#ffffff' : corP }}>{tituloCardapio}</h1>
-                <p className="text-sm opacity-70">
-                  {est.bairro}
-                  {' · '}
-                  {(est.estabelecimento_tipos_cozinha || [])
-                    .map((v: { tipos_cozinha: { nome: string } | null }) => v.tipos_cozinha?.nome)
-                    .filter(Boolean)
-                    .join(', ') || <TextoInterface chave="culinaria_variada">Culinária variada</TextoInterface>}
-                </p>
-                <p className="text-xs opacity-50 mt-0.5">
-                  {totalItens} <TextoInterface chave="itens_label">itens</TextoInterface> · {categorias.length} <TextoInterface chave="categorias_label">categorias</TextoInterface>
-                </p>
-                {est.endereco && (
-                  <p className="mt-1 text-xs opacity-60">📍 {[est.endereco, est.numero].filter(Boolean).join(', ')}</p>
-                )}
-              </div>
-            </div>
-            <SeletorIdioma idiomasAtivos={idiomasAtivos} />
-            </div>
-          </div>
+          <CardapioHero
+            corPrimaria={corP}
+            heroComImagem={heroComImagem}
+            heroGradiente={heroGradiente}
+            heroImagemUrl={temaConfig.hero_imagem_url}
+            logoUrl={est.logo_url}
+            titulo={tituloCardapio}
+            bairro={est.bairro}
+            culinaria={culinariaTexto}
+            totalItens={totalItens}
+            totalCategorias={categorias.length}
+            endereco={est.endereco}
+            numero={est.numero}
+            idiomasAtivos={idiomasAtivos}
+          />
           <div className="px-5 pb-5" style={{ paddingTop: heroComImagem ? '0.75rem' : undefined }}>
           <Link
             href={

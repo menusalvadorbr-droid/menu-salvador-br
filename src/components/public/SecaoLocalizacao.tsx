@@ -11,7 +11,7 @@ export default function SecaoLocalizacao({ mapUrl, linkAbrirMapa }: { mapUrl: st
           href={linkAbrirMapa}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm font-medium text-orange-600 hover:underline"
+          className="text-sm font-medium text-[var(--brand-primary)] hover:underline"
         >
           <TextoInterface chave="abrir_google_maps">Abrir no Google Maps</TextoInterface>
         </a>

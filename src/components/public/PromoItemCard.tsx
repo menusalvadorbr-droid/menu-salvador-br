@@ -76,6 +76,9 @@ export default function PromoItemCard({ item, corP, corT, corF, corBd, cardRaio 
           onClick={() => setAberto(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={item.nome}
             className="relative flex w-full max-w-lg min-h-[40vh] max-h-[80vh] flex-col rounded-t-2xl border-t shadow-2xl overflow-hidden"
             style={{ backgroundColor: corF, borderColor: corBd }}
             onClick={(e) => e.stopPropagation()}

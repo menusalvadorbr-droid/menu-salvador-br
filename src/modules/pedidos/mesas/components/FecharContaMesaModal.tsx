@@ -119,7 +119,12 @@ export default function FecharContaMesaModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className={`absolute inset-0 ${c.overlay}`} onClick={onFechar} />
-      <div className={`relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-2xl ${c.modal} shadow-2xl sm:rounded-2xl`}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Fechar conta — Mesa ${mesa.numero}`}
+        className={`relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-2xl ${c.modal} shadow-2xl sm:rounded-2xl`}
+      >
         <div className={`flex items-center justify-between border-b ${c.borda} p-4`}>
           <h2 className={`text-lg font-bold ${c.titulo}`}>💳 Fechar conta — Mesa {mesa.numero}</h2>
           <button onClick={onFechar} className={c.fechar}>✕</button>

@@ -1,22 +1,24 @@
-import PublicFooter from '@/components/public/PublicFooter'
-import GlobalBreadcrumb from '@/components/GlobalBreadcrumb'
+import Link from 'next/link'
 import { createPublicClient } from '@/lib/supabase/publicServer'
 
 /**
- * Layout do cardápio público (/cardapio/[slug] e .../categoria/[categoriaId])
- * — mesma casca do grupo (public), mas sem o PublicHeader: o cardápio fica
- * focado só no conteúdo do estabelecimento, sem a barra do site por cima.
- * Grupo de rotas separado (em vez de esconder o header condicionalmente
- * dentro do layout de (public)) porque layouts de Server Component não têm
- * como saber a rota atual sem gambiarra — mover a árvore de arquivos pra um
- * grupo irmão é o jeito suportado pelo App Router, e não muda nenhuma URL
- * (parênteses no nome da pasta não entram no path).
+ * Layout do cardápio público (/cardapio/[slug], .../categoria/[categoriaId],
+ * .../pedido/[pedidoId], .../pedidos — e os equivalentes de /cardapio-v2)
+ * — mesma casca do grupo (public), mas sem o PublicHeader nem a trilha/
+ * rodapé do site: quem chega aqui escaneou um QR na mesa ou entrou por um
+ * link direto, quer ver o cardápio (ou acompanhar o pedido), não navegar
+ * pelo diretório. Só uma marca discreta no rodapé, não o rodapé inteiro
+ * (que teria links de cadastro/termos/etc. fora de contexto aqui). Grupo de
+ * rotas separado (em vez de esconder condicionalmente dentro do layout de
+ * (public)) porque layouts de Server Component não têm como saber a rota
+ * atual sem gambiarra — mover a árvore de arquivos pra um grupo irmão é o
+ * jeito suportado pelo App Router, e não muda nenhuma URL (parênteses no
+ * nome da pasta não entram no path).
  */
 export default async function PublicCardapioLayout({ children }: { children: React.ReactNode }) {
-  // Mesma paleta da plataforma que (public)/layout.tsx usa — PublicFooter
-  // depende das variáveis --brand-primary/--brand-secondary pra se estilizar.
-  // createPublicClient() (sem cookies) pelo mesmo motivo do outro layout —
-  // ver comentário lá.
+  // Mesma paleta da plataforma que (public)/layout.tsx usa — o crédito no
+  // rodapé usa a cor de marca no hover. createPublicClient() (sem cookies)
+  // pelo mesmo motivo do outro layout — ver comentário lá.
   const supabase = createPublicClient()
   const { data: paleta } = await supabase
     .from('platform_settings')
@@ -32,9 +34,13 @@ export default async function PublicCardapioLayout({ children }: { children: Rea
       className="flex min-h-screen flex-col bg-neutral-50"
       style={{ '--brand-primary': corPrimaria, '--brand-secondary': corSecundaria } as React.CSSProperties}
     >
-      <GlobalBreadcrumb />
       <main className="flex-1">{children}</main>
-      <PublicFooter />
+      <p className="py-3 text-center text-[11px] text-neutral-400">
+        Powered by{' '}
+        <Link href="/" className="hover:text-[var(--brand-primary)]">
+          menu.salvador
+        </Link>
+      </p>
     </div>
   )
 }

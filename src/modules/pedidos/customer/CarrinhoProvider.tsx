@@ -12,7 +12,13 @@ import { obterPedidoAcompanhadoSalvo } from './pedidoAcompanhamentoStorage'
 import { useTraducao } from '@/components/public/TraducaoCardapio'
 
 interface CarrinhoContextValue {
+  // Exposto pra BotaoAdicionarCarrinho conseguir mostrar quanto já tem
+  // daquele item na sacola (padrão de app de delivery: o botão vira um
+  // contador −/qtd/+ assim que adiciona a primeira unidade).
+  itens: ReturnType<typeof useSacola>['itens']
   adicionarItem: ReturnType<typeof useSacola>['adicionarItem']
+  alterarQuantidade: ReturnType<typeof useSacola>['alterarQuantidade']
+  removerItem: ReturnType<typeof useSacola>['removerItem']
   totalItens: number
   abrirCarrinho: () => void
 }
@@ -31,11 +37,23 @@ export default function CarrinhoProvider({
   estabelecimentoId,
   slug,
   whatsapp,
+  basePath = '/cardapio',
+  enderecoEstruturado = false,
+  chavePix,
+  cidade,
+  nomeFantasia,
   children,
 }: {
   estabelecimentoId: string
   slug: string
   whatsapp?: string
+  // Ver mesmos parâmetros em FinalizarPedidoModal.tsx — só repassados
+  // adiante, o comportamento default (V1) fica intacto.
+  basePath?: string
+  enderecoEstruturado?: boolean
+  chavePix?: string | null
+  cidade?: string | null
+  nomeFantasia?: string
   children: React.ReactNode
 }) {
   const sacola = useSacola()
@@ -46,7 +64,10 @@ export default function CarrinhoProvider({
   return (
     <CarrinhoContext.Provider
       value={{
+        itens: sacola.itens,
         adicionarItem: sacola.adicionarItem,
+        alterarQuantidade: sacola.alterarQuantidade,
+        removerItem: sacola.removerItem,
         totalItens: sacola.totalItens,
         abrirCarrinho: () => setDrawerAberto(true),
       }}
@@ -66,7 +87,7 @@ export default function CarrinhoProvider({
           quando ele não está, já que a sacola vazia é justamente quando
           "voltar a acompanhar o pedido de antes" é mais útil. */}
       {sacola.totalItens === 0 && !drawerAberto && !modalAberto && (
-        <BotaoVoltarAcompanhamento slug={slug} />
+        <BotaoVoltarAcompanhamento slug={slug} basePath={basePath} />
       )}
 
       <SacolaDrawer
@@ -92,6 +113,11 @@ export default function CarrinhoProvider({
           estabelecimentoId={estabelecimentoId}
           slug={slug}
           whatsapp={whatsapp}
+          basePath={basePath}
+          enderecoEstruturado={enderecoEstruturado}
+          chavePix={chavePix}
+          cidade={cidade}
+          nomeFantasia={nomeFantasia}
           sacola={sacola}
           drawerAberto={drawerAberto}
           modalAberto={modalAberto}
@@ -110,6 +136,11 @@ function CarrinhoExtrasDaMesa({
   estabelecimentoId,
   slug,
   whatsapp,
+  basePath,
+  enderecoEstruturado,
+  chavePix,
+  cidade,
+  nomeFantasia,
   sacola,
   drawerAberto,
   modalAberto,
@@ -118,6 +149,11 @@ function CarrinhoExtrasDaMesa({
   estabelecimentoId: string
   slug: string
   whatsapp?: string
+  basePath: string
+  enderecoEstruturado: boolean
+  chavePix?: string | null
+  cidade?: string | null
+  nomeFantasia?: string
   sacola: SacolaState
   drawerAberto: boolean
   modalAberto: boolean
@@ -149,6 +185,11 @@ function CarrinhoExtrasDaMesa({
         items={sacola.itens}
         mesaFixa={mesaFixa}
         mesaIdFixa={mesaIdFixo}
+        basePath={basePath}
+        enderecoEstruturado={enderecoEstruturado}
+        chavePix={chavePix}
+        cidade={cidade}
+        nomeFantasia={nomeFantasia}
       />
     </>
   )
@@ -158,7 +199,7 @@ function CarrinhoExtrasDaMesa({
  *  estabelecimento (salvo em pedidoAcompanhamentoStorage.ts ao finalizar) e
  *  voltou pro cardápio sem carrinho ativo, oferece o link direto de novo em
  *  vez de deixá-la procurar. */
-function BotaoVoltarAcompanhamento({ slug }: { slug: string }) {
+function BotaoVoltarAcompanhamento({ slug, basePath }: { slug: string; basePath: string }) {
   const { traduzirInterface } = useTraducao()
   const [pedidoId, setPedidoId] = useState<string | null>(null)
 
@@ -174,7 +215,7 @@ function BotaoVoltarAcompanhamento({ slug }: { slug: string }) {
 
   return (
     <Link
-      href={`/cardapio/${slug}/pedido/${pedidoId}`}
+      href={`${basePath}/${slug}/pedido/${pedidoId}`}
       className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-orange-600 px-5 py-3 font-semibold text-white shadow-lg transition hover:bg-orange-700"
     >
       📍 {traduzirInterface('acompanhar_meu_pedido', 'Acompanhar meu pedido')}

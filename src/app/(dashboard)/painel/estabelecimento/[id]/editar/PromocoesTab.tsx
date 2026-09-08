@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SpecialOfferRow, SpecialOfferItemRow } from '@/lib/specialOffers'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { CONFIG_TEMA_PADRAO } from '@/components/tema/PreviewTemaCardapio'
 import { calcularPrecoPromocional } from '@/lib/promocaoItem'
 import GerarPostInstagramModal from './GerarPostInstagramModal'
@@ -47,6 +48,9 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
   const [loading, setLoading]   = useState(true)
   const [erro, setErro]         = useState<string | null>(null)
   const [toast, setToast]       = useState<string | null>(null)
+  const [itemPromoParaRemover, setItemPromoParaRemover] = useState<ItemCardapio | null>(null)
+  const [ofertaParaExcluir, setOfertaParaExcluir] = useState<SpecialOfferRow | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   // modal de configuração de promoção
   const [modalModo, setModalModo]       = useState<ModalModo>(null)
@@ -285,7 +289,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
 
   // ── remover ──────────────────────────────
   async function removerPromocao(item: ItemCardapio) {
-    if (readOnly || !confirm('Remover a promoção deste item?')) return
+    setRemovendo(true)
     await supabase
       .from('itens_cardapio')
       .update({
@@ -297,7 +301,14 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
         promocao_ativa: false,
       })
       .eq('id', item.id)
+    setRemovendo(false)
+    setItemPromoParaRemover(null)
     carregar()
+  }
+
+  function iniciarRemocaoPromocao(item: ItemCardapio) {
+    if (readOnly) return
+    setItemPromoParaRemover(item)
   }
 
   // ── PROMOÇÕES COM CONTADOR (special_offers) ──────────────────────
@@ -488,9 +499,16 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
   }
 
   async function excluirOferta(oferta: SpecialOfferRow) {
-    if (readOnly || !confirm(`Excluir a promoção "${oferta.nome}"?`)) return
+    setRemovendo(true)
     await supabase.from('special_offers').delete().eq('id', oferta.id)
+    setRemovendo(false)
+    setOfertaParaExcluir(null)
     carregar()
+  }
+
+  function iniciarExclusaoOferta(oferta: SpecialOfferRow) {
+    if (readOnly) return
+    setOfertaParaExcluir(oferta)
   }
 
   async function toggleAtivoOferta(oferta: SpecialOfferRow) {
@@ -594,7 +612,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                 ⏸ Pausar
               </button>
               <button
-                onClick={() => removerPromocao(item)}
+                onClick={() => iniciarRemocaoPromocao(item)}
                 className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-2 py-1.5 rounded-lg transition"
               >
                 🗑️
@@ -621,7 +639,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                 ▶️ Retomar
               </button>
               <button
-                onClick={() => removerPromocao(item)}
+                onClick={() => iniciarRemocaoPromocao(item)}
                 className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-2 py-1.5 rounded-lg transition"
               >
                 🗑️
@@ -738,7 +756,7 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
                           {oferta.ativo ? '⏸' : '▶️'}
                         </button>
                         <button
-                          onClick={() => excluirOferta(oferta)}
+                          onClick={() => iniciarExclusaoOferta(oferta)}
                           title="Excluir"
                           className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-2 py-1.5 rounded-lg transition"
                         >
@@ -801,6 +819,30 @@ export default function PromocoesTab({ estabelecimentoId, readOnly }: PromocoesT
           bairro={dadosEstabelecimento.bairro}
           tipoEstabelecimento={dadosEstabelecimento.tipoEstabelecimento}
           onFechar={() => setOfertaParaPost(null)}
+        />
+      )}
+
+      {itemPromoParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover promoção?"
+          descricao={`Remover a promoção de "${itemPromoParaRemover.nome}"?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setItemPromoParaRemover(null)}
+          onConfirmar={() => removerPromocao(itemPromoParaRemover)}
+        />
+      )}
+
+      {ofertaParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir promoção?"
+          descricao={`Excluir a promoção "${ofertaParaExcluir.nome}"?`}
+          confirmarLabel="Excluir"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setOfertaParaExcluir(null)}
+          onConfirmar={() => excluirOferta(ofertaParaExcluir)}
         />
       )}
 

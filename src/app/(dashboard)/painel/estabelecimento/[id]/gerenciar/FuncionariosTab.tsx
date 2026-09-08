@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import { UserPlus, UserX, Shield, User, Trash2 } from 'lucide-react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 
 interface Funcionario {
   id: string
@@ -37,6 +38,8 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
   const [nome, setNome] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [atualizandoCargo, setAtualizandoCargo] = useState<string | null>(null)
+  const [funcionarioParaRemover, setFuncionarioParaRemover] = useState<Funcionario | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   const carregarFuncionarios = async () => {
     setLoading(true)
@@ -139,18 +142,19 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
   }
 
   const handleRemover = async (funcionarioId: string) => {
-    if (!confirm('Remover este funcionário?')) return
-
+    setRemovendo(true)
     const { error } = await supabase
       .from('funcionarios')
       .delete()
       .eq('id', funcionarioId)
+    setRemovendo(false)
 
     if (error) {
       alert('Erro ao remover: ' + error.message)
       return
     }
 
+    setFuncionarioParaRemover(null)
     await carregarFuncionarios()
   }
 
@@ -271,7 +275,7 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => handleRemover(f.id)}
+                        onClick={() => setFuncionarioParaRemover(f)}
                         className="text-red-400 hover:text-red-300 transition"
                         title="Remover funcionário"
                       >
@@ -284,6 +288,18 @@ export default function FuncionariosTab({ estabelecimentoId }: FuncionariosTabPr
             </tbody>
           </table>
         </div>
+      )}
+
+      {funcionarioParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover funcionário?"
+          descricao={`Remover "${funcionarioParaRemover.nome}" da equipe?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setFuncionarioParaRemover(null)}
+          onConfirmar={() => handleRemover(funcionarioParaRemover.id)}
+        />
       )}
     </div>
   )

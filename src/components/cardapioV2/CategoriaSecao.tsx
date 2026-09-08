@@ -1,5 +1,11 @@
 import { resolverEstadoExibicao } from '@/modules/cardapioV2/regrasExibicao'
-import type { CanalCardapioV2, CardapioV2Alergeno, CardapioV2Cardapio, CardapioV2CategoriaComItens } from '@/modules/cardapioV2/types'
+import type {
+  CanalCardapioV2,
+  CardapioV2Alergeno,
+  CardapioV2Cardapio,
+  CardapioV2CategoriaComItens,
+  CardapioV2GrupoComplementoResolvido,
+} from '@/modules/cardapioV2/types'
 import ItemCard from './ItemCard'
 
 export default function CategoriaSecao({
@@ -8,12 +14,16 @@ export default function CategoriaSecao({
   alergenos,
   cardapio,
   agora,
+  gruposComplemento,
+  carrinhoAtivo = false,
 }: {
   categoria: CardapioV2CategoriaComItens
   canal: CanalCardapioV2
   alergenos: CardapioV2Alergeno[]
   cardapio: CardapioV2Cardapio
   agora: Date
+  gruposComplemento?: CardapioV2GrupoComplementoResolvido[]
+  carrinhoAtivo?: boolean
 }) {
   const estadoCategoria = resolverEstadoExibicao(categoria.regras, agora)
   if (!estadoCategoria.disponivel || categoria.itens.length === 0) return null
@@ -28,7 +38,16 @@ export default function CategoriaSecao({
       <h2 className="mb-2 text-base font-bold" style={{ color: cardapio.cor_primaria }}>{categoria.nome}</h2>
       <div className={catalogo ? 'grid grid-cols-2 gap-3 sm:grid-cols-3' : 'flex flex-col gap-2'}>
         {categoria.itens.map((item) => (
-          <ItemCard key={item.id} item={item} canal={canal} alergenos={alergenos} cardapio={cardapio} agora={agora} />
+          <ItemCard
+            key={item.id}
+            item={item}
+            canal={canal}
+            alergenos={alergenos}
+            cardapio={cardapio}
+            agora={agora}
+            gruposComplemento={gruposComplemento}
+            carrinhoAtivo={carrinhoAtivo}
+          />
         ))}
       </div>
     </section>

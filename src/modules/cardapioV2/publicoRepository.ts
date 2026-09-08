@@ -3,6 +3,7 @@ import { logSupabaseError } from '@/lib/supabase/logError'
 import type {
   CardapioV2Alergeno,
   CardapioV2CategoriaComItens,
+  CardapioV2GrupoComplementoResolvido,
   CardapioV2Publico,
   CardapioV2RegraExibicao,
   CanalCardapioV2,
@@ -80,6 +81,25 @@ export async function buscarCardapioPublico(
   if (erroAlergenos) logSupabaseError('Erro ao buscar alérgenos do cardápio V2:', erroAlergenos)
   const alergenos = (allergensBrutos ?? []) as CardapioV2Alergeno[]
 
+  // Grupos de complemento referenciados pelos itens deste cardápio — busca
+  // só os usados (por id), não todos os do estabelecimento, pra não puxar
+  // grupo nenhum de cardápio nenhum quando o dono ainda não configurou
+  // complemento algum.
+  const grupoIds = Array.from(new Set(itens.flatMap((i) => i.cardapio_v2_item_grupos_complemento.map((g) => g.grupo_id))))
+  const { data: gruposBrutos, error: erroGrupos } = grupoIds.length
+    ? await supabase
+        .from('cardapio_v2_grupos_complemento')
+        .select('*, cardapio_v2_grupo_complemento_opcoes(*)')
+        .in('id', grupoIds)
+    : { data: [] as (CardapioV2GrupoComplementoResolvido & { cardapio_v2_grupo_complemento_opcoes: unknown[] })[], error: null }
+  if (erroGrupos) logSupabaseError('Erro ao buscar grupos de complemento do cardápio V2:', erroGrupos)
+  const gruposComplemento: CardapioV2GrupoComplementoResolvido[] = (gruposBrutos ?? []).map((g) => ({
+    ...g,
+    opcoes: ((g as unknown as { cardapio_v2_grupo_complemento_opcoes: CardapioV2GrupoComplementoResolvido['opcoes'] }).cardapio_v2_grupo_complemento_opcoes ?? [])
+      .slice()
+      .sort((a, b) => a.ordem - b.ordem),
+  }))
+
   const { porItem: regrasPorItem, porCategoria: regrasPorCategoria } = agruparRegrasPorDono(regras)
 
   const itensPorCategoria = new Map<string, ReturnType<typeof itemBrutoParaCompleto>[]>()
@@ -94,7 +114,7 @@ export async function buscarCardapioPublico(
     regras: regrasPorCategoria.get(cat.id) ?? [],
   }))
 
-  return { cardapio, categorias: categoriasComItens, alergenos }
+  return { cardapio, categorias: categoriasComItens, alergenos, gruposComplemento }
 }
 
 /** Preço efetivo de um item/variação pro canal — usa o override de canal

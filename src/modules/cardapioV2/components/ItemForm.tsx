@@ -104,7 +104,12 @@ export default function ItemForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={itemId ? 'Editar item' : 'Novo item'}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+      >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-bold text-neutral-900">{itemId ? 'Editar item' : 'Novo item'}</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600">

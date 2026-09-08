@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { salvarEVerificarConexaoWhatsApp } from './whatsappActions'
 import AiWaiterChat from '@/app/(public-cardapio)/cardapio/[slug]/teste-ai/AiWaiterChat'
+import ConexaoAutomaticaWhatsApp from './ConexaoAutomaticaWhatsApp'
 
 interface Atalho {
   gatilho: string
@@ -50,6 +51,7 @@ export default function WhatsAppTab({ estabelecimento, readOnly }: WhatsAppTabPr
   const [metricas, setMetricas] = useState<Metricas | null>(null)
   const [esperandoHumano, setEsperandoHumano] = useState(0)
   const [mostrarTeste, setMostrarTeste] = useState(false)
+  const [conexaoAutomaticaAtivada, setConexaoAutomaticaAtivada] = useState(false)
 
   useEffect(() => {
     const inicioMes = new Date()
@@ -81,6 +83,16 @@ export default function WhatsAppTab({ estabelecimento, readOnly }: WhatsAppTabPr
       .eq('estabelecimento_id', estabelecimento.id)
       .eq('precisa_humano', true)
       .then(({ count }: { count: number | null }) => setEsperandoHumano(count || 0))
+
+    // Controlado pelo admin geral em /admin/configuracoes — a tela de
+    // conexão automática só aparece quando a integração de verdade
+    // estiver pronta (aprovação da Meta), sem precisar de deploy novo.
+    supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'whatsapp_embedded_signup_ativado')
+      .maybeSingle()
+      .then(({ data }: { data: { value: { ativado?: boolean } } | null }) => setConexaoAutomaticaAtivada(!!data?.value?.ativado))
   }, [estabelecimento.id, supabase])
 
   async function salvarToggleRobo(novo: boolean) {
@@ -137,7 +149,14 @@ export default function WhatsAppTab({ estabelecimento, readOnly }: WhatsAppTabPr
           <div
             role="switch"
             aria-checked={ativado}
+            tabIndex={0}
             onClick={() => !readOnly && salvarToggleRobo(!ativado)}
+            onKeyDown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && !readOnly) {
+                e.preventDefault()
+                salvarToggleRobo(!ativado)
+              }
+            }}
             className={`relative w-9 h-5 rounded-full transition-colors ${ativado ? 'bg-orange-500' : 'bg-gray-200'} ${
               readOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
             }`}
@@ -169,6 +188,14 @@ export default function WhatsAppTab({ estabelecimento, readOnly }: WhatsAppTabPr
       <div className="border-b border-gray-100 pb-6">
         <h4 className="text-sm font-semibold text-gray-700 mb-2">Conexão com a Cloud API da Meta</h4>
         <p className={`text-sm font-medium mb-3 ${STATUS_LABEL[status]?.cor}`}>{STATUS_LABEL[status]?.texto}</p>
+
+        {conexaoAutomaticaAtivada && (
+          <div className="mb-4">
+            <ConexaoAutomaticaWhatsApp readOnly={readOnly} />
+            <p className="mb-1 mt-4 text-xs font-medium text-gray-500">Ou conecte manualmente</p>
+          </div>
+        )}
+
         <p className="text-xs text-gray-400 mb-3">
           Pegue o token de acesso permanente e o ID do número no Business Manager da Meta (WhatsApp → Configuração
           da API) e cole abaixo.

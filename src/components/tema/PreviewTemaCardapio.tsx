@@ -2,6 +2,8 @@
 
 import { obterFonteTema } from '@/lib/fontesTema'
 import { gradienteHeroImagem } from '@/lib/temaHero'
+import { TraducaoProvider } from '@/components/public/TraducaoCardapio'
+import CardapioHero from '@/components/public/CardapioHero'
 
 export interface ConfigTemaPreview {
   cor_primaria: string
@@ -77,50 +79,57 @@ export default function PreviewTemaCardapio({
   const raio = `${config.card_raio}px`
 
   return (
-    <div
-      className={`mx-auto max-w-sm overflow-hidden rounded-2xl border shadow-lg ${fonte.className}`}
-      style={{ backgroundColor: corF, color: corT, borderColor: corBd }}
-    >
-      {/* HERO */}
+    // TraducaoProvider só pra satisfazer o contrato do CardapioHero
+    // (TextoInterface/SeletorIdioma) — sem idiomas ativos, idioma fica
+    // travado em 'pt' e o seletor nem aparece, então nada muda visualmente
+    // aqui, só evita o "useTraducao precisa estar dentro de..." em runtime.
+    <TraducaoProvider slug="preview-tema" idiomasAtivos={[]} traducoes={[]}>
       <div
-        className="relative flex min-h-[88px] items-center justify-center p-5 text-center"
-        style={
-          heroComImagem
-            ? {
-                backgroundImage: `${gradienteHeroImagem(corF, config.hero_veu_opacidade)}, url(${config.hero_imagem_url})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }
-            : { backgroundColor: corS, borderBottom: `1px solid ${corBd}` }
-        }
+        className={`mx-auto max-w-sm overflow-hidden rounded-2xl p-3 ${fonte.className}`}
+        style={{ backgroundColor: corF, color: corT }}
       >
-        <h3 className="text-base font-bold" style={{ color: heroComImagem ? '#ffffff' : corP }}>
-          🍽️ {titulo}
-        </h3>
-      </div>
+        {/* Mesma estrutura do cabeçalho real (/cardapio/[slug]/page.tsx):
+            card corS+borda envolvendo o CardapioHero — literalmente o mesmo
+            componente, pra não haver mais divergência entre o que o dono vê
+            aqui e o que sai no cardápio de verdade (ver comentário em
+            CardapioHero.tsx). */}
+        <div className="overflow-hidden rounded-2xl shadow" style={{ backgroundColor: corS, border: `1px solid ${corBd}` }}>
+          <CardapioHero
+            corPrimaria={corP}
+            heroComImagem={heroComImagem}
+            heroGradiente={gradienteHeroImagem(corF, config.hero_veu_opacidade)}
+            heroImagemUrl={config.hero_imagem_url}
+            titulo={`🍽️ ${titulo}`}
+            bairro="Barra"
+            culinaria="Contemporânea"
+            totalItens={ITENS_PREVIEW.length}
+            totalCategorias={1}
+          />
+        </div>
 
-      {/* ITENS */}
-      <div className="space-y-3 p-3">
-        {ITENS_PREVIEW.map((item) => (
-          <div
-            key={item.id}
-            className="flex gap-3 overflow-hidden p-3 shadow-sm"
-            style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raio }}
-          >
-            <div className="h-16 w-16 flex-shrink-0 overflow-hidden bg-gray-100" style={{ borderRadius: raio }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.foto_url} alt={item.nome} className="h-full w-full object-cover" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="truncate text-sm font-semibold" style={{ color: corT }}>{item.nome}</p>
-                <p className="flex-shrink-0 text-sm font-bold" style={{ color: corP }}>R$ {fmt(item.preco)}</p>
+        {/* ITENS */}
+        <div className="mt-3 space-y-3">
+          {ITENS_PREVIEW.map((item) => (
+            <div
+              key={item.id}
+              className="flex gap-3 overflow-hidden p-3 shadow-sm"
+              style={{ backgroundColor: corS, border: `1px solid ${corBd}`, borderRadius: raio }}
+            >
+              <div className="h-16 w-16 flex-shrink-0 overflow-hidden bg-gray-100" style={{ borderRadius: raio }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.foto_url} alt={item.nome} className="h-full w-full object-cover" />
               </div>
-              <p className="mt-0.5 line-clamp-2 text-xs opacity-60">{item.descricao}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate text-sm font-semibold" style={{ color: corT }}>{item.nome}</p>
+                  <p className="flex-shrink-0 text-sm font-bold" style={{ color: corP }}>R$ {fmt(item.preco)}</p>
+                </div>
+                <p className="mt-0.5 line-clamp-2 text-xs opacity-60">{item.descricao}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </TraducaoProvider>
   )
 }

@@ -49,6 +49,37 @@ export async function salvarPaleta(corPrimaria: string, corSecundaria: string) {
   revalidatePath('/admin/configuracoes')
 }
 
+/**
+ * Liga/desliga a tela de conexão automática do WhatsApp (Embedded Signup
+ * da Meta) em todos os estabelecimentos — ver plano "Menu Salvador como
+ * Tech Provider". A tela em si (ConexaoAutomaticaWhatsApp.tsx) já é
+ * completa e pronta desde já; esta flag só controla se ela aparece,
+ * porque a integração real com a Meta depende de aprovação (App Review)
+ * que ainda não aconteceu. Nada fixo — vira só isto quando estiver pronta.
+ */
+export async function salvarWhatsappEmbeddedSignupAtivado(ativado: boolean) {
+  const { supabase, userId } = await checarSuperAdmin()
+  const { error } = await supabase
+    .from('platform_settings')
+    .upsert({
+      key: 'whatsapp_embedded_signup_ativado',
+      value: { ativado },
+      description: 'Mostra a conexão automática de WhatsApp (Embedded Signup) no painel do estabelecimento',
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' })
+  if (error) throw new Error(error.message)
+
+  await supabase.from('audit_logs').insert({
+    usuario_id: userId,
+    action: 'whatsapp_embedded_signup_ativado_atualizado',
+    target_type: 'platform_settings',
+    new_data: { ativado },
+  })
+
+  revalidatePath('/admin/configuracoes')
+}
+
 export async function salvarConfiguracoesHome(config: {
   hero_ativado: boolean
   busca_ativado: boolean

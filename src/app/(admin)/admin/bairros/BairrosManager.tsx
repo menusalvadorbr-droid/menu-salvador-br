@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Fragment } from 'react'
 import { gerarSlug } from '@/lib/slug'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { criarBairro, editarBairro, removerBairro } from './actions'
 import EmojiPicker from '../../components/EmojiPicker'
 
@@ -32,6 +33,8 @@ export default function BairrosManager({ bairrosIniciais, cidades }: BairrosMana
   const [iconeEdicao, setIconeEdicao] = useState('')
   const [cidadeIdEdicao, setCidadeIdEdicao] = useState('')
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [bairroParaRemover, setBairroParaRemover] = useState<BairroComContagem | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   function nomeCidade(cidadeId: string | null) {
     return cidades.find((c) => c.id === cidadeId)?.nome || '—'
@@ -111,22 +114,17 @@ export default function BairrosManager({ bairrosIniciais, cidades }: BairrosMana
   }
 
   async function handleRemover(bairro: BairroComContagem) {
-    if (bairro.totalEstabelecimentos > 0) {
-      const confirmar = confirm(
-        `${bairro.totalEstabelecimentos} estabelecimento(s) usam "${bairro.nome}". Removendo o bairro, eles ficam sem bairro definido até o dono escolher outro. Continuar?`
-      )
-      if (!confirmar) return
-    } else if (!confirm(`Remover "${bairro.nome}"?`)) {
-      return
-    }
-
+    setRemovendo(true)
     const anterior = bairros
     setBairros((prev) => prev.filter((b) => b.id !== bairro.id))
     try {
       await removerBairro(bairro.id)
+      setBairroParaRemover(null)
     } catch (err) {
       setBairros(anterior)
       alert(`Não foi possível remover: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    } finally {
+      setRemovendo(false)
     }
   }
 
@@ -250,7 +248,7 @@ export default function BairrosManager({ bairrosIniciais, cidades }: BairrosMana
                             <button onClick={() => iniciarEdicao(b)} className="mr-3 text-xs text-neutral-500 hover:underline">
                               Editar
                             </button>
-                            <button onClick={() => handleRemover(b)} className="text-xs text-red-500 hover:underline">
+                            <button onClick={() => setBairroParaRemover(b)} className="text-xs text-red-500 hover:underline">
                               Remover
                             </button>
                           </td>
@@ -271,6 +269,22 @@ export default function BairrosManager({ bairrosIniciais, cidades }: BairrosMana
           </tbody>
         </table>
       </div>
+
+      {bairroParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover bairro?"
+          descricao={
+            bairroParaRemover.totalEstabelecimentos > 0
+              ? `${bairroParaRemover.totalEstabelecimentos} estabelecimento(s) usam "${bairroParaRemover.nome}". Removendo o bairro, eles ficam sem bairro definido até o dono escolher outro. Continuar?`
+              : `Remover "${bairroParaRemover.nome}"?`
+          }
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setBairroParaRemover(null)}
+          onConfirmar={() => handleRemover(bairroParaRemover)}
+        />
+      )}
     </div>
   )
 }

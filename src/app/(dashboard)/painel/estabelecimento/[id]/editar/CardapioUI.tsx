@@ -36,7 +36,14 @@ export function Toggle({ checked, onChange, label }: {
       <div
         role="switch"
         aria-checked={checked}
+        tabIndex={0}
         onClick={() => onChange(!checked)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onChange(!checked)
+          }
+        }}
         className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${
           checked ? 'bg-orange-500' : 'bg-gray-200'
         }`}

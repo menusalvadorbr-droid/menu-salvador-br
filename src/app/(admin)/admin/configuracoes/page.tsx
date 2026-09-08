@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import SecoesEstabelecimentoForm from './SecoesEstabelecimentoForm'
 import PaletaPlataformaForm from './PaletaPlataformaForm'
 import ConfiguracoesHomeForm, { type ConfiguracoesHome } from './ConfiguracoesHomeForm'
+import WhatsappEmbeddedSignupForm from './WhatsappEmbeddedSignupForm'
 import AdminPageHeader from '@/components/admin/AdminPageHeader'
 
 const CONFIG_HOME_PADRAO: ConfiguracoesHome = {
@@ -24,12 +25,13 @@ export default async function ConfiguracoesAdminPage() {
     supabase
       .from('platform_settings')
       .select('key, value')
-      .in('key', ['secoes_estabelecimento', 'paleta_plataforma']),
+      .in('key', ['secoes_estabelecimento', 'paleta_plataforma', 'whatsapp_embedded_signup_ativado']),
     supabase.from('configuracoes_home').select('*').eq('id', true).maybeSingle(),
   ])
 
   const secoes = settings?.find((s) => s.key === 'secoes_estabelecimento')?.value || []
   const paleta = settings?.find((s) => s.key === 'paleta_plataforma')?.value || {}
+  const whatsappEmbeddedSignup = settings?.find((s) => s.key === 'whatsapp_embedded_signup_ativado')?.value || {}
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,6 +70,19 @@ export default async function ConfiguracoesAdminPage() {
             corPrimariaInicial={paleta?.cor_primaria || '#EA580C'}
             corSecundariaInicial={paleta?.cor_secundaria || '#DC2626'}
           />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-neutral-800">WhatsApp — conexão automática (Embedded Signup)</h2>
+        <p className="mt-1 text-xs text-neutral-400">
+          A tela de conexão automática (login com a Meta, sem colar token manualmente) já está pronta no painel do
+          estabelecimento, mas depende de aprovação da Meta (App Review de Tech Provider) que ainda não aconteceu.
+          Enquanto desligado, os estabelecimentos continuam vendo só a conexão manual. Ligue quando a aprovação
+          sair — não precisa de deploy novo.
+        </p>
+        <div className="mt-4">
+          <WhatsappEmbeddedSignupForm ativadoInicial={!!whatsappEmbeddedSignup?.ativado} />
         </div>
       </div>
     </div>

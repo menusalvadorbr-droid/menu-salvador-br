@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { RECURSOS_PLANO } from '@/lib/recursosPlano'
 
 interface Plano {
@@ -29,6 +30,8 @@ export default function GerenciarPlanos() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [form, setForm] = useState(FORM_PADRAO)
+  const [planoParaRemover, setPlanoParaRemover] = useState<Plano | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   useEffect(() => {
     carregarPlanos()
@@ -109,11 +112,13 @@ export default function GerenciarPlanos() {
   }
 
   async function deletarPlano(plano: Plano) {
-    if (!confirm(`Remover o plano "${plano.nome}"? Estabelecimentos que estejam nesse plano perdem os recursos associados a ele.`)) return
+    setRemovendo(true)
     const { error } = await supabase.from('planos').delete().eq('id', plano.id)
+    setRemovendo(false)
     if (error) {
       alert('Erro ao remover: ' + error.message)
     } else {
+      setPlanoParaRemover(null)
       await carregarPlanos()
     }
   }
@@ -237,7 +242,7 @@ export default function GerenciarPlanos() {
                   Editar
                 </button>
                 <button
-                  onClick={() => deletarPlano(plano)}
+                  onClick={() => setPlanoParaRemover(plano)}
                   className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 transition"
                 >
                   Remover
@@ -251,6 +256,18 @@ export default function GerenciarPlanos() {
           </div>
         )}
       </div>
+
+      {planoParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover plano?"
+          descricao={`Remover o plano "${planoParaRemover.nome}"? Estabelecimentos que estejam nesse plano perdem os recursos associados a ele.`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setPlanoParaRemover(null)}
+          onConfirmar={() => deletarPlano(planoParaRemover)}
+        />
+      )}
     </div>
   )
 }

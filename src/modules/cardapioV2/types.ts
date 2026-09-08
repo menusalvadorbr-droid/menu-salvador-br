@@ -159,10 +159,23 @@ export interface CardapioV2CategoriaComItens extends CardapioV2Categoria {
   regras: CardapioV2RegraExibicao[]
 }
 
+// Grupo de complemento já com as opções resolvidas — mesma forma de
+// GrupoComplementoComOpcoes (grupoComplementoRepository.ts, usado pelo
+// editor autenticado), redeclarado aqui pra leitura pública não depender
+// de um arquivo que usa createClient() (cliente autenticado).
+export interface CardapioV2GrupoComplementoResolvido extends CardapioV2GrupoComplemento {
+  opcoes: CardapioV2GrupoComplementoOpcao[]
+}
+
 export interface CardapioV2Publico {
   cardapio: CardapioV2Cardapio
   categorias: CardapioV2CategoriaComItens[]
   alergenos: CardapioV2Alergeno[]
+  // Todos os grupos de complemento do estabelecimento (não só os usados
+  // nesse cardápio) — cada item referencia os seus por id
+  // (grupos_complemento_ids); resolvido aqui pra quem monta o carrinho não
+  // precisar de uma consulta extra por item.
+  gruposComplemento: CardapioV2GrupoComplementoResolvido[]
 }
 
 // ── Payload da RPC transacional (ver migração cardapio_v2_salvar_item) ──

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { gerarSlug } from '@/lib/slug'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { criarCidade, editarCidade, removerCidade } from './actions'
 
 export interface CidadeComContagem {
@@ -28,6 +29,8 @@ export default function CidadesManager({ cidadesIniciais }: { cidadesIniciais: C
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [nomeEdicao, setNomeEdicao] = useState('')
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [cidadeParaRemover, setCidadeParaRemover] = useState<CidadeComContagem | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   async function handleAdicionar() {
     if (!novoNome.trim()) return
@@ -67,7 +70,7 @@ export default function CidadesManager({ cidadesIniciais }: { cidadesIniciais: C
     }
   }
 
-  async function handleRemover(cidade: CidadeComContagem) {
+  function iniciarRemocao(cidade: CidadeComContagem) {
     const emUso = cidade.totalBairros + cidade.totalEstabelecimentos
     if (emUso > 0) {
       alert(
@@ -75,15 +78,21 @@ export default function CidadesManager({ cidadesIniciais }: { cidadesIniciais: C
       )
       return
     }
-    if (!confirm(`Remover "${cidade.nome}" da cobertura?`)) return
+    setCidadeParaRemover(cidade)
+  }
 
+  async function handleRemover(cidade: CidadeComContagem) {
+    setRemovendo(true)
     const anterior = cidades
     setCidades((prev) => prev.filter((c) => c.id !== cidade.id))
     try {
       await removerCidade(cidade.id)
+      setCidadeParaRemover(null)
     } catch (err) {
       setCidades(anterior)
       alert(`Não foi possível remover: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    } finally {
+      setRemovendo(false)
     }
   }
 
@@ -162,7 +171,7 @@ export default function CidadesManager({ cidadesIniciais }: { cidadesIniciais: C
                         <button onClick={() => iniciarEdicao(c)} className="mr-3 text-xs text-neutral-500 hover:underline">
                           Editar
                         </button>
-                        <button onClick={() => handleRemover(c)} className="text-xs text-red-500 hover:underline">
+                        <button onClick={() => iniciarRemocao(c)} className="text-xs text-red-500 hover:underline">
                           Remover
                         </button>
                       </td>
@@ -181,6 +190,18 @@ export default function CidadesManager({ cidadesIniciais }: { cidadesIniciais: C
           </tbody>
         </table>
       </div>
+
+      {cidadeParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover cidade?"
+          descricao={`Remover "${cidadeParaRemover.nome}" da cobertura?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setCidadeParaRemover(null)}
+          onConfirmar={() => handleRemover(cidadeParaRemover)}
+        />
+      )}
     </div>
   )
 }

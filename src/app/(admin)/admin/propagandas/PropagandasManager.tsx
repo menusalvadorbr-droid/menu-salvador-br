@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { criarPropaganda, alternarPropaganda, removerPropaganda } from './actions'
 
 export interface Propaganda {
@@ -31,6 +32,7 @@ export default function PropagandasManager({ propagandasIniciais }: { propaganda
   const [propagandas, setPropagandas] = useState(propagandasIniciais)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [propagandaParaRemover, setPropagandaParaRemover] = useState<Propaganda | null>(null)
 
   function toggle(p: Propaganda) {
     setPropagandas((prev) => prev.map((x) => (x.id === p.id ? { ...x, ativa: !x.ativa } : x)))
@@ -40,11 +42,11 @@ export default function PropagandasManager({ propagandasIniciais }: { propaganda
   }
 
   function remover(id: string) {
-    if (!confirm('Remover esta propaganda?')) return
     setPropagandas((prev) => prev.filter((x) => x.id !== id))
     startTransition(async () => {
       await removerPropaganda(id)
     })
+    setPropagandaParaRemover(null)
   }
 
   async function handleSubmit(formData: FormData) {
@@ -146,7 +148,7 @@ export default function PropagandasManager({ propagandasIniciais }: { propaganda
               </button>
               <button
                 type="button"
-                onClick={() => remover(p.id)}
+                onClick={() => setPropagandaParaRemover(p)}
                 className="text-xs text-red-500 hover:underline"
               >
                 Remover
@@ -158,6 +160,17 @@ export default function PropagandasManager({ propagandasIniciais }: { propaganda
           <p className="py-6 text-center text-sm text-neutral-400">Nenhuma propaganda cadastrada ainda.</p>
         )}
       </div>
+
+      {propagandaParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover propaganda?"
+          descricao={`Remover "${propagandaParaRemover.titulo}"?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          onCancelar={() => setPropagandaParaRemover(null)}
+          onConfirmar={() => remover(propagandaParaRemover.id)}
+        />
+      )}
     </div>
   )
 }

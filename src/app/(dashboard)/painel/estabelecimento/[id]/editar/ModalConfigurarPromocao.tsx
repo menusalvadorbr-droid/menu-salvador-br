@@ -37,7 +37,7 @@ export default function ModalConfigurarPromocao({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div role="dialog" aria-modal="true" aria-label="Configurar promoção" className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
 
         {/* header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">

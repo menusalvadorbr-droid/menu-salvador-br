@@ -1,56 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
 import { formatarReais } from '@/lib/moeda'
 import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
 import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepository'
 import { useSacola } from '../customer/useSacola'
 import { criarPedido, finalizarVendaImediata, atualizarItensPedido } from '../ordersRepository'
-import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
-import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
-import PainelPixCobranca from '../components/PainelPixCobranca'
+import { listarCardapioParaGarcom, type CategoriaComItens, type ItemCardapioGarcom } from './cardapioParaGarcom'
+import { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
 import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
-import { TEMA_DUAS_PELES } from '../temaDuasPeles'
+import { ESTILOS_GARCOM } from './estilosGarcom'
+import SeletorCardapioGarcom from './SeletorCardapioGarcom'
+import LinhaCarrinhoGarcom from './LinhaCarrinhoGarcom'
+import PainelPagamentoGarcom from './PainelPagamentoGarcom'
 import type { Mesa } from '../mesas/types'
 import type { Pedido, TipoPedido } from '../types'
-
-const LIMITE_CATEGORIAS_VISIVEIS = 5
-
-// Mesmo princípio do FecharContaMesaModal: claro é o único tema em uso
-// hoje (mapa de mesas, "Venda no balcão" em /pedidos, e também o Caixa
-// desde que sua paleta foi unificada com o resto do painel) — `escuro`
-// segue existindo como opção reutilizável, sem consumidor no momento.
-const ESTILOS = {
-  claro: {
-    ...TEMA_DUAS_PELES.claro,
-    fundoCardapio: 'bg-neutral-100',
-    categoria: 'text-neutral-400',
-    itemBotao: 'border-neutral-100 hover:border-orange-200 hover:bg-orange-50',
-    itemNome: 'text-neutral-800',
-    itemPreco: 'text-neutral-900',
-    sacolaTexto: 'text-neutral-700',
-    qtdBotao: 'border-neutral-200 text-neutral-500',
-    total: 'text-neutral-900',
-    botaoPrincipal: 'bg-orange-600 hover:bg-orange-700 text-white',
-    botaoToggleAtivo: 'bg-orange-600 text-white',
-  },
-  escuro: {
-    ...TEMA_DUAS_PELES.escuro,
-    fundoCardapio: 'bg-neutral-950/40',
-    categoria: 'text-neutral-500',
-    itemBotao: 'border-neutral-800 hover:border-emerald-500/40 hover:bg-emerald-500/10',
-    itemNome: 'text-neutral-200',
-    itemPreco: 'text-white',
-    sacolaTexto: 'text-neutral-300',
-    qtdBotao: 'border-neutral-700 text-neutral-400',
-    total: 'text-white',
-    botaoPrincipal: 'bg-emerald-600 hover:bg-emerald-500 text-white',
-    botaoToggleAtivo: 'bg-emerald-600 text-white',
-  },
-} as const
 
 /**
  * Tela da equipe pra lançar um pedido — usada a partir de uma mesa (mapa
@@ -63,6 +30,12 @@ const ESTILOS = {
  * resolve no ato, no caixa, não um pedido que precisa de acompanhamento de
  * cozinha. `modo="inline"` renderiza sem o overlay/modal — usado quando a
  * tela de venda fica sempre aberta embutida no Caixa, não atrás de um botão.
+ *
+ * Este arquivo é só o orquestrador (estado + regras de negócio); a UI de
+ * cada parte mora em componentes próprios — SeletorCardapioGarcom (busca +
+ * categorias + lista de itens), PainelPagamentoGarcom (desconto + forma de
+ * pagamento + Pix, só no modo Caixa) e LinhaCarrinhoGarcom (uma linha da
+ * sacola, reaproveitada nos dois layouts abaixo).
  */
 export default function LancarPedidoGarcom({
   estabelecimentoId,
@@ -74,6 +47,7 @@ export default function LancarPedidoGarcom({
   modo = 'modal',
   pedidoEmEdicao,
   onPedidoAtualizado,
+  onSacolaChange,
 }: {
   estabelecimentoId: string
   mesa: Mesa | null
@@ -90,8 +64,13 @@ export default function LancarPedidoGarcom({
   // origem (ver operadorRepository.ts).
   pedidoEmEdicao?: Pedido
   onPedidoAtualizado?: () => void
+  // Avisa quem chama se há itens lançados nessa venda ainda não
+  // confirmada — usado pelo Caixa (modo="inline") pra evitar que o botão
+  // "Mesas e pedidos" desmonte esse componente (e todo o estado da venda
+  // em andamento junto) sem aviso.
+  onSacolaChange?: (temItens: boolean) => void
 }) {
-  const c = ESTILOS[tema]
+  const c = ESTILOS_GARCOM[tema]
   const [categorias, setCategorias] = useState<CategoriaComItens[]>([])
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
@@ -107,9 +86,6 @@ export default function LancarPedidoGarcom({
   // vez, escondido atrás do ícone de lápis pra não poluir a lista com três
   // botões em toda linha o tempo todo.
   const [linhaEmEdicao, setLinhaEmEdicao] = useState<string | null>(null)
-  // Grade de categorias começa mostrando só as 5 primeiras — cardápio com
-  // muita categoria virava uma parede de blocos antes de chegar nos itens;
-  // "+ mais" revela o resto sob demanda.
   const [mostrarTodasCategorias, setMostrarTodasCategorias] = useState(false)
   const [dadosPix, setDadosPix] = useState<DadosPixEstabelecimento | null>(null)
   const [pixConfirmado, setPixConfirmado] = useState(false)
@@ -123,7 +99,12 @@ export default function LancarPedidoGarcom({
   // handler, nunca durante o render em si).
   const referenciaPixSeqRef = useRef(0)
   const [referenciaPix, setReferenciaPix] = useState('venda-0')
+  const [confirmandoCancelar, setConfirmandoCancelar] = useState(false)
   const sacola = useSacola(pedidoEmEdicao?.items)
+
+  useEffect(() => {
+    onSacolaChange?.(sacola.itens.length > 0)
+  }, [sacola.itens.length, onSacolaChange])
 
   function reiniciarVenda() {
     setDescontoInput('')
@@ -161,29 +142,25 @@ export default function LancarPedidoGarcom({
   const troco = calcularTroco(formaPagamento, valorRecebido, totalComDesconto)
   const trocoInsuficiente = troco !== null && troco < 0
 
-  const termoBusca = buscaItem.trim().toLowerCase()
-  const categoriasFiltradas = categorias
-    .filter((cat) => !categoriaAtiva || cat.id === categoriaAtiva)
-    .map((cat) => ({
-      ...cat,
-      itens: termoBusca ? cat.itens.filter((item) => item.nome.toLowerCase().includes(termoBusca)) : cat.itens,
-    }))
-    .filter((cat) => cat.itens.length > 0)
-
-  const podeExpandirCategorias = categorias.length > LIMITE_CATEGORIAS_VISIVEIS
-  const categoriasNaGrade = mostrarTodasCategorias ? categorias : categorias.slice(0, LIMITE_CATEGORIAS_VISIVEIS)
-
   useEffect(() => {
     listarCardapioParaGarcom(estabelecimentoId)
       .then(setCategorias)
       .finally(() => setCarregando(false))
   }, [estabelecimentoId])
 
-  function cancelarVenda() {
-    if (sacola.itens.length > 0 && !confirm('Cancelar essa venda e limpar os itens já lançados?')) return
+  function executarCancelamento() {
     sacola.limparSacola()
     setFormaPagamento(METODOS_PAGAMENTO[0])
     reiniciarVenda()
+    setConfirmandoCancelar(false)
+  }
+
+  function cancelarVenda() {
+    if (sacola.itens.length > 0) {
+      setConfirmandoCancelar(true)
+      return
+    }
+    executarCancelamento()
   }
 
   async function salvarEdicao() {
@@ -285,93 +262,23 @@ export default function LancarPedidoGarcom({
     }
   }
 
-  const filtro = (
-    <div className="mb-3 space-y-2">
-      <input
-        type="text"
-        value={buscaItem}
-        onChange={(e) => setBuscaItem(e.target.value)}
-        placeholder="🔎 Buscar item ou código…"
-        className={`w-full rounded-lg border px-3 py-2 text-sm ${c.input}`}
-      />
-      {/* Grade de categorias em vez de pílulas — alvo de toque maior,
-          melhor pra um terminal de caixa usado com o dedo. "Todas" faz
-          dois papéis: limpa o filtro de categoria (lista volta a mostrar
-          item de todas) E expande/recolhe a grade quando há mais
-          categorias do que cabe (LIMITE_CATEGORIAS_VISIVEIS) — antes eram
-          dois botões (Todas + "+N mais"/"Mostrar menos"), unificados
-          porque os dois só fazem sentido juntos: não tem porquê ver a
-          grade cheia sem também limpar o filtro. Escolher uma categoria
-          específica sempre recolhe a grade de volta (ver onClick abaixo),
-          então "Mostrar menos" nunca aparece com uma categoria ativa. */}
-      {categorias.length > 1 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <button
-            onClick={() => {
-              setCategoriaAtiva(null)
-              if (podeExpandirCategorias) setMostrarTodasCategorias((v) => !v)
-            }}
-            className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
-              !categoriaAtiva ? c.botaoToggleAtivo : c.itemBotao
-            }`}
-          >
-            {podeExpandirCategorias && mostrarTodasCategorias ? 'Mostrar menos' : 'Todas'}
-            <span className="mt-0.5 block text-xs font-normal opacity-70">
-              {podeExpandirCategorias && mostrarTodasCategorias
-                ? 'ver menos categorias'
-                : `${categorias.reduce((soma, cat) => soma + cat.itens.length, 0)} itens`}
-            </span>
-          </button>
-          {categoriasNaGrade.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => { setCategoriaAtiva(cat.id); setMostrarTodasCategorias(false) }}
-              className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
-                categoriaAtiva === cat.id ? c.botaoToggleAtivo : c.itemBotao
-              }`}
-            >
-              {cat.nome}
-              <span className="mt-0.5 block text-xs font-normal opacity-70">{cat.itens.length} itens</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  function handleAdicionarItem(item: ItemCardapioGarcom) {
+    sacola.adicionarItem({ id: item.id, nome: item.nome, preco: item.preco, preco_promocional: item.preco_promocional || undefined })
+  }
 
-  const listaCardapio = (
-    <>
-      {filtro}
-      {categoriasFiltradas.map((cat) => (
-        <div key={cat.id} className="mb-4">
-          <h3 className={`mb-2 text-xs font-semibold uppercase tracking-wide ${c.categoria}`}>
-            {cat.nome}
-          </h3>
-          <div className="flex flex-col gap-2">
-            {cat.itens.map((item) => {
-              const preco = item.preco_promocional ?? item.preco
-              return (
-                <button
-                  key={item.id}
-                  onClick={() =>
-                    sacola.adicionarItem({ id: item.id, nome: item.nome, preco: item.preco, preco_promocional: item.preco_promocional || undefined })
-                  }
-                  className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${c.itemBotao}`}
-                >
-                  <span className={c.itemNome}>{item.nome}</span>
-                  <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco)}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-      {categoriasFiltradas.length === 0 && (
-        <p className={`py-8 text-center text-sm ${c.vazio}`}>
-          {categorias.length === 0 ? 'Cardápio vazio.' : 'Nenhum item encontrado.'}
-        </p>
-      )}
-    </>
+  const seletorCardapio = (
+    <SeletorCardapioGarcom
+      categorias={categorias}
+      categoriaAtiva={categoriaAtiva}
+      buscaItem={buscaItem}
+      mostrarTodasCategorias={mostrarTodasCategorias}
+      estilos={c}
+      onBuscaItemChange={setBuscaItem}
+      onEscolherCategoria={(id) => { setCategoriaAtiva(id); setMostrarTodasCategorias(false) }}
+      onLimparCategoria={() => setCategoriaAtiva(null)}
+      onToggleMostrarTodas={() => setMostrarTodasCategorias((v) => !v)}
+      onAdicionarItem={handleAdicionarItem}
+    />
   )
 
   const corpo = (
@@ -403,241 +310,109 @@ export default function LancarPedidoGarcom({
         // a venda só fecha quando o caixa confirma no fim, não item a item.
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:h-full sm:flex-row">
           <div className={`order-1 min-h-0 flex-1 overflow-y-auto p-4 sm:order-2 sm:h-full ${c.fundoCardapio}`}>
-            {listaCardapio}
+            {seletorCardapio}
           </div>
 
           <div
             className={`order-2 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-1 sm:h-full sm:w-72 sm:flex-shrink-0 sm:border-r sm:border-t-0 ${c.borda} ${c.modal}`}
           >
             <p className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${c.label}`}>🧾 Itens da venda</p>
-            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto text-sm">
-              {sacola.itens.length === 0 ? (
-                <p className={`text-sm ${c.vazio}`}>Toque num item do cardápio pra adicionar.</p>
-              ) : (
-                sacola.itens.map((item) => {
-                  const linhaId = item.linhaId || item.id
-                  const preco = item.preco_promocional ?? item.preco
-                  const editando = linhaEmEdicao === linhaId
-                  return (
-                    <div key={linhaId}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`truncate ${c.sacolaTexto}`}>
-                          {item.quantidade}x {item.nome}
-                        </span>
-                        <div className="flex flex-shrink-0 items-center gap-2">
-                          <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco * item.quantidade)}</span>
-                          <button
-                            onClick={() => setLinhaEmEdicao(editando ? null : linhaId)}
-                            title="Alterar quantidade"
-                            className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs transition ${
-                              editando ? c.botaoToggleAtivo : c.qtdBotao
-                            }`}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                      {editando && (
-                        <div className="mt-1.5 flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => sacola.alterarQuantidade(linhaId, -1)}
-                            className={`h-6 w-6 rounded-full border text-xs ${c.qtdBotao}`}
-                          >
-                            −
-                          </button>
-                          <span className={`w-5 text-center text-xs ${c.sacolaTexto}`}>{item.quantidade}</span>
-                          <button
-                            onClick={() => sacola.alterarQuantidade(linhaId, 1)}
-                            className={`h-6 w-6 rounded-full border text-xs ${c.qtdBotao}`}
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={() => {
-                              sacola.removerItem(linhaId)
-                              setLinhaEmEdicao(null)
-                            }}
-                            title="Remover item"
-                            className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-red-500 transition hover:bg-red-500/10"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
+            {/* Itens + desconto/pagamento/Pix/totais rolam juntos numa única
+                área — antes eram duas divs irmãs (itens flex-1, resto
+                shrink-0); com o painel Pix ativo o bloco shrink-0 crescia o
+                suficiente pra espremer a lista de itens a praticamente zero
+                de altura dentro da coluna de altura fixa. Cancelar/Confirmar
+                ficam fora, numa faixa shrink-0 própria, sempre visíveis sem
+                precisar rolar. */}
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
+              <div className="space-y-1.5">
+                {sacola.itens.length === 0 ? (
+                  <p className={`text-sm ${c.vazio}`}>Toque num item do cardápio pra adicionar.</p>
+                ) : (
+                  sacola.itens.map((item) => {
+                    const linhaId = item.linhaId || item.id
+                    return (
+                      <LinhaCarrinhoGarcom
+                        key={linhaId}
+                        item={item}
+                        editando={linhaEmEdicao === linhaId}
+                        onToggleEditar={() => setLinhaEmEdicao(linhaEmEdicao === linhaId ? null : linhaId)}
+                        onAlterarQuantidade={(delta) => sacola.alterarQuantidade(linhaId, delta)}
+                        onRemover={() => { sacola.removerItem(linhaId); setLinhaEmEdicao(null) }}
+                        estilos={c}
+                      />
+                    )
+                  })
+                )}
+              </div>
+
+              {sacola.itens.length > 0 && (
+                <PainelPagamentoGarcom
+                  subtotal={sacola.total}
+                  descontoNum={descontoNum}
+                  totalComDesconto={totalComDesconto}
+                  tipoDesconto={tipoDesconto}
+                  descontoInput={descontoInput}
+                  onTipoDescontoChange={setTipoDesconto}
+                  onDescontoInputChange={setDescontoInput}
+                  formaPagamento={formaPagamento}
+                  onFormaPagamentoChange={handleFormaPagamentoChange}
+                  valorRecebido={valorRecebido}
+                  onValorRecebidoChange={setValorRecebido}
+                  tema={tema}
+                  dadosPix={dadosPix}
+                  referenciaPix={referenciaPix}
+                  pixConfirmado={pixConfirmado}
+                  onPixConfirmadoChange={setPixConfirmado}
+                  trocoInsuficiente={trocoInsuficiente}
+                  estilos={c}
+                />
               )}
             </div>
 
             {sacola.itens.length > 0 && (
-              <div className={`shrink-0 space-y-3 border-t pt-3 ${c.borda}`}>
-                <div>
-                  <label className={`mb-1 block text-xs font-medium ${c.label}`}>
-                    Desconto <span className="font-normal opacity-70">(opcional)</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <div className={`flex overflow-hidden rounded-lg border ${c.borda}`}>
-                      <button
-                        type="button"
-                        onClick={() => setTipoDesconto('valor')}
-                        className={`px-3 py-2 text-sm font-medium transition ${tipoDesconto === 'valor' ? c.botaoToggleAtivo : c.label}`}
-                      >
-                        R$
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTipoDesconto('percentual')}
-                        className={`px-3 py-2 text-sm font-medium transition ${tipoDesconto === 'percentual' ? c.botaoToggleAtivo : c.label}`}
-                      >
-                        %
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={descontoInput}
-                      onChange={(e) => setDescontoInput(e.target.value)}
-                      placeholder={tipoDesconto === 'percentual' ? 'Ex: 10' : 'Ex: 5,00'}
-                      className={`flex-1 rounded-lg border px-3 py-2 ${c.input}`}
-                    />
-                  </div>
-                </div>
-
-                <SeletorFormaPagamento
-                  formaPagamento={formaPagamento}
-                  onChangeFormaPagamento={handleFormaPagamentoChange}
-                  valorRecebido={valorRecebido}
-                  onChangeValorRecebido={setValorRecebido}
-                  total={totalComDesconto}
-                  tema={tema}
-                />
-
-                {formaPagamento === 'Pix' && (
-                  <>
-                    <PainelPixCobranca
-                      chavePix={dadosPix?.chavePix ?? null}
-                      nomeFantasia={dadosPix?.nomeFantasia ?? ''}
-                      cidade={dadosPix?.cidade ?? null}
-                      valor={totalComDesconto}
-                      referencia={referenciaPix}
-                      tema={tema}
-                    />
-                    <label className={`flex items-center gap-2 text-sm ${c.label}`}>
-                      <input
-                        type="checkbox"
-                        checked={pixConfirmado}
-                        onChange={(e) => setPixConfirmado(e.target.checked)}
-                        className="h-4 w-4"
-                      />
-                      Confirmei que o Pix caiu
-                    </label>
-                  </>
-                )}
-
-                <div className={`space-y-1 border-t pt-3 text-sm ${c.borda}`}>
-                  <div className={`flex justify-between ${c.label}`}>
-                    <span>Subtotal</span>
-                    <span>R$ {formatarReais(sacola.total)}</span>
-                  </div>
-                  {descontoNum > 0 && (
-                    <div className={`flex justify-between ${c.label}`}>
-                      <span>Desconto</span>
-                      <span>− R$ {formatarReais(descontoNum)}</span>
-                    </div>
-                  )}
-                  <div className={`flex justify-between text-base font-bold ${c.total}`}>
-                    <span>Total a pagar</span>
-                    <span>R$ {formatarReais(totalComDesconto)}</span>
-                  </div>
-                </div>
-
-                {trocoInsuficiente && (
-                  <p className="text-xs font-medium text-red-500">Valor recebido menor que o total — confira antes de confirmar.</p>
-                )}
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={cancelarVenda}
-                    disabled={enviando}
-                    title="F2 — Cancelar"
-                    className={`rounded-lg border px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${c.borda} ${c.label} ${
-                      tema === 'escuro' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-50'
-                    }`}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={lancarPedido}
-                    disabled={enviando || trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)}
-                    title="F10 — Pagamento / Finalizar"
-                    className={`flex-1 rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
-                  >
-                    {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${formatarReais(totalComDesconto)}`}
-                  </button>
-                </div>
+              <div className={`flex shrink-0 gap-2 border-t pt-3 ${c.borda}`}>
+                <button
+                  onClick={cancelarVenda}
+                  disabled={enviando}
+                  title="F2 — Cancelar"
+                  className={`rounded-lg border px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${c.borda} ${c.label} ${
+                    tema === 'escuro' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-50'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={lancarPedido}
+                  disabled={enviando || trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)}
+                  title="F10 — Pagamento / Finalizar"
+                  className={`flex-1 rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
+                >
+                  {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${formatarReais(totalComDesconto)}`}
+                </button>
               </div>
             )}
           </div>
         </div>
       ) : (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">{listaCardapio}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">{seletorCardapio}</div>
 
           {sacola.itens.length > 0 && (
             <div className={`border-t ${c.borda} p-4`}>
               <div className="mb-3 max-h-32 space-y-1 overflow-y-auto text-sm">
                 {sacola.itens.map((item) => {
                   const linhaId = item.linhaId || item.id
-                  const preco = item.preco_promocional ?? item.preco
-                  const editando = linhaEmEdicao === linhaId
                   return (
-                  <div key={linhaId}>
-                    <div className="flex items-center justify-between">
-                      <span className={c.sacolaTexto}>
-                        {item.quantidade}x {item.nome}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco * item.quantidade)}</span>
-                        <button
-                          onClick={() => setLinhaEmEdicao(editando ? null : linhaId)}
-                          title="Alterar quantidade"
-                          className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs transition ${
-                            editando ? c.botaoToggleAtivo : c.qtdBotao
-                          }`}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                    {editando && (
-                      <div className="mt-1.5 flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => sacola.alterarQuantidade(linhaId, -1)}
-                          className={`h-6 w-6 rounded-full border ${c.qtdBotao}`}
-                        >
-                          −
-                        </button>
-                        <span className={`w-5 text-center text-xs ${c.sacolaTexto}`}>{item.quantidade}</span>
-                        <button
-                          onClick={() => sacola.alterarQuantidade(linhaId, 1)}
-                          className={`h-6 w-6 rounded-full border ${c.qtdBotao}`}
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => {
-                            sacola.removerItem(linhaId)
-                            setLinhaEmEdicao(null)
-                          }}
-                          title="Remover item"
-                          className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-red-500 transition hover:bg-red-500/10"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                    <LinhaCarrinhoGarcom
+                      key={linhaId}
+                      item={item}
+                      editando={linhaEmEdicao === linhaId}
+                      onToggleEditar={() => setLinhaEmEdicao(linhaEmEdicao === linhaId ? null : linhaId)}
+                      onAlterarQuantidade={(delta) => sacola.alterarQuantidade(linhaId, delta)}
+                      onRemover={() => { sacola.removerItem(linhaId); setLinhaEmEdicao(null) }}
+                      estilos={c}
+                    />
                   )
                 })}
               </div>
@@ -663,6 +438,17 @@ export default function LancarPedidoGarcom({
           )}
         </>
       )}
+
+      {confirmandoCancelar && (
+        <ConfirmarAcaoModal
+          titulo="Cancelar venda?"
+          descricao="Cancelar essa venda e limpar os itens já lançados?"
+          confirmarLabel="Cancelar venda"
+          tom="perigo"
+          onCancelar={() => setConfirmandoCancelar(false)}
+          onConfirmar={executarCancelamento}
+        />
+      )}
     </>
   )
 
@@ -681,6 +467,9 @@ export default function LancarPedidoGarcom({
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/40" onClick={onFechar} />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
         className={`relative flex max-h-[85vh] w-full flex-col rounded-t-2xl ${c.modal} shadow-2xl sm:rounded-2xl ${
           finalizarNoAto ? 'max-w-3xl' : 'max-w-lg'
         }`}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { transferirVinculo, descartarContestacao } from './actions'
 
 interface Item {
@@ -18,9 +19,9 @@ interface Item {
 export default function ContestacoesList({ itensIniciais }: { itensIniciais: Item[] }) {
   const [itens, setItens] = useState(itensIniciais)
   const [processando, setProcessando] = useState<string | null>(null)
+  const [acaoConfirmando, setAcaoConfirmando] = useState<{ tipo: 'transferir' | 'descartar'; item: Item } | null>(null)
 
   async function transferir(item: Item) {
-    if (!confirm(`Transferir "${item.estabelecimentoNome}" de ${item.donoAtualNome} para ${item.contestadorNome}?`)) return
     setProcessando(item.id)
     try {
       await transferirVinculo(item.id)
@@ -29,11 +30,11 @@ export default function ContestacoesList({ itensIniciais }: { itensIniciais: Ite
       alert(err instanceof Error ? err.message : 'Erro ao transferir.')
     } finally {
       setProcessando(null)
+      setAcaoConfirmando(null)
     }
   }
 
   async function descartar(item: Item) {
-    if (!confirm(`Descartar a contestação de ${item.contestadorNome} sobre "${item.estabelecimentoNome}"?`)) return
     setProcessando(item.id)
     try {
       await descartarContestacao(item.id)
@@ -42,6 +43,7 @@ export default function ContestacoesList({ itensIniciais }: { itensIniciais: Ite
       alert(err instanceof Error ? err.message : 'Erro ao descartar.')
     } finally {
       setProcessando(null)
+      setAcaoConfirmando(null)
     }
   }
 
@@ -81,14 +83,14 @@ export default function ContestacoesList({ itensIniciais }: { itensIniciais: Ite
 
           <div className="mt-4 flex gap-2">
             <button
-              onClick={() => transferir(item)}
+              onClick={() => setAcaoConfirmando({ tipo: 'transferir', item })}
               disabled={processando === item.id}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               Transferir pro contestador
             </button>
             <button
-              onClick={() => descartar(item)}
+              onClick={() => setAcaoConfirmando({ tipo: 'descartar', item })}
               disabled={processando === item.id}
               className="rounded-lg border border-neutral-200 px-4 py-2 text-sm text-neutral-600 disabled:opacity-50"
             >
@@ -97,6 +99,24 @@ export default function ContestacoesList({ itensIniciais }: { itensIniciais: Ite
           </div>
         </div>
       ))}
+
+      {acaoConfirmando && (
+        <ConfirmarAcaoModal
+          titulo={acaoConfirmando.tipo === 'transferir' ? 'Transferir estabelecimento?' : 'Descartar contestação?'}
+          descricao={
+            acaoConfirmando.tipo === 'transferir'
+              ? `Transferir "${acaoConfirmando.item.estabelecimentoNome}" de ${acaoConfirmando.item.donoAtualNome} para ${acaoConfirmando.item.contestadorNome}?`
+              : `Descartar a contestação de ${acaoConfirmando.item.contestadorNome} sobre "${acaoConfirmando.item.estabelecimentoNome}"?`
+          }
+          confirmarLabel={acaoConfirmando.tipo === 'transferir' ? 'Transferir' : 'Descartar'}
+          tom={acaoConfirmando.tipo === 'transferir' ? 'padrao' : 'perigo'}
+          enviando={processando === acaoConfirmando.item.id}
+          onCancelar={() => setAcaoConfirmando(null)}
+          onConfirmar={() =>
+            acaoConfirmando.tipo === 'transferir' ? transferir(acaoConfirmando.item) : descartar(acaoConfirmando.item)
+          }
+        />
+      )}
     </div>
   )
 }

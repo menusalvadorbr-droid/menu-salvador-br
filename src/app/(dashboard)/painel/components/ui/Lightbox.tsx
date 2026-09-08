@@ -26,6 +26,9 @@ export default function Lightbox({ src, alt, onClose }: LightboxProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt}
       className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center cursor-pointer"
       onClick={onClose}
     >

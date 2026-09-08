@@ -78,6 +78,18 @@ export default function QrCodeV2({ estabelecimentoId, slug }: { estabelecimentoI
       <p className="max-w-sm text-center text-xs text-neutral-400">
         Imprima e coloque no estabelecimento — o cliente escaneia e acessa o cardápio direto, sem precisar gerar um QR novo quando o cardápio mudar.
       </p>
+
+      {/* TEMPORÁRIO — só pra facilitar teste do carrinho de delivery
+          enquanto não existe uma tela própria pra isso; remover quando o
+          fluxo de delivery tiver seu próprio ponto de entrada. */}
+      <a
+        href={`${link}?canal=delivery`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-lg border border-dashed border-orange-300 px-4 py-2 text-xs font-medium text-orange-700 hover:bg-orange-50"
+      >
+        🧪 Testar menu delivery (link temporário)
+      </a>
     </div>
   )
 }

@@ -46,8 +46,16 @@ export default function GestaoTab({ estabelecimento, readOnly }: GestaoTabProps)
           <div
             role="switch"
             aria-checked={ativado}
+            tabIndex={0}
             onClick={() => {
               if (readOnly) return
+              const novo = !ativado
+              setAtivado(novo)
+              salvar(novo)
+            }}
+            onKeyDown={(e) => {
+              if ((e.key !== 'Enter' && e.key !== ' ') || readOnly) return
+              e.preventDefault()
               const novo = !ativado
               setAtivado(novo)
               salvar(novo)

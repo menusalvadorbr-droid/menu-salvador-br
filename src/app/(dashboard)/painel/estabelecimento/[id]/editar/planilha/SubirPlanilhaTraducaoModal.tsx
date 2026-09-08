@@ -94,6 +94,9 @@ export default function SubirPlanilhaTraducaoModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onFechar}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Subir planilha de tradução"
         className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

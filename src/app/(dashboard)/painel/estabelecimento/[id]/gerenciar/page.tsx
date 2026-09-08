@@ -113,7 +113,6 @@ export default function GerenciarEstabelecimentoPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const [contaAberta, setContaAberta] = useState(false)
   const [temHorarios, setTemHorarios] = useState(false)
 
   const {
@@ -144,15 +143,15 @@ export default function GerenciarEstabelecimentoPage({
   const gestaoAtivado = !!estabelecimento.gestao_modulo_ativado
 
   // Checklist de progresso do perfil público — cada item aponta pro lugar
-  // onde dá pra resolver aquilo. "Descrição" mora no próprio modal Conta
-  // desta página (não precisa navegar); o resto vive dentro do módulo
-  // Cardápio (Configurações → Galeria/Horários).
+  // onde dá pra resolver aquilo. "Descrição" agora navega pro espelho
+  // clicável (/editar), que substituiu o modal Conta; o resto vive dentro
+  // do módulo Cardápio (Configurações → Galeria/Horários).
   const itensChecklist = [
     {
       id: 'descricao',
       label: 'Escrever descrição',
       feito: !!estabelecimento.descricao,
-      onClick: () => setContaAberta(true),
+      href: `/painel/estabelecimento/${id}/editar`,
     },
     {
       id: 'foto_capa',
@@ -211,9 +210,6 @@ export default function GerenciarEstabelecimentoPage({
           ehDonoOuGerente={ehDonoOuGerente}
           podeEditar={podeEditar}
           aoVoltar={() => router.push('/painel')}
-          contaAberta={contaAberta}
-          onAbrirConta={() => setContaAberta(true)}
-          onFecharConta={() => setContaAberta(false)}
         />
 
         {/* Módulos de primeiro nível — agora são destinos de navegação,
@@ -293,18 +289,9 @@ export default function GerenciarEstabelecimentoPage({
               )
               return (
                 <li key={item.id}>
-                  {item.href ? (
-                    <Link href={item.href} className="flex items-center gap-2 text-sm transition hover:text-orange-600">
-                      {conteudo}
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={item.onClick}
-                      className="flex items-center gap-2 text-sm transition hover:text-orange-600"
-                    >
-                      {conteudo}
-                    </button>
-                  )}
+                  <Link href={item.href} className="flex items-center gap-2 text-sm transition hover:text-orange-600">
+                    {conteudo}
+                  </Link>
                 </li>
               )
             })}

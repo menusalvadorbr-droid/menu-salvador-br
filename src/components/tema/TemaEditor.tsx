@@ -722,6 +722,7 @@ export default function TemaEditor({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
           onClick={() => setModalItem(null)}>
           <div className="bg-white rounded-xl max-w-md w-full overflow-hidden shadow-2xl"
+            role="dialog" aria-modal="true" aria-label={modalItem.nome}
             onClick={e => e.stopPropagation()}>
             <div className="relative">
               <img src={modalItem.foto_url} alt={modalItem.nome}

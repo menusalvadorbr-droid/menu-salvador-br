@@ -80,8 +80,11 @@ export default function CabecalhoPerfilPublico({
           />
         )}
         {!est.owner_user_id && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
-            <p className="text-sm text-orange-900">
+          <div
+            className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--brand-primary)]/30 px-4 py-3"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--brand-primary) 6%, white)' }}
+          >
+            <p className="text-sm text-neutral-800">
               <strong><TextoInterface chave="reivindicar_titulo">Esse é o seu estabelecimento?</TextoInterface></strong>{' '}
               <TextoInterface chave="reivindicar_texto_perfil">
                 Reivindique o perfil para editar informações, fotos e cardápio.
@@ -89,7 +92,7 @@ export default function CabecalhoPerfilPublico({
             </p>
             <a
               href={`/estabelecimentos/novo?cnpj=${est.cnpj}`}
-              className="shrink-0 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
+              className="shrink-0 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-90"
             >
               <TextoInterface chave="reivindicar_botao">Reivindicar</TextoInterface>
             </a>

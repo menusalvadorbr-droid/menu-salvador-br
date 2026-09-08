@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useAcompanharPedido } from '@/modules/pedidos/customer/useAcompanharPedido'
 import StatusPedidoTimeline from '@/modules/pedidos/customer/StatusPedidoTimeline'
@@ -24,14 +25,24 @@ export default function AcompanharPedido({
   nomeEstabelecimento,
   chavePix,
   cidade,
+  basePath = '/cardapio',
+  cardapioQuery = '',
 }: {
   slug: string
   pedidoId: string
   nomeEstabelecimento: string
   chavePix: string | null
   cidade: string | null
+  // V1 usa /cardapio (padrão); Cardápio V2 passa /cardapio-v2.
+  basePath?: string
+  // Cardápio V2 passa "?canal=delivery" — pedido feito por ali sempre veio
+  // desse canal (a visão presencial é só leitura), então "voltar ao
+  // cardápio" sem isso caía na visão presencial por engano, sem carrinho —
+  // parecia ter voltado pro cardápio "comum" mesmo na URL certa.
+  cardapioQuery?: string
 }) {
   const { pedido, carregando, naoEncontrado } = useAcompanharPedido(pedidoId)
+  const [pixAberto, setPixAberto] = useState(false)
 
   if (carregando) {
     return (
@@ -45,7 +56,7 @@ export default function AcompanharPedido({
     return (
       <div className="mx-auto max-w-md text-center">
         <p className="text-sm text-neutral-500">Não encontramos esse pedido.</p>
-        <Link href={`/cardapio/${slug}`} className={`mt-4 inline-block ${BOTAO_PEDIDO_SECUNDARIO}`}>
+        <Link href={`${basePath}/${slug}${cardapioQuery}`} className={`mt-4 inline-block ${BOTAO_PEDIDO_SECUNDARIO}`}>
           Voltar ao cardápio
         </Link>
       </div>
@@ -69,8 +80,16 @@ export default function AcompanharPedido({
     <div className="mx-auto max-w-md">
       <p className="mb-4 text-xs font-medium uppercase tracking-wide text-neutral-400">{nomeEstabelecimento}</p>
 
-      {pixPendente ? (
-        <>
+      {/* Régua de status sempre visível — o preparo pode andar mesmo com o
+          Pix ainda pendente (a cozinha não precisa esperar a confirmação
+          pra começar em todo estabelecimento), e esconder isso atrás do
+          Pix escondia esse progresso de quem só queria acompanhar. */}
+      <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
+        <StatusPedidoTimeline pedido={pedido} />
+      </div>
+
+      {pixPendente &&
+        (pixAberto ? (
           <PixPagamentoCard
             chavePix={chavePix}
             nomeFantasia={nomeEstabelecimento}
@@ -78,18 +97,19 @@ export default function AcompanharPedido({
             valor={pedido.total}
             codigoPedido={pedido.codigo_pedido}
           />
-          <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-4 text-center shadow-sm">
-            <p className="text-sm font-medium text-neutral-600">
-              ⏳ Aguardando pagamento — sem pressa, você tem tempo tranquilo pra pagar. Assim que identificarmos o
-              Pix, o andamento do seu pedido aparece aqui.
+        ) : (
+          <div className="mb-6 rounded-2xl border border-sky-100 bg-sky-50/50 p-4 text-center shadow-sm">
+            <p className="mb-3 text-sm font-medium text-neutral-600">
+              ⏳ Aguardando pagamento — assim que identificarmos o Pix, o andamento do seu pedido aparece aqui.
             </p>
+            <button
+              onClick={() => setPixAberto(true)}
+              className="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              💳 Pagar com Pix
+            </button>
           </div>
-        </>
-      ) : (
-        <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
-          <StatusPedidoTimeline pedido={pedido} />
-        </div>
-      )}
+        ))}
 
       <div className="mb-6 rounded-2xl border border-neutral-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 pb-3">
@@ -138,9 +158,14 @@ export default function AcompanharPedido({
         </div>
       </div>
 
-      <Link href={`/cardapio/${slug}`} className={`block ${BOTAO_PEDIDO_SECUNDARIO}`}>
-        Voltar ao cardápio
-      </Link>
+      <div className="flex gap-2">
+        <Link href={`${basePath}/${slug}${cardapioQuery}`} className={`flex-1 ${BOTAO_PEDIDO_SECUNDARIO}`}>
+          Voltar ao cardápio
+        </Link>
+        <Link href={`${basePath}/${slug}/pedidos`} className={`flex-1 ${BOTAO_PEDIDO_SECUNDARIO}`}>
+          Meus pedidos
+        </Link>
+      </div>
     </div>
   )
 }

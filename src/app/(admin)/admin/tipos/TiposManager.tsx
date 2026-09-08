@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import EmojiPicker from '../../components/EmojiPicker'
 
 export interface TipoItem {
@@ -41,6 +42,9 @@ export default function TiposManager({
   const [nomeEdicao, setNomeEdicao] = useState('')
   const [iconeEdicao, setIconeEdicao] = useState('')
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [itemParaDesativar, setItemParaDesativar] = useState<TipoItem | null>(null)
+  const [itemParaExcluir, setItemParaExcluir] = useState<TipoItem | null>(null)
+  const [processando, setProcessando] = useState(false)
 
   async function handleAdicionar() {
     if (!novoNome.trim()) return
@@ -68,23 +72,28 @@ export default function TiposManager({
     }
   }
 
-  async function handleToggle(item: TipoItem) {
-    const novoAtivo = !item.ativo
-    if (!novoAtivo && item.totalEmUso > 0) {
-      const confirmar = confirm(
-        `${item.totalEmUso} estabelecimento(s) usam "${item.nome}". Desativando, ele só some da lista pra novos cadastros — quem já usa continua igual. Continuar?`
-      )
-      if (!confirmar) return
-    }
-
+  async function aplicarToggle(item: TipoItem, novoAtivo: boolean) {
+    setProcessando(true)
     const anterior = itens
     setItens((prev) => prev.map((i) => (i.id === item.id ? { ...i, ativo: novoAtivo } : i)))
     try {
       await onToggle(item.id, novoAtivo)
+      setItemParaDesativar(null)
     } catch (err) {
       setItens(anterior)
       alert(`Não foi possível salvar: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    } finally {
+      setProcessando(false)
     }
+  }
+
+  function handleToggle(item: TipoItem) {
+    const novoAtivo = !item.ativo
+    if (!novoAtivo && item.totalEmUso > 0) {
+      setItemParaDesativar(item)
+      return
+    }
+    aplicarToggle(item, novoAtivo)
   }
 
   function iniciarEdicao(item: TipoItem) {
@@ -109,21 +118,23 @@ export default function TiposManager({
     }
   }
 
-  async function handleExcluir(item: TipoItem) {
-    const aviso =
-      item.totalEmUso > 0
-        ? `${item.totalEmUso} estabelecimento(s) usam "${item.nome}". Excluir aqui não apaga o estabelecimento, mas remove esse vínculo — considere apenas desativar em vez de excluir. Excluir mesmo assim?`
-        : `Excluir "${item.nome}"? Não tem como desfazer.`
-    if (!confirm(aviso)) return
-
+  async function aplicarExclusao(item: TipoItem) {
+    setProcessando(true)
     const anterior = itens
     setItens((prev) => prev.filter((i) => i.id !== item.id))
     try {
       await onExcluir(item.id)
+      setItemParaExcluir(null)
     } catch (err) {
       setItens(anterior)
       alert(`Não foi possível excluir: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    } finally {
+      setProcessando(false)
     }
+  }
+
+  function handleExcluir(item: TipoItem) {
+    setItemParaExcluir(item)
   }
 
   return (
@@ -227,6 +238,34 @@ export default function TiposManager({
           <p className="py-6 text-center text-sm text-neutral-400">Nenhum tipo cadastrado ainda.</p>
         )}
       </div>
+
+      {itemParaDesativar && (
+        <ConfirmarAcaoModal
+          titulo="Desativar?"
+          descricao={`${itemParaDesativar.totalEmUso} estabelecimento(s) usam "${itemParaDesativar.nome}". Desativando, ele só some da lista pra novos cadastros — quem já usa continua igual. Continuar?`}
+          confirmarLabel="Desativar"
+          tom="atencao"
+          enviando={processando}
+          onCancelar={() => setItemParaDesativar(null)}
+          onConfirmar={() => aplicarToggle(itemParaDesativar, false)}
+        />
+      )}
+
+      {itemParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir?"
+          descricao={
+            itemParaExcluir.totalEmUso > 0
+              ? `${itemParaExcluir.totalEmUso} estabelecimento(s) usam "${itemParaExcluir.nome}". Excluir aqui não apaga o estabelecimento, mas remove esse vínculo — considere apenas desativar em vez de excluir. Excluir mesmo assim?`
+              : `Excluir "${itemParaExcluir.nome}"? Não tem como desfazer.`
+          }
+          confirmarLabel="Excluir"
+          tom="perigo"
+          enviando={processando}
+          onCancelar={() => setItemParaExcluir(null)}
+          onConfirmar={() => aplicarExclusao(itemParaExcluir)}
+        />
+      )}
     </div>
   )
 }

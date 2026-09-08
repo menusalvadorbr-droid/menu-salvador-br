@@ -161,7 +161,12 @@ export default function AdminNav({ nomeAdmin }: { nomeAdmin: string }) {
             onClick={() => setMenuAberto(false)}
             aria-hidden
           />
-          <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white px-3 py-4 shadow-xl">
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+            className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white px-3 py-4 shadow-xl"
+          >
             <div className="flex items-center justify-between pb-2">
               <Link href="/admin" onClick={() => setMenuAberto(false)}>
                 <Marca />

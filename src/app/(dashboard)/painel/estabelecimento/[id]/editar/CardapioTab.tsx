@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { logSupabaseError } from '@/lib/supabase/logError'
 import { calcularPrecoPromocional } from '@/lib/promocaoItem'
 import { ALERGENOS_FALLBACK } from '@/lib/alergenos'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { baixarPlanilhaCardapio } from './planilha/planilhaCardapio'
 import SubirPlanilhaModal from './planilha/SubirPlanilhaModal'
 import { baixarPlanilhaTraducao, type TraducaoExistente } from './planilha/planilhaTraducao'
@@ -37,6 +38,9 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   const [alergenos, setAlergenos]   = useState<Alergeno[]>([])
   const [loading, setLoading]       = useState(true)
   const [erro, setErro]             = useState<string | null>(null)
+  const [categoriaParaExcluir, setCategoriaParaExcluir] = useState<string | null>(null)
+  const [itemParaExcluir, setItemParaExcluir] = useState<string | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
   // Fase 1 do módulo cardápio: variações de tamanho/preço (pizzaria,
   // marmita) — funcionalidade opt-in por estabelecimento, não altera
   // nada pra quem não ativar.
@@ -342,8 +346,10 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   }
 
   async function deletarCategoria(id: string) {
-    if (!confirm('Remover esta categoria e todos os seus itens?')) return
+    setExcluindo(true)
     await supabase.from('categorias').delete().eq('id', id)
+    setExcluindo(false)
+    setCategoriaParaExcluir(null)
     carregar()
   }
 
@@ -764,8 +770,10 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
   }
 
   async function deletarItem(id: string) {
-    if (!confirm('Remover este item permanentemente?')) return
+    setExcluindo(true)
     await supabase.from('itens_cardapio').delete().eq('id', id)
+    setExcluindo(false)
+    setItemParaExcluir(null)
     carregar()
   }
 
@@ -885,12 +893,12 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
               onSalvarTraducoesCategoria={salvarTraducoesCategoria}
               salvandoTraducoesCategoria={salvandoTraducoesCategoria}
               onCancelarTraducoes={() => setCatEditandoTraducoes(null)}
-              onDeletarCategoria={deletarCategoria}
+              onDeletarCategoria={setCategoriaParaExcluir}
               onAdicionarItem={(catId) => abrirModal(undefined, catId)}
               onEditarItem={(item) => abrirModal(item)}
               onToggleDisponivel={toggleDisponivel}
               onTogglePromo={marcarPromo}
-              onDeletarItem={deletarItem}
+              onDeletarItem={setItemParaExcluir}
             />
           )
         })
@@ -973,6 +981,30 @@ export default function CardapioTab({ estabelecimentoId, readOnly }: CardapioTab
           traducoesExistentes={traducoesParaPlanilha}
           onFechar={() => setModalPlanilhaTraducaoAberto(false)}
           onConcluido={aoConcluirPlanilhaTraducao}
+        />
+      )}
+
+      {categoriaParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Remover categoria?"
+          descricao={`Remover "${categorias.find((c) => c.id === categoriaParaExcluir)?.nome || 'esta categoria'}" e todos os seus itens?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={excluindo}
+          onCancelar={() => setCategoriaParaExcluir(null)}
+          onConfirmar={() => deletarCategoria(categoriaParaExcluir)}
+        />
+      )}
+
+      {itemParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Remover item?"
+          descricao={`Remover "${itens.find((i) => i.id === itemParaExcluir)?.nome || 'este item'}" permanentemente?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={excluindo}
+          onCancelar={() => setItemParaExcluir(null)}
+          onConfirmar={() => deletarItem(itemParaExcluir)}
         />
       )}
     </div>

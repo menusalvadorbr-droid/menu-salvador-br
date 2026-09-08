@@ -132,6 +132,9 @@ export default function ItemClicavel({
           onClick={() => setAberto(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={nome}
             className="relative flex w-full max-w-lg min-h-[50vh] max-h-[80vh] flex-col rounded-t-2xl border-t shadow-2xl"
             style={{ backgroundColor: corS, borderColor: corBd }}
             onClick={(e) => e.stopPropagation()}

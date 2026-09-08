@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ArrowLeft, ChevronRight, Clock, ShieldAlert, EyeOff, CheckCircle2, X } from 'lucide-react'
-import EditarEstabelecimentoForm from '../editar/EditarEstabelecimentoForm'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ChevronRight, Clock, ShieldAlert, EyeOff, CheckCircle2 } from 'lucide-react'
 
 function saudacao() {
   const hora = new Date().getHours()
@@ -37,32 +37,30 @@ interface CabecalhoGerenciarProps {
    *  dentro deste mesmo cabeçalho, não como substituto dele. Omitido na
    *  tela inicial de gerenciar, que não precisa desse subtítulo. */
   tituloPagina?: { icone: ReactNode; texto: string }
-  /** Controlado pelo chamador — a tela inicial também abre esse mesmo
-   *  modal a partir do checklist de perfil, fora deste cabeçalho, então o
-   *  estado não pode viver só aqui dentro. */
-  contaAberta: boolean
-  onAbrirConta: () => void
-  onFecharConta: () => void
+  /** @deprecated Não usado mais aqui — o clique no nome agora navega pro
+   *  espelho clicável (/editar), em vez de abrir o modal "Conta" antigo.
+   *  Mantido na interface só pra não obrigar troca simultânea nos 5
+   *  chamadores; pode ser removido quando cada um for limpo. */
+  contaAberta?: boolean
+  onAbrirConta?: () => void
+  onFecharConta?: () => void
 }
 
 /**
- * Cabeçalho completo reaproveitado nas três telas de gerenciar (início,
- * cardápio, gestão) — saudação, nome do estabelecimento (clicável pra
- * abrir "Conta", quando dono/gerente), badge de status e seta de voltar.
- * Extraído daqui pra não duplicar essa mesma estrutura em cada página.
+ * Cabeçalho completo reaproveitado nas telas de gerenciar (início,
+ * cardápio, cardápio V2, gestão, configurações) — saudação, nome do
+ * estabelecimento (clicável, leva pro editor de perfil quando
+ * dono/gerente), badge de status e seta de voltar. Extraído daqui pra não
+ * duplicar essa mesma estrutura em cada página.
  */
 export default function CabecalhoGerenciar({
   estabelecimento,
   usuarioNome,
-  usuarioLogadoId,
   ehDonoOuGerente,
-  podeEditar,
   aoVoltar,
   tituloPagina,
-  contaAberta,
-  onAbrirConta,
-  onFecharConta,
 }: CabecalhoGerenciarProps) {
+  const router = useRouter()
   const nomeExibicao = estabelecimento.nome_fantasia || estabelecimento.nome
   const primeiroNome = usuarioNome.split(' ')[0] || usuarioNome
   const inicial = (nomeExibicao || '?').trim().charAt(0).toUpperCase()
@@ -90,9 +88,9 @@ export default function CabecalhoGerenciar({
             </p>
             {ehDonoOuGerente ? (
               <button
-                onClick={onAbrirConta}
+                onClick={() => router.push(`/painel/estabelecimento/${estabelecimento.id}/editar`)}
                 className="flex items-center gap-1 text-lg font-bold tracking-tight text-neutral-900 transition hover:text-orange-600"
-                title="Ver e editar dados da conta"
+                title="Editar perfil do estabelecimento"
               >
                 <span className="truncate">{nomeExibicao}</span>
                 <ChevronRight className="h-4 w-4 shrink-0 opacity-50" />
@@ -117,36 +115,6 @@ export default function CabecalhoGerenciar({
           {badge.label}
         </span>
       </div>
-
-      {contaAberta && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={onFecharConta}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
-              <h2 className="font-semibold text-gray-900">Conta</h2>
-              <button
-                onClick={onFecharConta}
-                aria-label="Fechar"
-                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <EditarEstabelecimentoForm
-                estabelecimento={estabelecimento}
-                podeEditar={podeEditar}
-                userId={usuarioLogadoId}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

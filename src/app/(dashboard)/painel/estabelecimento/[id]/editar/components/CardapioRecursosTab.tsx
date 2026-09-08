@@ -39,7 +39,14 @@ function ToggleRow({
         <div
           role="switch"
           aria-checked={checked}
+          tabIndex={0}
           onClick={() => !desativado && onToggle()}
+          onKeyDown={(e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && !desativado) {
+              e.preventDefault()
+              onToggle()
+            }
+          }}
           className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-orange-500' : 'bg-gray-200'} ${
             desativado ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           }`}

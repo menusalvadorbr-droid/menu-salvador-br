@@ -1,6 +1,7 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { moderarEstabelecimento, excluirEstabelecimento } from './actions'
 
 interface Props {
@@ -21,15 +22,9 @@ export function AcoesEstabelecimentoAdmin({
   temDono,
 }: Props) {
   const [isTransitioning, startTransition] = useTransition()
+  const [acaoConfirmando, setAcaoConfirmando] = useState<'block' | 'restore' | 'excluir' | null>(null)
 
   const executar = (acao: 'approve' | 'block' | 'unblock' | 'unlink' | 'restore') => {
-    if (acao === 'block' && !confirm(`Bloquear "${nomeExibicao}"? O estabelecimento vai sair do ar imediatamente.`)) {
-      return
-    }
-    if (acao === 'restore' && !confirm(`Restaurar "${nomeExibicao}"? Volta a ficar ativo e visível pro dono e ao público.`)) {
-      return
-    }
-
     startTransition(async () => {
       try {
         await moderarEstabelecimento(estabelecimentoId, acao)
@@ -40,10 +35,15 @@ export function AcoesEstabelecimentoAdmin({
     })
   }
 
-  const handleExcluir = () => {
-    if (!confirm(`Tem certeza que deseja excluir permanentemente "${nomeExibicao}"? Esta ação não pode ser desfeita.`)) {
+  const handleClickAcao = (acao: 'approve' | 'block' | 'unblock' | 'unlink' | 'restore') => {
+    if (acao === 'block' || acao === 'restore') {
+      setAcaoConfirmando(acao)
       return
     }
+    executar(acao)
+  }
+
+  const handleExcluir = () => {
     startTransition(async () => {
       try {
         await excluirEstabelecimento(estabelecimentoId)
@@ -60,7 +60,7 @@ export function AcoesEstabelecimentoAdmin({
         <button
           type="button"
           disabled={isTransitioning}
-          onClick={() => executar('restore')}
+          onClick={() => handleClickAcao('restore')}
           className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
         >
           ♻️ Restaurar
@@ -84,7 +84,7 @@ export function AcoesEstabelecimentoAdmin({
         <button
           type="button"
           disabled={isTransitioning}
-          onClick={() => executar('block')}
+          onClick={() => handleClickAcao('block')}
           className="inline-flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
         >
           🚫 Bloquear
@@ -116,11 +116,55 @@ export function AcoesEstabelecimentoAdmin({
       <button
         type="button"
         disabled={isTransitioning}
-        onClick={handleExcluir}
+        onClick={() => setAcaoConfirmando('excluir')}
         className="inline-flex items-center gap-1 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
       >
         🗑️ Excluir
       </button>
+
+      {acaoConfirmando === 'block' && (
+        <ConfirmarAcaoModal
+          titulo="Bloquear estabelecimento?"
+          descricao={`Bloquear "${nomeExibicao}"? O estabelecimento vai sair do ar imediatamente.`}
+          confirmarLabel="Bloquear"
+          tom="perigo"
+          enviando={isTransitioning}
+          onCancelar={() => setAcaoConfirmando(null)}
+          onConfirmar={() => {
+            setAcaoConfirmando(null)
+            executar('block')
+          }}
+        />
+      )}
+
+      {acaoConfirmando === 'restore' && (
+        <ConfirmarAcaoModal
+          titulo="Restaurar estabelecimento?"
+          descricao={`Restaurar "${nomeExibicao}"? Volta a ficar ativo e visível pro dono e ao público.`}
+          confirmarLabel="Restaurar"
+          enviando={isTransitioning}
+          onCancelar={() => setAcaoConfirmando(null)}
+          onConfirmar={() => {
+            setAcaoConfirmando(null)
+            executar('restore')
+          }}
+        />
+      )}
+
+      {acaoConfirmando === 'excluir' && (
+        <ConfirmarAcaoModal
+          titulo="Excluir estabelecimento?"
+          descricao={`Tem certeza que deseja excluir permanentemente "${nomeExibicao}"? Esta ação não pode ser desfeita.`}
+          confirmarLabel="Excluir"
+          tom="perigo"
+          enviando={isTransitioning}
+          onCancelar={() => setAcaoConfirmando(null)}
+          onConfirmar={() => {
+            setAcaoConfirmando(null)
+            handleExcluir()
+          }}
+        />
+      )}
     </>
   )
 }

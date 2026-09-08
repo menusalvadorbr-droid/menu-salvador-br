@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/app/(dashboard)/painel/components/ImageUpload'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import SeletorCor from './SeletorCor'
 import SeletorFonte from './SeletorFonte'
 import PreviewTemaCardapio, { CONFIG_TEMA_PADRAO, type ConfigTemaPreview } from './PreviewTemaCardapio'
@@ -36,6 +37,8 @@ export default function GerenciarTemas() {
   const [editando, setEditando] = useState<Tema | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [form, setForm] = useState(FORM_PADRAO)
+  const [temaParaRemover, setTemaParaRemover] = useState<Tema | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   useEffect(() => {
     carregarTemas()
@@ -97,10 +100,14 @@ export default function GerenciarTemas() {
   }
 
   async function deletarTema(id: string) {
-    if (!confirm('Remover este tema?')) return
+    setRemovendo(true)
     const { error } = await supabase.from('temas').delete().eq('id', id)
+    setRemovendo(false)
     if (error) alert('Erro ao remover: ' + error.message)
-    else carregarTemas()
+    else {
+      setTemaParaRemover(null)
+      carregarTemas()
+    }
   }
 
   if (loading) return <div className="py-10 text-center text-gray-400">Carregando…</div>
@@ -299,11 +306,23 @@ export default function GerenciarTemas() {
             </div>
             <div className="mt-2 flex gap-2">
               <button onClick={() => editarTema(tema)} className="text-sm text-blue-600 hover:underline">Editar</button>
-              <button onClick={() => deletarTema(tema.id)} className="text-sm text-red-600 hover:underline">Remover</button>
+              <button onClick={() => setTemaParaRemover(tema)} className="text-sm text-red-600 hover:underline">Remover</button>
             </div>
           </div>
         ))}
       </div>
+
+      {temaParaRemover && (
+        <ConfirmarAcaoModal
+          titulo="Remover tema?"
+          descricao={`Remover o tema "${temaParaRemover.nome}"?`}
+          confirmarLabel="Remover"
+          tom="perigo"
+          enviando={removendo}
+          onCancelar={() => setTemaParaRemover(null)}
+          onConfirmar={() => deletarTema(temaParaRemover.id)}
+        />
+      )}
     </div>
   )
 }

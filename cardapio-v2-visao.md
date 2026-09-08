@@ -58,18 +58,34 @@ terreno para não precisar reescrever nada quando esse momento chegar.
 - Alérgenos e observação nutricional
 - Tradução manual (e, no campo já preparado, futura tradução automática)
 - Tags livres por item
-- Cardápio delivery como vitrine (mostra itens/preço por canal, sem carrinho)
+- Cardápio delivery como vitrine (mostra itens/preço por canal) — estado atual, sem
+  carrinho; o carrinho de delivery é a "Próxima fase" descrita acima, ainda não construído
 - Contagem simples de acesso ao QR
 
-## Fora do escopo do cardápio (pertence a outro módulo)
-- QR por mesa + chamar garçom
-- Carrinho e fechamento de pedido (presencial ou delivery)
-- AI Waiter Chat / integração com IA no WhatsApp
-- Qualquer coisa de plano, trial, ou permissão granular por função
+## Mudança de escopo (registrada em 2026-09-07)
 
-Essas features existem no roadmap do produto, mas não devem ser desenhadas dentro do
-cardápio agora — evita reabrir a complexidade de plano/permissão que travou a decisão
-anterior.
+A estratégia de aquisição do produto ficou clara: o Cardápio V2 grátis é a isca de adesão
+(convite via CRM de outreach — ferramenta externa, fora deste repositório — dono reivindica
+o estabelecimento e usa o cardápio sem custo). O **primeiro upsell depois da adesão é
+delivery + atendimento por IA no WhatsApp**, não uma feature distante — por isso essas duas
+saem de "fora do escopo" e entram como próxima fase deste mesmo módulo, direto em cima do
+schema `cardapio_v2_*` (não do V1). V1 e V2 continuam coexistindo — não há decisão de
+aposentar o V1 ainda, essa parte fica pra decidir depois.
+
+## Fora do escopo do cardápio (continua em outro módulo)
+- QR por mesa + chamar garçom
+- Qualquer coisa de plano, trial, ou permissão granular por função (o gancho `podeUsar()`
+  segue sendo o único preparo — sistema de plano de verdade continua fora daqui)
+
+## Próxima fase — delivery + IA no WhatsApp (antes de implementar: discutir modelo)
+- Carrinho e fechamento de pedido de delivery, construído do zero em cima do
+  `cardapio_v2_*` — o carrinho do V1 é código de domínio do V1, não reaproveitável pela
+  mesma regra de isolamento que rege o resto deste módulo.
+- Atendimento por IA no WhatsApp plugado no schema novo, substituindo a leitura atual do
+  V1 (`buildCardapioContext.ts`) — inclui decidir como fica a "tela de atendimento"
+  (intervenção humana / handoff quando a IA não resolve).
+- Nenhum destes dois itens tem modelo definido ainda — a etapa seguinte é discussão de
+  ideias e arquitetura, não código.
 
 ## O único gancho para o futuro (não é sistema de plano, é um hábito)
 Toda função do cardápio que algum dia pode virar paga passa por um único ponto de

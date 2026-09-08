@@ -160,6 +160,9 @@ export default function SeletorItemModal({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onFechar}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={nome}
         className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >

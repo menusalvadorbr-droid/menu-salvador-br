@@ -30,9 +30,15 @@ type Tela = 'venda' | 'mesas'
 export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { sessaoAberta, resumo, carregando, abrir, fechar, atualizar } = useCaixa(estabelecimentoId)
   const [tela, setTela] = useState<Tela>('venda')
+  // Alimentado pelo onSacolaChange de LancarPedidoGarcom — trocar de tela
+  // pra 'mesas' desmonta esse componente (sai da árvore no ternário
+  // abaixo), destruindo o carrinho/forma de pagamento/confirmação de Pix
+  // em andamento sem aviso nenhum. Usado só pra decidir se pergunta antes.
+  const [vendaEmAndamento, setVendaEmAndamento] = useState(false)
   const [valorAbertura, setValorAbertura] = useState(0)
   const [valorFechamento, setValorFechamento] = useState(0)
   const [confirmandoFechamento, setConfirmandoFechamento] = useState(false)
+  const [confirmandoTrocaTela, setConfirmandoTrocaTela] = useState(false)
   const [resultadoFechamento, setResultadoFechamento] = useState<{ diferenca: number } | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -69,6 +75,14 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
   const turnoLongo =
     sessaoAberta != null &&
     agoraMs - new Date(sessaoAberta.aberto_em).getTime() > LIMITE_TURNO_LONGO_HORAS * 60 * 60 * 1000
+
+  function handleTrocarParaMesas() {
+    if (vendaEmAndamento) {
+      setConfirmandoTrocaTela(true)
+      return
+    }
+    setTela('mesas')
+  }
 
   async function handleAbrir() {
     setEnviando(true)
@@ -219,6 +233,7 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           finalizarNoAto
           modo="inline"
           onPedidoLancado={() => {}}
+          onSacolaChange={setVendaEmAndamento}
         />
       ) : (
         <div className="space-y-4">
@@ -254,7 +269,7 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           <Receipt className="h-5 w-5" /> Nova venda
         </button>
         <button
-          onClick={() => setTela('mesas')}
+          onClick={handleTrocarParaMesas}
           className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition sm:w-56 ${
             tela === 'mesas' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
           }`}
@@ -262,6 +277,20 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           <UtensilsCrossed className="h-5 w-5" /> Mesas e pedidos
         </button>
       </div>
+
+      {confirmandoTrocaTela && (
+        <ConfirmarAcaoModal
+          titulo="Sair da venda em andamento?"
+          descricao="Há uma venda em andamento com itens lançados. Sair agora descarta essa venda — continuar?"
+          tom="atencao"
+          confirmarLabel="Sair mesmo assim"
+          onCancelar={() => setConfirmandoTrocaTela(false)}
+          onConfirmar={() => {
+            setConfirmandoTrocaTela(false)
+            setTela('mesas')
+          }}
+        />
+      )}
 
       {confirmandoFechamento && (
         <ConfirmarAcaoModal

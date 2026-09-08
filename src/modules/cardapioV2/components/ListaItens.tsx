@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 import { formatarReais } from '@/lib/moeda'
 import { getCloudflareImageUrl } from '@/lib/cloudflareImage'
 import { alternarAtivoItem, excluirItem, listarItensCompletos, reordenarItens } from '../itemRepository'
@@ -21,6 +22,8 @@ export default function ListaItens({
   const [itens, setItens] = useState<CardapioV2ItemCompleto[]>([])
   const [carregando, setCarregando] = useState(true)
   const [itemEmEdicao, setItemEmEdicao] = useState<CardapioV2ItemCompleto | 'novo' | null>(null)
+  const [itemParaExcluir, setItemParaExcluir] = useState<CardapioV2ItemCompleto | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
 
   const recarregar = useCallback(async () => {
     if (!categoriaId) {
@@ -48,8 +51,10 @@ export default function ListaItens({
   }
 
   async function handleExcluir(id: string) {
-    if (!confirm('Excluir este item?')) return
+    setExcluindo(true)
     await excluirItem(id)
+    setExcluindo(false)
+    setItemParaExcluir(null)
     recarregar()
   }
 
@@ -102,7 +107,7 @@ export default function ListaItens({
               <button title="Editar" onClick={() => setItemEmEdicao(item)} className="hover:text-neutral-600">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
-              <button title="Excluir" onClick={() => handleExcluir(item.id)} className="text-red-400 hover:text-red-600">
+              <button title="Excluir" onClick={() => setItemParaExcluir(item)} className="text-red-400 hover:text-red-600">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -118,6 +123,18 @@ export default function ListaItens({
           recursos={cardapio}
           onClose={() => setItemEmEdicao(null)}
           onSalvo={recarregar}
+        />
+      )}
+
+      {itemParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir item?"
+          descricao={`Excluir "${itemParaExcluir.nome}"?`}
+          confirmarLabel="Excluir"
+          tom="perigo"
+          enviando={excluindo}
+          onCancelar={() => setItemParaExcluir(null)}
+          onConfirmar={() => handleExcluir(itemParaExcluir.id)}
         />
       )}
     </div>
