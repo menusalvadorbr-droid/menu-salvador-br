@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { slugify } from '@/lib/utils'
+import { slugify, formatarCep, limparCep, formatarTelefone, limparTelefone } from '@/lib/utils'
 import { atualizarEstabelecimentoAdmin } from './actions'
 
 interface Bairro {
@@ -27,6 +27,8 @@ interface EditarEstabelecimentoAdminFormProps {
     telefone: string | null
     whatsapp: string | null
     instagram: string | null
+    site: string | null
+    email: string | null
     tipo_estabelecimento: string | null
     tipo_logradouro: string | null
     link_google_maps: string | null
@@ -51,6 +53,8 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
   const [telefone, setTelefone] = useState(estabelecimento.telefone || '')
   const [whatsapp, setWhatsapp] = useState(estabelecimento.whatsapp || '')
   const [instagram, setInstagram] = useState(estabelecimento.instagram || '')
+  const [site, setSite] = useState(estabelecimento.site || '')
+  const [email, setEmail] = useState(estabelecimento.email || '')
   const [tipoEstabelecimento, setTipoEstabelecimento] = useState(estabelecimento.tipo_estabelecimento || '')
   const [tipoLogradouro, setTipoLogradouro] = useState(estabelecimento.tipo_logradouro || '')
   const [linkGoogleMaps, setLinkGoogleMaps] = useState(estabelecimento.link_google_maps || '')
@@ -94,14 +98,16 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
         nomeFantasia,
         endereco,
         numero,
-        cep,
+        cep: limparCep(cep),
         bairroId: bairroId || null,
         bairroNome: bairroSelecionado?.nome || '',
         cidade,
         slug,
-        telefone,
-        whatsapp,
+        telefone: limparTelefone(telefone),
+        whatsapp: limparTelefone(whatsapp),
         instagram,
+        site,
+        email,
         tipoEstabelecimento,
         tipoLogradouro,
         linkGoogleMaps,
@@ -216,7 +222,7 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
             <label className="block text-sm font-medium text-neutral-700 mb-1">CEP</label>
             <input
               type="text"
-              value={cep}
+              value={formatarCep(cep)}
               onChange={(e) => setCep(e.target.value)}
               className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
@@ -298,8 +304,9 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
             <label className="block text-sm font-medium text-neutral-700 mb-1">Telefone</label>
             <input
               type="tel"
-              value={telefone}
+              value={formatarTelefone(telefone)}
               onChange={(e) => setTelefone(e.target.value)}
+              placeholder="(71) 9xxxx-xxxx"
               className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
           </div>
@@ -307,18 +314,38 @@ export default function EditarEstabelecimentoAdminForm({ estabelecimento, bairro
             <label className="block text-sm font-medium text-neutral-700 mb-1">WhatsApp</label>
             <input
               type="tel"
-              value={whatsapp}
+              value={formatarTelefone(whatsapp)}
               onChange={(e) => setWhatsapp(e.target.value)}
+              placeholder="(71) 9xxxx-xxxx"
               className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
           </div>
-          <div className="col-span-2">
+          <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Instagram</label>
             <input
               type="text"
               value={instagram}
               onChange={(e) => setInstagram(e.target.value)}
               placeholder="@usuario"
+              className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Site</label>
+            <input
+              type="text"
+              value={site}
+              onChange={(e) => setSite(e.target.value)}
+              placeholder="https://..."
+              className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">E-mail</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
           </div>

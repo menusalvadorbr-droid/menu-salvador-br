@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Clock, Receipt, UtensilsCrossed, AlertTriangle, Play, Square, BarChart3, UserRound } from 'lucide-react'
+import { Clock, Receipt, UtensilsCrossed, AlertTriangle, Play, Square, BarChart3, UserRound, PieChart, MoreVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCaixa } from '../hooks/useCaixa'
 import MesasComContaAberta from './MesasComContaAberta'
@@ -38,6 +38,8 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
   const [valorAbertura, setValorAbertura] = useState(0)
   const [valorFechamento, setValorFechamento] = useState(0)
   const [confirmandoFechamento, setConfirmandoFechamento] = useState(false)
+  const [mostrarResumo, setMostrarResumo] = useState(false)
+  const [menuAcoesAberto, setMenuAcoesAberto] = useState(false)
   const [confirmandoTrocaTela, setConfirmandoTrocaTela] = useState(false)
   const [resultadoFechamento, setResultadoFechamento] = useState<{ diferenca: number } | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -178,16 +180,18 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
 
   return (
     <div className="space-y-4">
-      {/* Barra de status do turno — só o essencial, nada de números de
-          vendas passadas aqui; isso mora no relatório (link abaixo). */}
-      <div className={`flex flex-wrap items-center justify-between gap-3 ${caixaTema.painel} px-5 py-3`}>
-        <div className="flex items-center gap-3">
-          <span className="relative flex h-2.5 w-2.5">
+      {/* Barra de status do turno — uma linha só, sem quebrar. Ações
+          secundárias (Resumo/Relatório/Fechar caixa) atrás de um menu — não
+          competem por espaço nem empurram a altura quando a tela é
+          estreita. */}
+      <div className={`flex items-center justify-between gap-3 ${caixaTema.painel} px-5 py-3`}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </span>
-          <div>
-            <p className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900">
               Caixa aberto
               {turnoLongo && (
                 <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${caixaTema.badgeAlerta}`}>
@@ -207,20 +211,67 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessaoAberta.id}`}
-            className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-emerald-700"
-          >
-            <BarChart3 className="h-3.5 w-3.5" /> Relatório
-          </Link>
+        <div className="relative shrink-0">
           <button
-            onClick={() => setConfirmandoFechamento(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+            onClick={() => setMenuAcoesAberto((v) => !v)}
+            className="rounded-lg p-2 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
+            title="Mais ações"
           >
-            <Square className="h-3.5 w-3.5" /> Fechar caixa
+            <MoreVertical className="h-5 w-5" />
           </button>
+          {menuAcoesAberto && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuAcoesAberto(false)} />
+              <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-neutral-100 bg-white py-1 shadow-lg">
+                <button
+                  onClick={() => { setMostrarResumo(true); setMenuAcoesAberto(false) }}
+                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                >
+                  <PieChart className="h-4 w-4 text-neutral-400" /> Resumo do caixa
+                </button>
+                <Link
+                  href={`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessaoAberta.id}`}
+                  onClick={() => setMenuAcoesAberto(false)}
+                  className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                >
+                  <BarChart3 className="h-4 w-4 text-neutral-400" /> Relatório completo
+                </Link>
+                <button
+                  onClick={() => { setConfirmandoFechamento(true); setMenuAcoesAberto(false) }}
+                  className="flex w-full items-center gap-2 border-t border-neutral-100 px-3.5 py-2.5 text-left text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Square className="h-4 w-4" /> Fechar caixa
+                </button>
+              </div>
+            </>
+          )}
         </div>
+      </div>
+
+      {/* Venda × Mesas são modos de trabalho diferentes, não ações do mesmo
+          peso — abas leves em vez de dois botões gigantes competindo com a
+          ação de confirmar a venda lá dentro. */}
+      <div className="flex gap-1 border-b border-neutral-200">
+        <button
+          onClick={() => setTela('venda')}
+          className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+            tela === 'venda'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-neutral-500 hover:text-neutral-700'
+          }`}
+        >
+          <Receipt className="h-4 w-4" /> Venda
+        </button>
+        <button
+          onClick={handleTrocarParaMesas}
+          className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+            tela === 'mesas'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-neutral-500 hover:text-neutral-700'
+          }`}
+        >
+          <UtensilsCrossed className="h-4 w-4" /> Mesas e pedidos
+        </button>
       </div>
 
       {/* Tela central — limpa: só o que está em uso agora (vender ou
@@ -232,8 +283,9 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
           mesa={null}
           finalizarNoAto
           modo="inline"
-          onPedidoLancado={() => {}}
+          onPedidoLancado={atualizar}
           onSacolaChange={setVendaEmAndamento}
+          caixaSessaoId={sessaoAberta.id}
         />
       ) : (
         <div className="space-y-4">
@@ -254,30 +306,6 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
         </div>
       )}
 
-      {/* Botões de alternância — sempre visíveis, sem precisar rolar a
-          tela pra trocar entre vender e acompanhar mesas. Alinhados à
-          direita (desktop) pra ficar sob a coluna do cardápio, que também
-          fica à direita dentro de LancarPedidoGarcom — não empurram mais
-          a largura toda como um bloco só. */}
-      <div className="sticky bottom-4 z-10 flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <button
-          onClick={() => setTela('venda')}
-          className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition sm:w-56 ${
-            tela === 'venda' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
-          }`}
-        >
-          <Receipt className="h-5 w-5" /> Nova venda
-        </button>
-        <button
-          onClick={handleTrocarParaMesas}
-          className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-bold shadow-lg transition sm:w-56 ${
-            tela === 'mesas' ? caixaTema.botaoVerde : caixaTema.botaoNeutro
-          }`}
-        >
-          <UtensilsCrossed className="h-5 w-5" /> Mesas e pedidos
-        </button>
-      </div>
-
       {confirmandoTrocaTela && (
         <ConfirmarAcaoModal
           titulo="Sair da venda em andamento?"
@@ -290,6 +318,71 @@ export default function PainelCaixa({ estabelecimentoId }: { estabelecimentoId: 
             setTela('mesas')
           }}
         />
+      )}
+
+      {mostrarResumo && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-neutral-900">Resumo do caixa</h2>
+              <button
+                onClick={() => setMostrarResumo(false)}
+                className="rounded-lg px-2 py-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-neutral-400">Turno em andamento — desde {formatarDuracao(sessaoAberta.aberto_em, agoraMs)}</p>
+
+            <dl className="mt-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Vendas</dt>
+                <dd className="font-medium text-neutral-900">{resumo?.vendas.length || 0}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Total em vendas</dt>
+                <dd className="font-medium text-neutral-900">R$ {formatarReais(resumo?.totalVendas || 0)}</dd>
+              </div>
+              {(resumo?.totalDesconto || 0) > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-neutral-500">Descontos concedidos</dt>
+                  <dd className="text-neutral-700">R$ {formatarReais(resumo?.totalDesconto || 0)}</dd>
+                </div>
+              )}
+              {Object.entries(resumo?.porMetodoPagamento || {}).length > 0 && (
+                <div className="space-y-1 border-t border-neutral-100 pt-2">
+                  {Object.entries(resumo?.porMetodoPagamento || {}).map(([metodo, valor]) => (
+                    <div key={metodo} className="flex justify-between text-neutral-600">
+                      <dt>{metodo}</dt>
+                      <dd>R$ {formatarReais(valor)}</dd>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </dl>
+
+            {(resumo?.vendas.length || 0) > 0 && (
+              <div className="mt-4 border-t border-neutral-100 pt-3">
+                <p className="text-xs font-semibold uppercase text-neutral-400">Últimas vendas</p>
+                <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto text-xs">
+                  {(resumo?.vendas || []).slice(0, 8).map((v) => (
+                    <li key={v.id} className="flex justify-between text-neutral-600">
+                      <span>{v.mesa ? `Mesa ${v.mesa}` : v.nomeCliente || 'Balcão'} · {v.formaPagamento || '—'}</span>
+                      <span className="font-medium text-neutral-900">R$ {formatarReais(v.valor)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Link
+              href={`/painel/estabelecimento/${estabelecimentoId}/caixa/${sessaoAberta.id}`}
+              className="mt-4 block text-center text-xs font-medium text-emerald-700 hover:underline"
+            >
+              Ver relatório completo →
+            </Link>
+          </div>
+        </div>
       )}
 
       {confirmandoFechamento && (

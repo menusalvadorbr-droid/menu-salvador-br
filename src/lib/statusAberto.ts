@@ -7,8 +7,8 @@ import { horarioAtualSalvador } from './horarioSalvador'
  */
 interface Horario {
   dia_semana: number;        // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
-  horario_abertura: string;  // formato "HH:MM:SS" (ex: "08:00:00")
-  horario_fechamento: string; // formato "HH:MM:SS" (ex: "22:00:00")
+  horario_abertura: string | null;  // formato "HH:MM:SS" (ex: "08:00:00")
+  horario_fechamento: string | null; // formato "HH:MM:SS" (ex: "22:00:00")
   fechado: boolean;          // true se o estabelecimento está fechado neste dia
 }
 

@@ -48,6 +48,11 @@ export function useSacola(itensIniciais?: ItemSacola[]) {
 
   const limparSacola = useCallback(() => setItens([]), [])
 
+  // Substitui a sacola inteira de uma vez — usado ao retomar uma venda
+  // pausada (o carrinho salvo vira o carrinho atual), diferente de
+  // adicionarItem (que soma item a item numa sacola já em andamento).
+  const substituirItens = useCallback((novosItens: ItemSacola[]) => setItens(novosItens), [])
+
   const total = itens.reduce((acc, item) => acc + precoEfetivo(item) * item.quantidade, 0)
 
   const totalItens = itens.reduce((acc, item) => acc + item.quantidade, 0)
@@ -58,6 +63,7 @@ export function useSacola(itensIniciais?: ItemSacola[]) {
     removerItem,
     alterarQuantidade,
     limparSacola,
+    substituirItens,
     total,
     totalItens,
   }

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatarCep } from '@/lib/utils'
+import { formatarCep, limparCep } from '@/lib/utils'
+import { montarEnderecoCompleto, resolverLinksMapa } from '@/lib/enderecoEstabelecimento'
 import ModalPerfil from './ModalPerfil'
 
 /** Endereço — mesmos campos/consulta de bairros+cidades de
@@ -49,7 +50,7 @@ export default function ModalEditarSobre({
         complemento: complemento || null,
         bairro_id: bairroId || null,
         bairro: nomeBairroEscolhido,
-        cep: cep || null,
+        cep: limparCep(cep) || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', estabelecimento.id)
@@ -66,6 +67,22 @@ export default function ModalEditarSobre({
     .map((c) => ({ cidade: c, bairros: bairros.filter((b) => b.cidade_id === c.id) }))
     .filter((g) => g.bairros.length > 0)
   const bairrosSemCidade = bairros.filter((b) => !b.cidade_id)
+
+  const bairroSelecionado = bairros.find((b) => b.id === bairroId) || null
+  const nomeCidadeSelecionada = cidades.find((c) => c.id === bairroSelecionado?.cidade_id)?.nome || ''
+  const enderecoCompleto = montarEnderecoCompleto(
+    { endereco: logradouro, tipo_logradouro: tipoLogradouro, numero },
+    bairroSelecionado?.nome || null,
+    nomeCidadeSelecionada
+  )
+  const { linkAbrirMapa } = resolverLinksMapa(
+    {
+      link_google_maps: estabelecimento.link_google_maps ?? null,
+      latitude: estabelecimento.latitude ?? null,
+      longitude: estabelecimento.longitude ?? null,
+    },
+    enderecoCompleto
+  )
 
   return (
     <ModalPerfil titulo="Editar endereço" onFechar={onFechar}>
@@ -118,6 +135,21 @@ export default function ModalEditarSobre({
             <input value={formatarCep(cep)} onChange={(e) => setCep(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" />
           </div>
         </div>
+
+        {logradouro.trim() && (
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-xs font-medium text-neutral-500">Endereço completo</p>
+            <p className="text-sm text-neutral-700">{enderecoCompleto}</p>
+            <a
+              href={linkAbrirMapa}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-block text-xs text-orange-600 hover:underline"
+            >
+              Ver no Google Maps →
+            </a>
+          </div>
+        )}
 
         {erro && <p className="text-sm text-red-600">{erro}</p>}
 

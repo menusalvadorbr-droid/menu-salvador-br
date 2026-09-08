@@ -19,8 +19,9 @@ interface Estabelecimento {
   status: string
   foto_capa: string | null
   ativo: boolean | null
+  /** @deprecated coluna solta antiga (denormalizada) — pode divergir do bairro real, use bairros.nome via bairro_id, mantido só como fallback quando o embed não vem */
   bairro: string | null
-  bairros?: { slug: string } | null
+  bairros?: { nome: string; slug: string } | null
   cidades?: { slug: string } | null
   tipos_estabelecimento?: { slug: string } | null
   estabelecimento_tipos_cozinha?: { tipos_cozinha: { nome: string } | null }[] | null
@@ -88,6 +89,10 @@ function statusDe(est: Estabelecimento) {
   return { emAnalise, isAtivo, cor, texto }
 }
 
+function nomeBairroDe(est: Estabelecimento) {
+  return est.bairros?.nome || est.bairro
+}
+
 function culinariasDe(est: Estabelecimento) {
   return (est.estabelecimento_tipos_cozinha || [])
     .map((v) => v.tipos_cozinha?.nome)
@@ -118,6 +123,7 @@ function CardEstabelecimento({
   const nomeExibicao = est.nome_fantasia || est.nome
   const { emAnalise, isAtivo, cor, texto } = statusDe(est)
   const culinarias = culinariasDe(est)
+  const bairro = nomeBairroDe(est)
 
   return (
     <div className="flex overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm transition-shadow duration-300 hover:shadow-md">
@@ -149,7 +155,7 @@ function CardEstabelecimento({
           </div>
 
           <div className="mb-4 space-y-0.5 text-sm text-neutral-500">
-            {est.bairro && <p>{est.bairro}</p>}
+            {bairro && <p>{bairro}</p>}
             {culinarias && <p>{culinarias}</p>}
             <p className="text-xs text-neutral-400">/{est.slug}</p>
           </div>
@@ -205,6 +211,7 @@ function LinhaEstabelecimento({
   const nomeExibicao = est.nome_fantasia || est.nome
   const { emAnalise, isAtivo, cor, texto } = statusDe(est)
   const culinarias = culinariasDe(est)
+  const bairro = nomeBairroDe(est)
 
   return (
     <div className="flex items-center gap-4 rounded-xl border border-black/5 bg-white px-4 py-3 shadow-sm">
@@ -226,7 +233,7 @@ function LinhaEstabelecimento({
           </span>
         </div>
         <p className="truncate text-xs text-neutral-400">
-          {[est.bairro, culinarias].filter(Boolean).join(' · ') || `/${est.slug}`}
+          {[bairro, culinarias].filter(Boolean).join(' · ') || `/${est.slug}`}
         </p>
       </div>
 

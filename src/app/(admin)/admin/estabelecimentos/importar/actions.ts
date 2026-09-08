@@ -32,6 +32,9 @@ interface CriarEstabelecimentoImportadoInput {
   socios: unknown
   telefone: string
   whatsapp: string
+  instagram: string
+  site: string
+  email: string
   bairroId: string | null
   bairroInformado: string | null
   tipoEstabelecimentoId: number
@@ -126,6 +129,9 @@ export async function criarEstabelecimentoImportado(input: CriarEstabelecimentoI
       socios: input.socios ?? null,
       telefone: input.telefone || null,
       whatsapp: input.whatsapp || null,
+      instagram: input.instagram || null,
+      site: input.site || null,
+      email: input.email || null,
       bairro_id: input.bairroId,
       bairro_informado: input.bairroInformado,
       tipo_estabelecimento_id: input.tipoEstabelecimentoId,

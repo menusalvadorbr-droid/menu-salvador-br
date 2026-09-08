@@ -228,7 +228,7 @@ export default function EditorPerfilEspelho({ params }: { params: Promise<{ id: 
                   case 'contato':
                     return (
                       <PontoEditavel key={chave} label="contato" onEditar={() => setModalAberto('contato')}>
-                        <SecaoContato telefone={estabelecimento.telefone} whatsapp={estabelecimento.whatsapp} instagram={estabelecimento.instagram} />
+                        <SecaoContato telefone={estabelecimento.telefone} whatsapp={estabelecimento.whatsapp} instagram={estabelecimento.instagram} site={estabelecimento.site} email={estabelecimento.email} />
                       </PontoEditavel>
                     )
 

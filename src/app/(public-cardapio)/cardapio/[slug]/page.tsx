@@ -281,10 +281,11 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
             heroImagemUrl={temaConfig.hero_imagem_url}
             logoUrl={est.logo_url}
             titulo={tituloCardapio}
-            bairro={est.bairro}
+            bairro={est.bairros?.nome || est.bairro}
             culinaria={culinariaTexto}
             totalItens={totalItens}
             totalCategorias={categorias.length}
+            tipoLogradouro={est.tipo_logradouro}
             endereco={est.endereco}
             numero={est.numero}
             idiomasAtivos={idiomasAtivos}

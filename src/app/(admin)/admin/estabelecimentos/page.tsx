@@ -52,7 +52,7 @@ export default async function AdminEstabelecimentosPage({ searchParams }: PagePr
           descricao="Gerencie todos os estabelecimentos da plataforma"
           acoes={
             <Link
-              href="/admin/estabelecimentos/novo"
+              href="/admin/estabelecimentos/importar"
               className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700"
             >
               + Adicionar estabelecimento

@@ -8,6 +8,7 @@ import { gerarSlug } from '@/lib/slug'
 import { formatarCnpj, validarCnpj, limparCnpj } from '@/lib/cnpj'
 import { enviarClaim, enviarContestacao } from '@/app/claim/actions'
 import type { DadosCnpj } from '@/lib/brasilapi'
+import { montarEnderecoCompleto, resolverLinksMapa } from '@/lib/enderecoEstabelecimento'
 
 interface NovoEstabelecimentoFormProps {
   userId: string
@@ -67,6 +68,16 @@ export default function NovoEstabelecimentoForm({
 
   const cnpjValido = validarCnpj(cnpj)
   const cnpjBloqueado = !!dadosCnpj
+  const nomeBairroSelecionado = bairros.find((b) => b.id === bairroId)?.nome || null
+  const enderecoCompleto = montarEnderecoCompleto(
+    { endereco: logradouro, tipo_logradouro: tipoLogradouro, numero },
+    nomeBairroSelecionado,
+    cidadeNome
+  )
+  const { linkAbrirMapa } = resolverLinksMapa(
+    { link_google_maps: null, latitude: null, longitude: null },
+    enderecoCompleto
+  )
 
   useEffect(() => {
     if (cnpjInicial && validarCnpj(cnpjInicial)) {
@@ -586,6 +597,21 @@ export default function NovoEstabelecimentoForm({
               </p>
             )}
           </div>
+
+          {logradouro.trim() && (
+            <div className="mt-3 rounded-lg bg-neutral-50 border border-neutral-200 p-3">
+              <p className="text-xs font-medium text-neutral-500">Endereço completo</p>
+              <p className="text-sm text-neutral-700">{enderecoCompleto}</p>
+              <a
+                href={linkAbrirMapa}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-xs text-orange-600 hover:underline"
+              >
+                Ver no Google Maps →
+              </a>
+            </div>
+          )}
 
           <p className="text-xs text-gray-400 mt-3">
             Telefone/WhatsApp de contato: os que já estão no seu perfil.

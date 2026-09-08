@@ -17,6 +17,8 @@ interface AtualizarEstabelecimentoAdminInput {
   telefone: string
   whatsapp: string
   instagram: string
+  site: string
+  email: string
   tipoEstabelecimento: string
   tipoLogradouro: string
   linkGoogleMaps: string
@@ -43,7 +45,7 @@ export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecime
 
   const { data: anterior } = await supabase
     .from('estabelecimentos')
-    .select('nome_fantasia, endereco, numero, cep, bairro, bairro_id, cidade, slug, telefone, whatsapp, instagram, tipo_estabelecimento, tipo_cozinha, tipo_logradouro, link_google_maps, latitude, longitude')
+    .select('nome_fantasia, endereco, numero, cep, bairro, bairro_id, cidade, slug, telefone, whatsapp, instagram, site, email, tipo_estabelecimento, tipo_cozinha, tipo_logradouro, link_google_maps, latitude, longitude')
     .eq('id', input.estabelecimentoId)
     .single()
 
@@ -79,6 +81,8 @@ export async function atualizarEstabelecimentoAdmin(input: AtualizarEstabelecime
       telefone: input.telefone || null,
       whatsapp: input.whatsapp || null,
       instagram: input.instagram || null,
+      site: input.site || null,
+      email: input.email || null,
       tipo_estabelecimento: input.tipoEstabelecimento || null,
       tipo_logradouro: input.tipoLogradouro || null,
       link_google_maps: input.linkGoogleMaps || null,

@@ -64,7 +64,7 @@ export default async function PainelPage() {
   //    de vez).
   const { data: estabelecimentos, error } = await supabase
     .from('estabelecimentos')
-    .select('id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, bairros(slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
+    .select('id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, bairros(nome, slug), cidades(slug), tipos_estabelecimento(slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome))')
     .eq('owner_user_id', user.id)
     .neq('status', 'excluido')
     .order('created_at', { ascending: false })
@@ -77,7 +77,7 @@ export default async function PainelPage() {
   //    gerente ou cozinha) — não-donos chegam ao painel por aqui.
   const { data: vinculos, error: vinculosError } = await supabase
     .from('funcionarios')
-    .select('cargo, estabelecimentos:estabelecimento_id (id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, estabelecimento_tipos_cozinha(tipos_cozinha(nome)))')
+    .select('cargo, estabelecimentos:estabelecimento_id (id, nome, nome_fantasia, slug, status, foto_capa, ativo, bairro, bairros(nome, slug), estabelecimento_tipos_cozinha(tipos_cozinha(nome)))')
     .eq('user_id', user.id)
     .eq('ativo', true)
 

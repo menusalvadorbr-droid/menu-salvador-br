@@ -17,6 +17,7 @@ export const ESTILOS_GARCOM = {
     total: 'text-neutral-900',
     botaoPrincipal: 'bg-orange-600 hover:bg-orange-700 text-white',
     botaoToggleAtivo: 'bg-orange-600 text-white',
+    destaque: 'bg-orange-50',
   },
   escuro: {
     ...TEMA_DUAS_PELES.escuro,
@@ -30,6 +31,7 @@ export const ESTILOS_GARCOM = {
     total: 'text-white',
     botaoPrincipal: 'bg-emerald-600 hover:bg-emerald-500 text-white',
     botaoToggleAtivo: 'bg-emerald-600 text-white',
+    destaque: 'bg-emerald-500/10',
   },
 } as const
 

@@ -36,7 +36,7 @@ export default async function AnalisarEstabelecimentoPage({
   const { data: estabelecimento } = await supabaseAdmin
     .from('estabelecimentos')
     .select(
-      'id, nome, nome_fantasia, slug, descricao, endereco, numero, tipo_logradouro, complemento, cep, bairro, bairro_id, cidade, telefone, whatsapp, instagram, tipo_estabelecimento, tipo_cozinha, link_google_maps, latitude, longitude, cnpj, razao_social, owner_user_id, socios, situacao_cadastral, plano_id'
+      'id, nome, nome_fantasia, slug, descricao, endereco, numero, tipo_logradouro, complemento, cep, bairro, bairro_id, cidade, telefone, whatsapp, instagram, site, email, tipo_estabelecimento, tipo_cozinha, link_google_maps, latitude, longitude, cnpj, razao_social, owner_user_id, socios, situacao_cadastral, plano_id'
     )
     .eq('id', id)
     .maybeSingle()

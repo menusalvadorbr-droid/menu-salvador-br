@@ -16,7 +16,10 @@ export interface EstablishmentCardData {
   nome: string
   nome_fantasia?: string | null
   slug?: string | null
+  /** @deprecated coluna solta antiga (denormalizada) — pode divergir do bairro real, use bairros.nome via bairro_id, mantido só como fallback quando o embed não vem */
   bairro?: string | null
+  /** Vem do embed `bairros(nome)` via bairro_id — fonte correta pro nome do bairro. */
+  bairros?: { nome: string } | null
   /** @deprecated coluna solta antiga (denormalizada) — use tipos_estabelecimento via tipo_estabelecimento_id, mantido só como fallback de ícone */
   tipo_estabelecimento?: string | null
   /** Vem do embed `tipos_estabelecimento(nome, slug, icone)` via tipo_estabelecimento_id. */
@@ -62,6 +65,7 @@ export default function EstablishmentCard({
     (estabelecimento.tipo_estabelecimento ? ICONES_TIPO[estabelecimento.tipo_estabelecimento] : null) ||
     '🏪'
   const popular = (estabelecimento.scans_qrcode ?? 0) > 50
+  const nomeBairro = estabelecimento.bairros?.nome || estabelecimento.bairro
 
   // Culinárias reais (até 3, via tabela de junção). Se o embed não veio
   // (chamador antigo que ainda não busca essa relação), cai pro campo
@@ -113,9 +117,9 @@ export default function EstablishmentCard({
         <h3 className="line-clamp-1 text-base font-semibold text-neutral-900 group-hover:text-[var(--brand-primary)]">
           {nome}
         </h3>
-        {estabelecimento.bairro && (
+        {nomeBairro && (
           <p className="flex items-center gap-1 text-xs text-neutral-500">
-            📍 {estabelecimento.bairro}
+            📍 {nomeBairro}
           </p>
         )}
         {cozinhas.length > 0 && (

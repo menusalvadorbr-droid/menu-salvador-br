@@ -10,14 +10,29 @@ import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepositor
 import { useSacola } from '../customer/useSacola'
 import { criarPedido, finalizarVendaImediata, atualizarItensPedido } from '../ordersRepository'
 import { listarCardapioParaGarcom, type CategoriaComItens, type ItemCardapioGarcom } from './cardapioParaGarcom'
-import { METODOS_PAGAMENTO, calcularTroco } from '../components/SeletorFormaPagamento'
+import { calcularTroco } from '../components/SeletorFormaPagamento'
 import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
 import { ESTILOS_GARCOM } from './estilosGarcom'
 import SeletorCardapioGarcom from './SeletorCardapioGarcom'
 import LinhaCarrinhoGarcom from './LinhaCarrinhoGarcom'
 import PainelPagamentoGarcom from './PainelPagamentoGarcom'
+import VendasPausadasBarra from './VendasPausadasBarra'
+import {
+  listarVendasPausadas,
+  pausarVenda as pausarVendaNoBanco,
+  excluirVendaPausada,
+  type VendaBalcaoPausada,
+} from './vendasPausadasRepository'
 import type { Mesa } from '../mesas/types'
 import type { Pedido, TipoPedido } from '../types'
+
+// Fora do componente de propósito — Math.random() dentro do corpo do
+// componente é sinalizado pela regra de pureza do React (mesmo motivo do
+// referenciaPixSeqRef abaixo); só é chamada dentro de um inicializador
+// preguiçoso de useState ou de um handler, nunca durante o render em si.
+function gerarCodigoVenda(): string {
+  return String(Math.floor(Math.random() * 900) + 100)
+}
 
 /**
  * Tela da equipe pra lançar um pedido — usada a partir de uma mesa (mapa
@@ -48,6 +63,7 @@ export default function LancarPedidoGarcom({
   pedidoEmEdicao,
   onPedidoAtualizado,
   onSacolaChange,
+  caixaSessaoId,
 }: {
   estabelecimentoId: string
   mesa: Mesa | null
@@ -69,6 +85,10 @@ export default function LancarPedidoGarcom({
   // "Mesas e pedidos" desmonte esse componente (e todo o estado da venda
   // em andamento junto) sem aviso.
   onSacolaChange?: (temItens: boolean) => void
+  // Sessão de caixa aberta — só usado no modo Caixa (finalizarNoAto), pra
+  // "pausar venda" ficar preso ao turno corrente (ver
+  // vendasPausadasRepository.ts). Sem isso, "Pausar" não aparece.
+  caixaSessaoId?: string
 }) {
   const c = ESTILOS_GARCOM[tema]
   const [categorias, setCategorias] = useState<CategoriaComItens[]>([])
@@ -76,7 +96,11 @@ export default function LancarPedidoGarcom({
   const [enviando, setEnviando] = useState(false)
   const [modoContingencia, setModoContingencia] = useState(false)
   const [vendaConfirmada, setVendaConfirmada] = useState<number | null>(null)
-  const [formaPagamento, setFormaPagamento] = useState<string>(METODOS_PAGAMENTO[0])
+  // Sem valor padrão de propósito — o caixa clicava direto em "Confirmar
+  // venda" achando que já tinha escolhido a forma de pagamento, quando na
+  // verdade era só o primeiro botão pré-marcado. Fica sem seleção até o
+  // operador tocar num método de verdade.
+  const [formaPagamento, setFormaPagamento] = useState<string>('')
   const [valorRecebido, setValorRecebido] = useState('')
   const [tipoDesconto, setTipoDesconto] = useState<TipoDesconto>('valor')
   const [descontoInput, setDescontoInput] = useState('')
@@ -86,7 +110,6 @@ export default function LancarPedidoGarcom({
   // vez, escondido atrás do ícone de lápis pra não poluir a lista com três
   // botões em toda linha o tempo todo.
   const [linhaEmEdicao, setLinhaEmEdicao] = useState<string | null>(null)
-  const [mostrarTodasCategorias, setMostrarTodasCategorias] = useState(false)
   const [dadosPix, setDadosPix] = useState<DadosPixEstabelecimento | null>(null)
   const [pixConfirmado, setPixConfirmado] = useState(false)
   // Referência do BR Code — regenerada a cada início de venda nova (ver
@@ -102,15 +125,136 @@ export default function LancarPedidoGarcom({
   const [confirmandoCancelar, setConfirmandoCancelar] = useState(false)
   const sacola = useSacola(pedidoEmEdicao?.items)
 
+  // Modo Caixa: carrinho (itens + desconto + total) fica SEMPRE visível —
+  // forma de pagamento é uma coluna à parte, que só aparece depois que o
+  // operador toca em "Receber pagamento", pra não disputar espaço na tela
+  // antes disso nem esconder os itens já lançados.
+  const [mostrandoPagamento, setMostrandoPagamento] = useState(false)
+  // Código curto só pra essa venda em andamento (referência rápida entre
+  // caixa/cliente, e pra diferenciar vendas pausadas na tira) — não é o
+  // código oficial do pedido (esse só existe depois de salvo no banco),
+  // por isso gerado aqui mesmo, sem chamada nenhuma.
+  const [codigoVenda, setCodigoVenda] = useState(() => gerarCodigoVenda())
+
+  // "Pausar venda" — só existe no modo Caixa (finalizarNoAto), pra um
+  // operador atender outro cliente sem perder o carrinho em andamento.
+  // Persistido no banco (não só memória) pra sobreviver a um refresh da
+  // aba — ver vendas_balcao_pausadas.
+  const [vendasPausadas, setVendasPausadas] = useState<VendaBalcaoPausada[]>([])
+  const [pausandoVenda, setPausandoVenda] = useState(false)
+  const [nomeClientePausa, setNomeClientePausa] = useState('')
+  const [erroPausar, setErroPausar] = useState<string | null>(null)
+  const [enviandoPausa, setEnviandoPausa] = useState(false)
+  const [retomandoConflito, setRetomandoConflito] = useState<VendaBalcaoPausada | null>(null)
+  const [excluindoPausada, setExcluindoPausada] = useState<VendaBalcaoPausada | null>(null)
+
   useEffect(() => {
     onSacolaChange?.(sacola.itens.length > 0)
   }, [sacola.itens.length, onSacolaChange])
+
+  useEffect(() => {
+    if (!finalizarNoAto || !caixaSessaoId) return
+    listarVendasPausadas(caixaSessaoId).then(setVendasPausadas).catch(() => {})
+  }, [finalizarNoAto, caixaSessaoId])
+
+  function carregarVendaPausadaNaSacola(p: VendaBalcaoPausada) {
+    sacola.substituirItens(p.itens)
+    setTipoDesconto(p.tipo_desconto)
+    setDescontoInput(p.desconto_input || '')
+    setLinhaEmEdicao(null)
+    setPixConfirmado(false)
+    setMostrandoPagamento(false)
+  }
+
+  async function confirmarPausarVenda() {
+    if (!caixaSessaoId || sacola.itens.length === 0) return
+    setEnviandoPausa(true)
+    setErroPausar(null)
+    try {
+      await pausarVendaNoBanco({
+        estabelecimentoId,
+        caixaSessaoId,
+        nomeCliente: nomeClientePausa,
+        itens: sacola.itens,
+        tipoDesconto,
+        descontoInput,
+      })
+      setVendasPausadas(await listarVendasPausadas(caixaSessaoId))
+      sacola.limparSacola()
+      reiniciarVenda()
+      setPausandoVenda(false)
+      setNomeClientePausa('')
+    } catch (err) {
+      setErroPausar(err instanceof Error ? err.message : 'Erro ao pausar venda.')
+    } finally {
+      setEnviandoPausa(false)
+    }
+  }
+
+  async function retomarVendaPausada(p: VendaBalcaoPausada) {
+    if (sacola.itens.length > 0) {
+      setRetomandoConflito(p)
+      return
+    }
+    carregarVendaPausadaNaSacola(p)
+    try {
+      await excluirVendaPausada(p.id)
+      setVendasPausadas((prev) => prev.filter((x) => x.id !== p.id))
+    } catch {
+      // Se a exclusão falhar, a venda retomada continua editável — só fica
+      // duplicada na lista de pausadas até recarregar. Não vale travar o
+      // atendimento por isso.
+    }
+  }
+
+  async function confirmarRetomarComConflito() {
+    if (!retomandoConflito || !caixaSessaoId) return
+    const alvo = retomandoConflito
+    setRetomandoConflito(null)
+    // Pausa a venda atual (sem nome — o operador não tem tempo de digitar
+    // nesse fluxo) antes de carregar a que estava pedindo pra retomar.
+    try {
+      await pausarVendaNoBanco({
+        estabelecimentoId,
+        caixaSessaoId,
+        nomeCliente: '',
+        itens: sacola.itens,
+        tipoDesconto,
+        descontoInput,
+      })
+    } catch {
+      // Segue mesmo se não conseguiu pausar — melhor perder o rastro da
+      // venda atual do que travar o operador no meio do balcão.
+    }
+    carregarVendaPausadaNaSacola(alvo)
+    try {
+      await excluirVendaPausada(alvo.id)
+    } catch {
+      // idem: não trava a retomada por causa disso
+    }
+    if (caixaSessaoId) setVendasPausadas(await listarVendasPausadas(caixaSessaoId).catch(() => []))
+  }
+
+  async function confirmarExcluirPausada() {
+    if (!excluindoPausada) return
+    const alvo = excluindoPausada
+    setExcluindoPausada(null)
+    try {
+      await excluirVendaPausada(alvo.id)
+      setVendasPausadas((prev) => prev.filter((x) => x.id !== alvo.id))
+    } catch (err) {
+      alert(`Não foi possível excluir: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+    }
+  }
 
   function reiniciarVenda() {
     setDescontoInput('')
     setValorRecebido('')
     setLinhaEmEdicao(null)
     setPixConfirmado(false)
+    setFormaPagamento('')
+    setMostrandoPagamento(false)
+    setCodigoVenda(gerarCodigoVenda())
     referenciaPixSeqRef.current += 1
     setReferenciaPix(`venda-${referenciaPixSeqRef.current}`)
   }
@@ -150,7 +294,6 @@ export default function LancarPedidoGarcom({
 
   function executarCancelamento() {
     sacola.limparSacola()
-    setFormaPagamento(METODOS_PAGAMENTO[0])
     reiniciarVenda()
     setConfirmandoCancelar(false)
   }
@@ -179,6 +322,7 @@ export default function LancarPedidoGarcom({
   async function lancarPedido() {
     if (sacola.itens.length === 0) return
     if (trocoInsuficiente) return
+    if (finalizarNoAto && !formaPagamento) return
     if (finalizarNoAto && formaPagamento === 'Pix' && !pixConfirmado) return
     setEnviando(true)
 
@@ -271,12 +415,10 @@ export default function LancarPedidoGarcom({
       categorias={categorias}
       categoriaAtiva={categoriaAtiva}
       buscaItem={buscaItem}
-      mostrarTodasCategorias={mostrarTodasCategorias}
       estilos={c}
       onBuscaItemChange={setBuscaItem}
-      onEscolherCategoria={(id) => { setCategoriaAtiva(id); setMostrarTodasCategorias(false) }}
+      onEscolherCategoria={setCategoriaAtiva}
       onLimparCategoria={() => setCategoriaAtiva(null)}
-      onToggleMostrarTodas={() => setMostrarTodasCategorias((v) => !v)}
       onAdicionarItem={handleAdicionarItem}
     />
   )
@@ -308,28 +450,32 @@ export default function LancarPedidoGarcom({
         // Modo caixa: carrinho sempre visível (esquerda no desktop, embaixo
         // no mobile) mostrando o que já foi lançado e o subtotal ao vivo —
         // a venda só fecha quando o caixa confirma no fim, não item a item.
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:h-full sm:flex-row">
-          <div className={`order-1 min-h-0 flex-1 overflow-y-auto p-4 sm:order-2 sm:h-full ${c.fundoCardapio}`}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <VendasPausadasBarra
+            pausadas={vendasPausadas}
+            onRetomar={retomarVendaPausada}
+            onExcluir={setExcluindoPausada}
+            estilos={c}
+          />
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:h-full sm:flex-row sm:overflow-hidden">
+          <div className={`order-1 min-h-0 flex-1 overflow-y-auto p-4 sm:order-1 sm:h-full ${c.fundoCardapio}`}>
             {seletorCardapio}
           </div>
 
+          {/* Carrinho — sempre visível, itens nunca somem da tela mesmo
+              depois de "Receber pagamento" (só a coluna de pagamento se
+              soma ao lado, não substitui isso aqui). */}
           <div
-            className={`order-2 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-1 sm:h-full sm:w-72 sm:flex-shrink-0 sm:border-r sm:border-t-0 ${c.borda} ${c.modal}`}
+            className={`order-2 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-2 sm:h-full sm:w-72 sm:flex-shrink-0 sm:border-l sm:border-r-0 sm:border-t-0 ${c.borda} ${c.modal}`}
           >
-            <p className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${c.label}`}>🧾 Itens da venda</p>
-            {/* Itens + desconto/pagamento/Pix/totais rolam juntos numa única
-                área — antes eram duas divs irmãs (itens flex-1, resto
-                shrink-0); com o painel Pix ativo o bloco shrink-0 crescia o
-                suficiente pra espremer a lista de itens a praticamente zero
-                de altura dentro da coluna de altura fixa. Cancelar/Confirmar
-                ficam fora, numa faixa shrink-0 própria, sempre visíveis sem
-                precisar rolar. */}
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
-              <div className="space-y-1.5">
-                {sacola.itens.length === 0 ? (
-                  <p className={`text-sm ${c.vazio}`}>Toque num item do cardápio pra adicionar.</p>
-                ) : (
-                  sacola.itens.map((item) => {
+            <p className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${c.label}`}>🧾 Venda #{codigoVenda}</p>
+
+            {sacola.itens.length === 0 ? (
+              <p className={`text-sm ${c.vazio}`}>Toque num item do cardápio pra adicionar.</p>
+            ) : (
+              <>
+                <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto text-sm">
+                  {sacola.itens.map((item) => {
                     const linhaId = item.linhaId || item.id
                     return (
                       <LinhaCarrinhoGarcom
@@ -342,19 +488,107 @@ export default function LancarPedidoGarcom({
                         estilos={c}
                       />
                     )
-                  })
-                )}
-              </div>
+                  })}
+                </div>
 
-              {sacola.itens.length > 0 && (
+                {/* Desconto é dado da venda, não do pagamento em si — fica
+                    junto do carrinho, editável o tempo todo. */}
+                <div className="shrink-0">
+                  <label className={`mb-1 block text-xs font-medium ${c.label}`}>
+                    Desconto <span className="font-normal opacity-70">(opcional)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <div className={`flex overflow-hidden rounded-lg border ${c.borda}`}>
+                      <button
+                        type="button"
+                        onClick={() => setTipoDesconto('valor')}
+                        className={`px-3 py-2 text-sm font-medium transition ${tipoDesconto === 'valor' ? c.botaoToggleAtivo : c.label}`}
+                      >
+                        R$
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoDesconto('percentual')}
+                        className={`px-3 py-2 text-sm font-medium transition ${tipoDesconto === 'percentual' ? c.botaoToggleAtivo : c.label}`}
+                      >
+                        %
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={descontoInput}
+                      onChange={(e) => setDescontoInput(e.target.value)}
+                      placeholder={tipoDesconto === 'percentual' ? 'Ex: 10' : 'Ex: 5,00'}
+                      className={`flex-1 rounded-lg border px-3 py-2 ${c.input}`}
+                    />
+                  </div>
+                </div>
+
+                <div className={`shrink-0 space-y-1 border-t pt-2 text-sm ${c.borda}`}>
+                  <div className={`flex justify-between ${c.label}`}>
+                    <span>Subtotal</span>
+                    <span>R$ {formatarReais(sacola.total)}</span>
+                  </div>
+                  {descontoNum > 0 && (
+                    <div className={`flex justify-between ${c.label}`}>
+                      <span>Desconto</span>
+                      <span>− R$ {formatarReais(descontoNum)}</span>
+                    </div>
+                  )}
+                  <div className={`flex justify-between text-base font-bold ${c.total}`}>
+                    <span>Total</span>
+                    <span>R$ {formatarReais(totalComDesconto)}</span>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex gap-2">
+                  <button
+                    onClick={cancelarVenda}
+                    disabled={enviando}
+                    title="F2 — Cancelar"
+                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50 ${c.borda} ${c.label} ${
+                      tema === 'escuro' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-50'
+                    }`}
+                  >
+                    Cancelar
+                  </button>
+                  {caixaSessaoId && (
+                    <button
+                      onClick={() => setPausandoVenda(true)}
+                      disabled={enviando}
+                      title="Pausar essa venda e atender outro cliente"
+                      className="flex-1 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      ⏸ Pausar
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setMostrandoPagamento((v) => !v)}
+                  className={`shrink-0 rounded-lg py-3 text-base font-bold transition ${
+                    mostrandoPagamento
+                      ? `border ${c.borda} ${c.label} ${tema === 'escuro' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-50'}`
+                      : c.botaoPrincipal
+                  }`}
+                >
+                  {mostrandoPagamento ? '← Voltar ao carrinho' : 'Receber pagamento →'}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Pagamento — só existe depois que o operador decide encerrar a
+              venda, então nunca disputa espaço com o carrinho enquanto ele
+              ainda está montando o pedido. */}
+          {mostrandoPagamento && sacola.itens.length > 0 && (
+            <div
+              className={`order-3 flex min-h-0 flex-col gap-3 border-t p-4 sm:order-3 sm:h-full sm:w-72 sm:flex-shrink-0 sm:border-l sm:border-r-0 sm:border-t-0 ${c.borda} ${c.modal}`}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto">
                 <PainelPagamentoGarcom
-                  subtotal={sacola.total}
-                  descontoNum={descontoNum}
                   totalComDesconto={totalComDesconto}
-                  tipoDesconto={tipoDesconto}
-                  descontoInput={descontoInput}
-                  onTipoDescontoChange={setTipoDesconto}
-                  onDescontoInputChange={setDescontoInput}
+                  descontoNum={descontoNum}
                   formaPagamento={formaPagamento}
                   onFormaPagamentoChange={handleFormaPagamentoChange}
                   valorRecebido={valorRecebido}
@@ -367,31 +601,21 @@ export default function LancarPedidoGarcom({
                   trocoInsuficiente={trocoInsuficiente}
                   estilos={c}
                 />
-              )}
-            </div>
-
-            {sacola.itens.length > 0 && (
-              <div className={`flex shrink-0 gap-2 border-t pt-3 ${c.borda}`}>
-                <button
-                  onClick={cancelarVenda}
-                  disabled={enviando}
-                  title="F2 — Cancelar"
-                  className={`rounded-lg border px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${c.borda} ${c.label} ${
-                    tema === 'escuro' ? 'hover:bg-neutral-800' : 'hover:bg-neutral-50'
-                  }`}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={lancarPedido}
-                  disabled={enviando || trocoInsuficiente || (formaPagamento === 'Pix' && !pixConfirmado)}
-                  title="F10 — Pagamento / Finalizar"
-                  className={`flex-1 rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
-                >
-                  {enviando ? 'Confirmando...' : `Confirmar venda — R$ ${formatarReais(totalComDesconto)}`}
-                </button>
               </div>
-            )}
+              <button
+                onClick={lancarPedido}
+                disabled={enviando || trocoInsuficiente || !formaPagamento || (formaPagamento === 'Pix' && !pixConfirmado)}
+                title="F10 — Pagamento / Finalizar"
+                className={`shrink-0 rounded-lg py-3 text-base font-bold transition disabled:opacity-50 ${c.botaoPrincipal}`}
+              >
+                {enviando
+                  ? 'Confirmando...'
+                  : formaPagamento
+                    ? `Confirmar venda — R$ ${formatarReais(totalComDesconto)}`
+                    : 'Escolha a forma de pagamento'}
+              </button>
+            </div>
+          )}
           </div>
         </div>
       ) : (
@@ -447,6 +671,52 @@ export default function LancarPedidoGarcom({
           tom="perigo"
           onCancelar={() => setConfirmandoCancelar(false)}
           onConfirmar={executarCancelamento}
+        />
+      )}
+
+      {pausandoVenda && (
+        <ConfirmarAcaoModal
+          titulo="Pausar venda"
+          confirmarLabel="Pausar"
+          enviando={enviandoPausa}
+          onCancelar={() => { setPausandoVenda(false); setErroPausar(null) }}
+          onConfirmar={confirmarPausarVenda}
+          descricao={
+            <div className="space-y-2">
+              <p>O carrinho atual fica guardado — pode retomar depois na tira de vendas pausadas.</p>
+              <input
+                type="text"
+                autoFocus
+                value={nomeClientePausa}
+                onChange={(e) => setNomeClientePausa(e.target.value)}
+                placeholder="Nome do cliente (opcional)"
+                className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900"
+              />
+              {erroPausar && <p className="text-sm text-red-600">{erroPausar}</p>}
+            </div>
+          }
+        />
+      )}
+
+      {retomandoConflito && (
+        <ConfirmarAcaoModal
+          titulo="Pausar a venda atual e retomar esta?"
+          descricao="Há uma venda em andamento no carrinho. Ela será pausada automaticamente pra dar lugar à venda que você quer retomar."
+          tom="atencao"
+          confirmarLabel="Pausar e retomar"
+          onCancelar={() => setRetomandoConflito(null)}
+          onConfirmar={confirmarRetomarComConflito}
+        />
+      )}
+
+      {excluindoPausada && (
+        <ConfirmarAcaoModal
+          titulo="Descartar venda pausada?"
+          descricao={`Os itens de "${excluindoPausada.nome_cliente || 'venda sem nome'}" serão perdidos.`}
+          tom="perigo"
+          confirmarLabel="Descartar"
+          onCancelar={() => setExcluindoPausada(null)}
+          onConfirmar={confirmarExcluirPausada}
         />
       )}
     </>

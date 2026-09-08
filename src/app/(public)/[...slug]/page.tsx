@@ -612,7 +612,7 @@ async function EstabelecimentoDetalhes({ est }: { est: any }) {
 
                 case 'contato':
                   return (
-                    <SecaoContato key={chave} telefone={est.telefone} whatsapp={est.whatsapp} instagram={est.instagram} />
+                    <SecaoContato key={chave} telefone={est.telefone} whatsapp={est.whatsapp} instagram={est.instagram} site={est.site} email={est.email} />
                   )
 
                 case 'promocoes':

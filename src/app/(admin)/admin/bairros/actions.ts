@@ -4,15 +4,21 @@ import { checarSuperAdmin } from '@/lib/auth/checarSuperAdmin'
 import { revalidatePath } from 'next/cache'
 import { gerarSlug } from '@/lib/slug'
 
-export async function criarBairro(nome: string, icone: string, cidadeId: string) {
+// Devolve o id do bairro criado — usado pelo cadastro de estabelecimento
+// (CNPJ) pra já apontar pro bairro novo sem precisar recarregar a lista.
+// BairrosManager.tsx (chamador original) ignora o retorno, então isso não
+// muda nada pra quem já usava essa action.
+export async function criarBairro(nome: string, icone: string, cidadeId: string): Promise<{ id: string }> {
   const { supabase, userId } = await checarSuperAdmin()
   const slug = gerarSlug(nome)
 
   if (!cidadeId) throw new Error('Selecione a cidade do bairro.')
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('bairros')
     .insert({ nome: nome.trim(), slug, icone: icone.trim() || null, cidade_id: cidadeId })
+    .select('id')
+    .single()
   if (error) throw new Error(error.message)
 
   await supabase.from('audit_logs').insert({
@@ -24,6 +30,8 @@ export async function criarBairro(nome: string, icone: string, cidadeId: string)
 
   revalidatePath('/admin/bairros')
   revalidatePath('/admin/tipos')
+
+  return { id: data.id }
 }
 
 export async function editarBairro(id: string, nome: string, icone: string, cidadeId: string) {

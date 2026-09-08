@@ -14,6 +14,7 @@ export interface CardapioHeroProps {
   culinaria?: string
   totalItens: number
   totalCategorias: number
+  tipoLogradouro?: string | null
   endereco?: string | null
   numero?: string | null
   idiomasAtivos?: string[]
@@ -46,6 +47,7 @@ export default function CardapioHero({
   culinaria,
   totalItens,
   totalCategorias,
+  tipoLogradouro,
   endereco,
   numero,
   idiomasAtivos = [],
@@ -87,7 +89,11 @@ export default function CardapioHero({
               {totalItens} <TextoInterface chave="itens_label">itens</TextoInterface> · {totalCategorias}{' '}
               <TextoInterface chave="categorias_label">categorias</TextoInterface>
             </p>
-            {endereco && <p className="mt-1 text-xs opacity-60">📍 {[endereco, numero].filter(Boolean).join(', ')}</p>}
+            {endereco && (
+              <p className="mt-1 text-xs opacity-60">
+                📍 {[[tipoLogradouro, endereco].filter(Boolean).join(' '), numero].filter(Boolean).join(', ')}
+              </p>
+            )}
           </div>
         </div>
         <SeletorIdioma idiomasAtivos={idiomasAtivos} />

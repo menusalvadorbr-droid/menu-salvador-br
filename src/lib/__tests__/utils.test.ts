@@ -22,6 +22,12 @@ describe('limparNumeroEndereco', () => {
   it('não mexe em número sem zero à esquerda', () => {
     expect(limparNumeroEndereco('585')).toBe('585')
   })
+
+  it('trata "0"/"00"/"000" como sem número (não é endereço de verdade)', () => {
+    expect(limparNumeroEndereco('0')).toBe('')
+    expect(limparNumeroEndereco('00')).toBe('')
+    expect(limparNumeroEndereco('000')).toBe('')
+  })
 })
 
 describe('formatarCep', () => {
