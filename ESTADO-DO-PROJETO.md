@@ -142,3 +142,19 @@ agir). Já corrigido:
 - Antes de considerar qualquer mudança pronta: `tsc --noEmit`, `eslint` nos
   arquivos tocados, `next build` — nessa ordem, sempre. Refactor de tela
   usada por equipe (garçom/caixa) pede teste ao vivo além disso.
+- Imagem do Cardápio V2 com `<Image>` do Next.js: sempre passar `unoptimized`
+  quando o `src` vier de `getCloudflareImageUrl()` (ver detalhe em
+  `cardapio-v2-visao.md`) — a URL já sai pré-transformada pela Cloudflare, e
+  o hostname não está (nem precisa estar) na whitelist do `next.config.ts`.
+  Esquecer isso não aparece em `tsc`/`eslint`/`build`, só estoura em runtime.
+- Qualquer lógica de dia-da-semana/horário (happy hour, agenda, promoção
+  recorrente) tem que usar `horarioAtualSalvador()`/`dataEmSalvador()`
+  (`src/lib/horarioSalvador.ts`), nunca `Date.getDay()`/`getHours()` direto —
+  o servidor roda em UTC, o negócio é em America/Bahia (UTC-3, sem horário
+  de verão); usar o `Date` local erra o dia/hora em produção.
+- Pra alterar uma constraint (`CHECK` etc.) cujo nome foi auto-gerado pelo
+  Postgres (não tem como saber o nome de antemão), usar um bloco `do $$ ...
+  loop ... drop constraint %I ... end loop; end $$;` sobre
+  `pg_constraint`/`pg_policies` em vez de chutar o nome — ver
+  `supabase/migrations/20260908e_cardapio_v2_ofertas.sql` e
+  `20260828_view_publica_estabelecimentos.sql` (mesmo padrão pra policy).
