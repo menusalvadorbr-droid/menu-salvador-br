@@ -19,6 +19,9 @@ export interface CardapioV2Cardapio {
   info_nutricional_ativado: boolean
   tags_ativado: boolean
   traducao_ativado: boolean
+  // Combos com contador — mesmo padrão de recurso opcional, equivalente
+  // ao promocoes_contador_ativado do V1 (ver 20260908e_cardapio_v2_ofertas.sql).
+  ofertas_ativado: boolean
   // Aparência (Fase 6) — edição direta pelo dono, sem catálogo de temas
   // curado como o V1 tem (ver cardapio-v2-visao.md).
   cor_primaria: string
@@ -37,6 +40,7 @@ export interface RecursosOpcionaisCardapio {
   info_nutricional_ativado: boolean
   tags_ativado: boolean
   traducao_ativado: boolean
+  ofertas_ativado: boolean
 }
 
 export interface AparenciaCardapio {
@@ -110,6 +114,7 @@ export interface CardapioV2RegraExibicao {
   tipo: TipoRegraExibicao
   item_id: string | null
   categoria_id: string | null
+  oferta_id: string | null
   dias_semana: number[] | null
   horario_de: string | null
   horario_ate: string | null
@@ -176,6 +181,37 @@ export interface CardapioV2Publico {
   // (grupos_complemento_ids); resolvido aqui pra quem monta o carrinho não
   // precisar de uma consulta extra por item.
   gruposComplemento: CardapioV2GrupoComplementoResolvido[]
+}
+
+// ── Ofertas (combos) — módulo de promoções, ver cardapio_v2_ofertas na
+// migração 20260908e_cardapio_v2_ofertas.sql. Sem coluna de agendamento
+// nenhuma de propósito: "quando está ativa" é uma linha em
+// cardapio_v2_regras_exibicao (tipo='promocao', oferta_id como dono) —
+// mesmo mecanismo já usado por item/categoria, sem duplicar cálculo de
+// janela numa segunda tabela.
+
+export interface CardapioV2Oferta {
+  id: string
+  estabelecimento_id: string
+  nome: string
+  descricao: string | null
+  foto_url: string | null
+  preco_de: number | null
+  preco_por: number
+  card_largo: boolean
+  ativo: boolean
+  // A partir de quantos minutos antes do fim da janela o contador vira
+  // urgente (âmbar) na tela pública — estilo, não agendamento.
+  alerta_minutos: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CardapioV2OfertaItem {
+  id: string
+  oferta_id: string
+  item_id: string
+  quantidade: number
 }
 
 // ── Payload da RPC transacional (ver migração cardapio_v2_salvar_item) ──

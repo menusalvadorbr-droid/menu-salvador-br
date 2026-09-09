@@ -3,18 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { getCloudflareImageUrl } from '@/lib/cloudflareImage'
 import type { PromocaoCarrossel } from './getPromocoesAtivas'
-
-function otimizarCloudinary(url: string | null, width: number, height: number): string | null {
-  // Só aceita imagens do Cloudinary — qualquer outro domínio (ex: dado de
-  // teste apontando pra Unsplash) é ignorado, porque o next/image exige
-  // que todo domínio externo esteja liberado no next.config.ts, e o
-  // modelo de dados do projeto é Cloudinary-only.
-  if (!url || !url.includes('res.cloudinary.com')) return null
-  const partes = url.split('/upload/')
-  if (partes.length !== 2) return null
-  return `${partes[0]}/upload/q_80,f_auto,c_fill,w_${width},h_${height}/${partes[1]}`
-}
 
 /**
  * Recebe os itens já prontos do servidor (ver getPromocoesAtivas) — só
@@ -114,12 +104,12 @@ export function PromocoesCarrossel({ itens }: { itens: PromocaoCarrossel[] }) {
           {itens.map((item) => (
             <Link
               key={item.id}
-              href={`/cardapio/${item.slug}`}
+              href={`/cardapio-v2/${item.slug}`}
               className="max-w-[280px] min-w-[250px] flex-shrink-0 overflow-hidden rounded-xl bg-white shadow-md transition hover:shadow-lg"
             >
               <div className="relative h-40 bg-neutral-100">
                 {(() => {
-                  const urlImagem = otimizarCloudinary(item.foto_url, 400, 200)
+                  const urlImagem = getCloudflareImageUrl(item.foto_url, { width: 400, height: 200 })
                   return urlImagem ? (
                     <Image
                       src={urlImagem}
@@ -127,6 +117,7 @@ export function PromocoesCarrossel({ itens }: { itens: PromocaoCarrossel[] }) {
                       fill
                       sizes="280px"
                       className="object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-4xl">🍽️</div>

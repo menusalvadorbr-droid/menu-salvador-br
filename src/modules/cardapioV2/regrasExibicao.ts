@@ -1,3 +1,4 @@
+import { horarioAtualSalvador } from '@/lib/horarioSalvador'
 import type { CardapioV2RegraExibicao } from './types'
 
 /**
@@ -10,12 +11,17 @@ import type { CardapioV2RegraExibicao } from './types'
 export function regraEstaNaJanela(regra: CardapioV2RegraExibicao, agora: Date): boolean {
   if (!regra.ativo) return false
 
+  // Sempre no fuso de Salvador, não no fuso de onde o código roda (servidor
+  // da Vercel roda em UTC) — mesmo motivo já documentado em
+  // statusAberto.ts/specialOffers.ts. agora.getDay()/getHours() usava o
+  // fuso de quem executa, o que deixava dia/horário errados em produção.
+  const { diaSemana: diaAtual, minutosDoDia: minutosAgora } = horarioAtualSalvador(agora)
+
   if (regra.dias_semana && regra.dias_semana.length > 0) {
-    if (!regra.dias_semana.includes(agora.getDay())) return false
+    if (!regra.dias_semana.includes(diaAtual)) return false
   }
 
   if (regra.horario_de || regra.horario_ate) {
-    const minutosAgora = agora.getHours() * 60 + agora.getMinutes()
     const [hDe, mDe] = (regra.horario_de ?? '00:00').split(':').map(Number)
     const [hAte, mAte] = (regra.horario_ate ?? '23:59').split(':').map(Number)
     const minutosDe = hDe * 60 + mDe

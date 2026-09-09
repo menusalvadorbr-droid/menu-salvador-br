@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolverEstadoExibicao } from '@/modules/cardapioV2/regrasExibicao'
+import type { CardapioV2RegraExibicao } from '@/modules/cardapioV2/types'
 
 export interface PromocaoCarrossel {
   id: string
@@ -10,53 +12,78 @@ export interface PromocaoCarrossel {
   slug: string
 }
 
+interface ItemComRegraBruto {
+  id: string
+  nome: string
+  preco_base: number
+  foto_url: string | null
+  cardapio_v2_regras_exibicao: CardapioV2RegraExibicao[]
+  cardapio_v2_categorias: {
+    cardapio_v2_cardapios: {
+      estabelecimentos: { nome: string; nome_fantasia: string | null; slug: string } | null
+    } | null
+  } | null
+}
+
 /**
- * Busca as promoções ativas no servidor (junto com o resto dos dados da
- * home, em paralelo) — antes isso era buscado no cliente via useEffect,
- * o que causava um "pulo" visual depois da página já ter carregado e
- * atrasava a exibição da seção sem necessidade.
+ * Busca as promoções ativas do Cardápio V2 (não mais itens_cardapio do
+ * V1) — feito no servidor, junto com o resto da home. Item entra aqui só
+ * se tiver uma regra `tipo='promocao'` ativa (ver
+ * cardapio_v2_regras_exibicao) — a janela de validade (data/dia-da-semana/
+ * horário) é sempre reavaliada aqui via resolverEstadoExibicao, que o V1
+ * nunca chegou a checar (só olhava um status fixo).
  */
 export async function getPromocoesAtivas(): Promise<PromocaoCarrossel[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('itens_cardapio')
-    .select(`
+    .from('cardapio_v2_itens')
+    .select(
+      `
       id,
       nome,
-      preco,
-      preco_promocional,
+      preco_base,
       foto_url,
-      categorias (
-        menus (
+      cardapio_v2_regras_exibicao!inner(*),
+      cardapio_v2_categorias (
+        cardapio_v2_cardapios (
           estabelecimentos ( nome, nome_fantasia, slug )
         )
       )
-    `)
-    .eq('promo_status', 'active')
-    .not('preco_promocional', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(10)
+    `
+    )
+    .eq('ativo', true)
+    .eq('cardapio_v2_regras_exibicao.tipo', 'promocao')
+    .eq('cardapio_v2_regras_exibicao.ativo', true)
+    .order('updated_at', { ascending: false })
+    .limit(30)
 
   if (error || !data) return []
 
-  return data
-    .map((item: any) => {
-      const categoria = Array.isArray(item.categorias) ? item.categorias[0] : item.categorias
-      const menu = Array.isArray(categoria?.menus) ? categoria?.menus[0] : categoria?.menus
-      const estabelecimento = Array.isArray(menu?.estabelecimentos) ? menu?.estabelecimentos[0] : menu?.estabelecimentos
+  const agora = new Date()
+  const resultado: PromocaoCarrossel[] = []
 
-      return {
-        id: item.id,
-        nome: item.nome,
-        preco: item.preco,
-        preco_promocional: item.preco_promocional,
-        foto_url: item.foto_url,
-        nomeEstabelecimento: estabelecimento?.nome_fantasia || estabelecimento?.nome || 'Estabelecimento',
-        slug: estabelecimento?.slug || null,
-      }
-    })
+  for (const item of data as unknown as ItemComRegraBruto[]) {
+    const estado = resolverEstadoExibicao(item.cardapio_v2_regras_exibicao, agora)
+    if (!estado.disponivel || estado.precoPromocional == null) continue
+
+    const estabelecimento = item.cardapio_v2_categorias?.cardapio_v2_cardapios?.estabelecimentos
     // Sem slug não tem como montar link nenhum — melhor não mostrar o
     // card do que mostrar um card que leva pra lugar nenhum.
-    .filter((p): p is PromocaoCarrossel => Boolean(p.slug))
+    if (!estabelecimento?.slug) continue
+
+    resultado.push({
+      id: item.id,
+      nome: item.nome,
+      preco: item.preco_base,
+      preco_promocional: estado.precoPromocional,
+      foto_url: item.foto_url,
+      nomeEstabelecimento: estabelecimento.nome_fantasia || estabelecimento.nome || 'Estabelecimento',
+      slug: estabelecimento.slug,
+    })
+
+    if (resultado.length >= 10) break
+  }
+
+  return resultado
 }

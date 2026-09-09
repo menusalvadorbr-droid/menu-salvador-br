@@ -2,8 +2,10 @@ import { createPublicClient } from '@/lib/supabase/publicServer'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import { buscarCardapioPublico, registrarAcessoQr } from '@/modules/cardapioV2/publicoRepository'
+import { listarOfertasPublicas } from '@/modules/cardapioV2/ofertasRepository'
 import type { CanalCardapioV2 } from '@/modules/cardapioV2/types'
 import CategoriaSecao from '@/components/cardapioV2/CategoriaSecao'
+import SecaoOfertas from '@/components/cardapioV2/SecaoOfertas'
 import NavegacaoCategoriasV2 from '@/components/cardapioV2/NavegacaoCategoriasV2'
 import NavegacaoPilulasV2 from '@/components/cardapioV2/NavegacaoPilulasV2'
 import CarrinhoProvider from '@/modules/pedidos/customer/CarrinhoProvider'
@@ -60,6 +62,7 @@ export default async function CardapioV2Page({ params, searchParams }: PageProps
   const cidadeNome = (Array.isArray(cidadesRel) ? cidadesRel[0]?.nome : cidadesRel?.nome) || null
 
   const cardapioPublico = await buscarCardapioPublico(est.id, canal)
+  const ofertas = cardapioPublico?.cardapio.ofertas_ativado ? await listarOfertasPublicas(est.id) : []
 
   // Insert fire-and-forget — não bloqueia a resposta pro visitante, e uma
   // falha aqui (rede, RLS) não pode derrubar a página de exibição.
@@ -108,6 +111,10 @@ export default async function CardapioV2Page({ params, searchParams }: PageProps
             plano, convive com o ☰ do cabeçalho. */}
         {cardapioPublico && (
           <NavegacaoPilulasV2 categorias={categoriasComItens} corPrimaria={cardapioPublico.cardapio.cor_primaria} corFundo={corFundo} />
+        )}
+
+        {cardapioPublico && ofertas.length > 0 && (
+          <SecaoOfertas ofertas={ofertas} corPrimaria={cardapioPublico.cardapio.cor_primaria} />
         )}
 
         {!cardapioPublico || cardapioPublico.categorias.every((c) => c.itens.length === 0) ? (

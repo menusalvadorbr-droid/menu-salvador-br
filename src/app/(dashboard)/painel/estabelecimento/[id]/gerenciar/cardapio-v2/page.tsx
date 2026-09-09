@@ -2,7 +2,7 @@
 
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FlaskConical, ListChecks, PackagePlus, QrCode, Settings2, Palette } from 'lucide-react'
+import { FlaskConical, ListChecks, PackagePlus, QrCode, Settings2, Palette, Tag } from 'lucide-react'
 import AbasResponsivas from '@/modules/cardapioV2/components/AbasResponsivas'
 import EstadoCarregamento from '../EstadoCarregamento'
 import { useEstabelecimentoGerenciar } from '../useEstabelecimentoGerenciar'
@@ -14,6 +14,7 @@ import GrupoComplementoEditor from '@/modules/cardapioV2/components/GrupoComplem
 import PreviewAoVivo from '@/modules/cardapioV2/components/PreviewAoVivo'
 import QrCodeV2 from '@/modules/cardapioV2/components/QrCodeV2'
 import ConfiguracoesCardapio from '@/modules/cardapioV2/components/ConfiguracoesCardapio'
+import OfertasManager from '@/modules/cardapioV2/components/OfertasManager'
 import AparenciaEditor from '@/modules/cardapioV2/components/AparenciaEditor'
 
 // Cardápio V2 — editor da fase 3 (ver cardapio-v2-visao.md). Reaproveita só
@@ -73,6 +74,20 @@ export default function CardapioV2ModuloPage({ params }: { params: Promise<{ id:
       content: (
         <div className="p-4">
           <GrupoComplementoEditor estabelecimentoId={id} />
+        </div>
+      ),
+    },
+    {
+      id: 'combos',
+      label: 'Combos',
+      icon: <Tag className="h-4 w-4" />,
+      content: (
+        <div className="p-4">
+          {editor.cardapio ? (
+            <OfertasManager estabelecimentoId={id} cardapio={editor.cardapio} onAtualizado={editor.setCardapio} />
+          ) : (
+            <p className="text-sm text-neutral-400">Carregando…</p>
+          )}
         </div>
       ),
     },
