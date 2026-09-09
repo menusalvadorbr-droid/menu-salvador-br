@@ -17,7 +17,7 @@ import {
   type DadosFichaTecnica,
   type DadosItemComposicao,
 } from '../fichaTecnicaRepository'
-import { listarInsumos, listarItensCardapioSimples } from '../estoqueRepository'
+import { listarInsumos, listarItensCardapioV2Simples } from '../estoqueRepository'
 import { converterParaUnidadeDoInsumo, unidadesCompativeisComInsumo, unidadesDaMesmaFamilia } from '../conversaoUnidade'
 import { formatarReais } from '@/lib/moeda'
 import type {
@@ -40,7 +40,7 @@ const UNIDADES: UnidadeInsumo[] = ['un', 'kg', 'g', 'l', 'ml']
 
 const CABECALHO_VAZIO = {
   nome: '',
-  cardapioItemId: '',
+  cardapioV2ItemId: '',
   skuPlu: '',
   categoriaVenda: '',
   tempoPreparoMin: '',
@@ -92,7 +92,7 @@ export default function FichaTecnicaForm({
       if (ficha) {
         setCabecalho({
           nome: ficha.nome,
-          cardapioItemId: ficha.cardapio_item_id || '',
+          cardapioV2ItemId: ficha.cardapio_v2_item_id || '',
           skuPlu: ficha.sku_plu || '',
           categoriaVenda: ficha.categoria_venda || '',
           tempoPreparoMin: ficha.tempo_preparo_min != null ? String(ficha.tempo_preparo_min) : '',
@@ -116,7 +116,7 @@ export default function FichaTecnicaForm({
       setCarregando(true)
       try {
         const [itens, listaInsumos, todasFichas] = await Promise.all([
-          listarItensCardapioSimples(estabelecimentoId),
+          listarItensCardapioV2Simples(estabelecimentoId),
           listarInsumos(estabelecimentoId),
           listarFichasTecnicas(estabelecimentoId),
         ])
@@ -142,7 +142,7 @@ export default function FichaTecnicaForm({
     setSalvandoCabecalho(true)
     setErro(null)
     const dados: DadosFichaTecnica = {
-      cardapioItemId: cabecalho.cardapioItemId || null,
+      cardapioV2ItemId: cabecalho.cardapioV2ItemId || null,
       nome: cabecalho.nome.trim(),
       skuPlu: cabecalho.skuPlu.trim() || null,
       categoriaVenda: cabecalho.categoriaVenda.trim() || null,
@@ -290,8 +290,8 @@ export default function FichaTecnicaForm({
           <label className="flex flex-col gap-1 text-xs text-neutral-500">
             Item do cardápio vinculado
             <select
-              value={cabecalho.cardapioItemId}
-              onChange={(e) => setCabecalho((f) => ({ ...f, cardapioItemId: e.target.value }))}
+              value={cabecalho.cardapioV2ItemId}
+              onChange={(e) => setCabecalho((f) => ({ ...f, cardapioV2ItemId: e.target.value }))}
               className="w-56 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
             >
               <option value="">Nenhum (sub-ficha / preparo interno)</option>

@@ -54,7 +54,11 @@ export type StatusFichaTecnica = 'ativa' | 'inativa'
 export interface FichaTecnica {
   id: string
   estabelecimento_id: string
+  /** @deprecated coluna do Cardápio V1 — mantida só pro atendimento de IA no
+   *  WhatsApp (buildCardapioContext.ts), que ainda lê V1. Ficha nova vincula
+   *  por cardapio_v2_item_id. */
   cardapio_item_id: string | null
+  cardapio_v2_item_id: string | null
   nome: string
   sku_plu: string | null
   categoria_venda: string | null

@@ -3,31 +3,35 @@ import type { Insumo, UnidadeInsumo, Alergeno } from './types'
 import { obterFichaTecnica, listarComposicao } from './fichaTecnicaRepository'
 import { converterUnidadeMetrica, converterParaUnidadeDoInsumo } from './conversaoUnidade'
 
-export async function listarItensCardapioSimples(estabelecimentoId: string) {
+interface CategoriaComItensV2Bruta {
+  nome: string
+  cardapio_v2_itens: { id: string; nome: string }[] | null
+}
+
+/** Lista simples (id/nome/categoria) dos itens do Cardápio V2 pro seletor
+ *  de "item do cardápio vinculado" da ficha técnica — mesmo formato que a
+ *  versão V1 antiga devolvia, só a fonte muda. */
+export async function listarItensCardapioV2Simples(estabelecimentoId: string) {
   const supabase = createClient()
 
-  // Mesmo ajuste já feito em CardapioTab.tsx/cardapioParaGarcom.ts: .single()
-  // exige exatamente 1 linha (quebra com PGRST116 se houver mais de um menu)
-  // e a coluna `ativo` pode nem existir de forma confiável — usa .limit(1) +
-  // primeiro item em vez disso.
-  const { data: menus } = await supabase
-    .from('menus')
+  const { data: cardapios } = await supabase
+    .from('cardapio_v2_cardapios')
     .select('id')
     .eq('estabelecimento_id', estabelecimentoId)
     .order('created_at', { ascending: true })
     .limit(1)
 
-  const menu = menus && menus.length > 0 ? menus[0] : null
-  if (!menu) return []
+  const cardapio = cardapios && cardapios.length > 0 ? cardapios[0] : null
+  if (!cardapio) return []
 
   const { data: categorias } = await supabase
-    .from('categorias')
-    .select('id, nome, itens_cardapio(id, nome)')
-    .eq('menu_id', menu.id)
+    .from('cardapio_v2_categorias')
+    .select('nome, cardapio_v2_itens(id, nome)')
+    .eq('cardapio_id', cardapio.id)
     .order('ordem', { ascending: true })
 
-  return (categorias || []).flatMap((cat: any) =>
-    (cat.itens_cardapio || []).map((item: any) => ({ id: item.id, nome: item.nome, categoria: cat.nome }))
+  return ((categorias ?? []) as unknown as CategoriaComItensV2Bruta[]).flatMap((cat) =>
+    (cat.cardapio_v2_itens || []).map((item) => ({ id: item.id, nome: item.nome, categoria: cat.nome }))
   )
 }
 
@@ -189,7 +193,7 @@ export async function baixarEstoquePorItens(
     const { data: ficha } = await supabase
       .from('fichas_tecnicas')
       .select('id')
-      .eq('cardapio_item_id', item.itemCardapioId)
+      .eq('cardapio_v2_item_id', item.itemCardapioId)
       .maybeSingle()
 
     if (!ficha) continue

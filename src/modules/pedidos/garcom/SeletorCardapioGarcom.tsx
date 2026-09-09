@@ -1,7 +1,18 @@
+import { useState } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { formatarReais } from '@/lib/moeda'
+import SeletorItemModal from '../customer/SeletorItemModal'
+import type { ItemPedido } from '../types'
 import type { CategoriaComItens, ItemCardapioGarcom } from './cardapioParaGarcom'
 import type { EstilosGarcom } from './estilosGarcom'
+
+// Cor do seletor de variação/complemento não segue a aparência configurada
+// pelo dono pro cardápio público — essa tela é ferramenta interna da
+// equipe, mantém a identidade visual do garçom (laranja, ESTILOS_GARCOM),
+// não a marca do estabelecimento.
+const COR_DESTAQUE_SELETOR = '#ea580c'
+
+type ItemParaSacola = Omit<ItemPedido, 'quantidade' | 'linhaId'>
 
 /**
  * Busca + navegação de categorias + lista de itens do cardápio, pra
@@ -33,7 +44,7 @@ export default function SeletorCardapioGarcom({
   onBuscaItemChange: (valor: string) => void
   onEscolherCategoria: (id: string) => void
   onLimparCategoria: () => void
-  onAdicionarItem: (item: ItemCardapioGarcom) => void
+  onAdicionarItem: (item: ItemParaSacola) => void
 }) {
   const termoBusca = buscaItem.trim().toLowerCase()
   const emBusca = termoBusca.length > 0
@@ -97,19 +108,9 @@ export default function SeletorCardapioGarcom({
                 <h3 className={`mb-2 text-xs font-semibold uppercase tracking-wide ${c.categoria}`}>{cat.nome}</h3>
               )}
               <div className="flex flex-col gap-2">
-                {cat.itens.map((item) => {
-                  const preco = item.preco_promocional ?? item.preco
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => onAdicionarItem(item)}
-                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${c.itemBotao}`}
-                    >
-                      <span className={c.itemNome}>{item.nome}</span>
-                      <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco)}</span>
-                    </button>
-                  )
-                })}
+                {cat.itens.map((item) => (
+                  <BotaoItemGarcom key={item.id} item={item} estilos={c} onAdicionarItem={onAdicionarItem} />
+                ))}
               </div>
             </div>
           ))}
@@ -117,6 +118,69 @@ export default function SeletorCardapioGarcom({
             <p className={`py-8 text-center text-sm ${c.vazio}`}>Nenhum item encontrado.</p>
           )}
         </>
+      )}
+    </>
+  )
+}
+
+/**
+ * Um item da lista. Sem variação/complemento, adiciona direto na sacola
+ * (comportamento de sempre). Com qualquer um dos dois, abre o mesmo
+ * SeletorItemModal que o carrinho de delivery do Cardápio V2 já usa — o
+ * garçom nunca teve esse seletor antes (item V1 não suportava customização
+ * nessa tela), diferença real a favor do cardápio novo.
+ */
+function BotaoItemGarcom({
+  item,
+  estilos: c,
+  onAdicionarItem,
+}: {
+  item: ItemCardapioGarcom
+  estilos: EstilosGarcom
+  onAdicionarItem: (item: ItemParaSacola) => void
+}) {
+  const [seletorAberto, setSeletorAberto] = useState(false)
+  const precisaSeletor = item.variacoes.length > 0 || item.grupos.length > 0
+  const preco = item.preco_promocional ?? item.preco
+
+  function handleClick() {
+    if (precisaSeletor) {
+      setSeletorAberto(true)
+      return
+    }
+    onAdicionarItem({ id: item.id, nome: item.nome, preco: item.preco, preco_promocional: item.preco_promocional ?? undefined })
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${c.itemBotao}`}
+      >
+        <span className={c.itemNome}>{item.nome}</span>
+        <span className={`font-semibold ${c.itemPreco}`}>R$ {formatarReais(preco)}</span>
+      </button>
+
+      {seletorAberto && (
+        <SeletorItemModal
+          nome={item.nome}
+          precoBase={item.preco}
+          precoPromocionalBase={item.preco_promocional}
+          variacoes={item.variacoes}
+          grupos={item.grupos}
+          corDestaque={COR_DESTAQUE_SELETOR}
+          onFechar={() => setSeletorAberto(false)}
+          onConfirmar={(selecao) => {
+            onAdicionarItem({
+              id: item.id,
+              nome: item.nome,
+              preco: selecao.preco,
+              variacao: selecao.variacao,
+              complementos: selecao.complementos,
+            })
+            setSeletorAberto(false)
+          }}
+        />
       )}
     </>
   )

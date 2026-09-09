@@ -9,7 +9,7 @@ import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
 import { vincularPedidoASessaoAberta } from '@/modules/financeiro/caixaRepository'
 import { useSacola } from '../customer/useSacola'
 import { criarPedido, finalizarVendaImediata, atualizarItensPedido } from '../ordersRepository'
-import { listarCardapioParaGarcom, type CategoriaComItens, type ItemCardapioGarcom } from './cardapioParaGarcom'
+import { listarCardapioParaGarcom, type CategoriaComItens } from './cardapioParaGarcom'
 import { calcularTroco } from '../components/SeletorFormaPagamento'
 import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
 import { ESTILOS_GARCOM } from './estilosGarcom'
@@ -406,10 +406,6 @@ export default function LancarPedidoGarcom({
     }
   }
 
-  function handleAdicionarItem(item: ItemCardapioGarcom) {
-    sacola.adicionarItem({ id: item.id, nome: item.nome, preco: item.preco, preco_promocional: item.preco_promocional || undefined })
-  }
-
   const seletorCardapio = (
     <SeletorCardapioGarcom
       categorias={categorias}
@@ -419,7 +415,7 @@ export default function LancarPedidoGarcom({
       onBuscaItemChange={setBuscaItem}
       onEscolherCategoria={setCategoriaAtiva}
       onLimparCategoria={() => setCategoriaAtiva(null)}
-      onAdicionarItem={handleAdicionarItem}
+      onAdicionarItem={sacola.adicionarItem}
     />
   )
 

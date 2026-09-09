@@ -32,7 +32,7 @@ export async function obterFichaTecnica(fichaTecnicaId: string): Promise<FichaTe
 }
 
 export interface DadosFichaTecnica {
-  cardapioItemId: string | null
+  cardapioV2ItemId: string | null
   nome: string
   skuPlu: string | null
   categoriaVenda: string | null
@@ -50,7 +50,7 @@ export async function criarFichaTecnica(estabelecimentoId: string, dados: DadosF
     .from('fichas_tecnicas')
     .insert({
       estabelecimento_id: estabelecimentoId,
-      cardapio_item_id: dados.cardapioItemId,
+      cardapio_v2_item_id: dados.cardapioV2ItemId,
       nome: dados.nome,
       sku_plu: dados.skuPlu,
       categoria_venda: dados.categoriaVenda,
@@ -72,7 +72,7 @@ export async function atualizarFichaTecnica(fichaTecnicaId: string, dados: Dados
   const { error } = await supabase
     .from('fichas_tecnicas')
     .update({
-      cardapio_item_id: dados.cardapioItemId,
+      cardapio_v2_item_id: dados.cardapioV2ItemId,
       nome: dados.nome,
       sku_plu: dados.skuPlu,
       categoria_venda: dados.categoriaVenda,
