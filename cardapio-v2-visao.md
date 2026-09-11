@@ -108,7 +108,7 @@ sistema de plano de fato for construído, a mudança acontece inteira dentro des
    primeiro, validar layout e performance)
 3. Editor completo, componentizado, plugando na RPC
 4. Gerar QR do estabelecimento apontando para a rota nova
-5. Piloto com 1 estabelecimento real, rodando em paralelo ao V1
+
 
 - Armazenamento de imagem: Cloudflare R2. Nunca usar Cloudinary no V2.
 - Transformação de imagem (resize, crop, conversão de formato/qualidade): Cloudflare Image Transformations, apontando para a origem no R2. Nunca usar o otimizador de imagem padrão do Vercel/Next.js sem passar por um loader customizado que gere URLs da Cloudflare.
