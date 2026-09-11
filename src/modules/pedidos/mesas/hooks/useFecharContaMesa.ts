@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { listarPedidosAbertosDaMesa, atualizarStatusPedido } from '../../ordersRepository'
 import { baixarEstoquePorItens } from '@/modules/estoque/estoqueRepository'
 import {
@@ -13,6 +14,22 @@ import { atualizarStatusMesa } from '../mesasRepository'
 import type { Pedido } from '../../types'
 import type { Mesa } from '../types'
 
+/** Resolve staff_id -> nome numa consulta só, mesmo padrão já usado no
+ *  demonstrativo do Caixa (caixaRepository.ts) — importante quando o
+ *  estabelecimento tem mais de um garçom, pra saber quem lançou cada
+ *  pedido da mesa. */
+async function resolverNomesFuncionarios(pedidos: Pedido[]): Promise<Record<string, string>> {
+  const ids = Array.from(new Set(pedidos.map((p) => p.staff_id).filter((id): id is string => !!id)))
+  if (ids.length === 0) return {}
+  const supabase = createClient()
+  const { data: perfis } = await supabase.from('profiles').select('id, nome, email').in('id', ids)
+  const nomesPorId: Record<string, string> = {}
+  for (const perfil of perfis || []) {
+    nomesPorId[perfil.id] = perfil.nome || perfil.email || perfil.id
+  }
+  return nomesPorId
+}
+
 /**
  * Fecha a conta de uma mesa — de uma vez só ou em pagamentos parciais.
  * Cada pagamento (parcial ou o que cobre o resto de uma vez) vira uma linha
@@ -23,6 +40,7 @@ import type { Mesa } from '../types'
  */
 export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
+  const [nomesFuncionarios, setNomesFuncionarios] = useState<Record<string, string>>({})
   const [saldo, setSaldo] = useState(0)
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
@@ -44,6 +62,7 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
       setPedidos(listaPedidos)
       setSaldo(saldoInfo.saldo)
       setCaixaAberto(!!sessaoAberta)
+      resolverNomesFuncionarios(listaPedidos).then(setNomesFuncionarios)
     } finally {
       setCarregando(false)
     }
@@ -156,5 +175,5 @@ export function useFecharContaMesa(mesa: Mesa, estabelecimentoId: string) {
     }
   }
 
-  return { pedidos, total, saldo, carregando, enviando, erro, caixaAberto, registrarPagamento, fecharTudo }
+  return { pedidos, nomesFuncionarios, total, saldo, carregando, enviando, erro, caixaAberto, registrarPagamento, fecharTudo }
 }

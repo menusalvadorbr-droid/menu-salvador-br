@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useFecharContaMesa } from '../hooks/useFecharContaMesa'
-import { ETIQUETA_STATUS } from '../../types'
+import { ETIQUETA_STATUS, type Pedido } from '../../types'
 import { calcularDesconto, type TipoDesconto } from '@/lib/desconto'
 import { formatarReais } from '@/lib/moeda'
 import SeletorFormaPagamento, { METODOS_PAGAMENTO, calcularTroco } from '../../components/SeletorFormaPagamento'
@@ -10,6 +10,23 @@ import PainelPixCobranca from '../../components/PainelPixCobranca'
 import { buscarDadosPixEstabelecimento, type DadosPixEstabelecimento } from '@/lib/pix/buscarDadosPixEstabelecimento'
 import { TEMA_DUAS_PELES } from '../../temaDuasPeles'
 import type { Mesa } from '../types'
+
+const fmtHora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+/** Quem lançou o pedido — garçom (resolvido de staff_id, útil quando a casa
+ *  tem mais de um) ou cliente (hoje só um nome livre digitado no checkout,
+ *  não existe conta/identificação de cliente ainda). Isolado numa função só
+ *  pra quando isso mudar (cliente ganhar identificação de verdade) só esse
+ *  branch precisar mudar — o card não sabe de onde o label veio. */
+function quemPediu(pedido: Pedido, nomesFuncionarios: Record<string, string>): { label: string; emoji: string } {
+  if (pedido.origem === 'garcom') {
+    return { label: (pedido.staff_id && nomesFuncionarios[pedido.staff_id]) || 'Garçom', emoji: '🧑‍🍳' }
+  }
+  if (pedido.origem === 'whatsapp_contingencia') {
+    return { label: pedido.nome_cliente || 'Cliente', emoji: '📲' }
+  }
+  return { label: pedido.nome_cliente || 'Cliente', emoji: '📱' }
+}
 
 // Compartilhado com o resto do mapa de mesas (tema="claro", padrão — não
 // mexe no visual de lá). A área de Caixa também usa claro desde que sua
@@ -62,8 +79,9 @@ export default function FecharContaMesaModal({
   tema?: 'claro' | 'escuro'
 }) {
   const c = ESTILOS[tema]
-  const { pedidos, total, saldo, carregando, enviando, erro, caixaAberto, registrarPagamento, fecharTudo } =
+  const { pedidos, nomesFuncionarios, total, saldo, carregando, enviando, erro, caixaAberto, registrarPagamento, fecharTudo } =
     useFecharContaMesa(mesa, estabelecimentoId)
+  const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null)
   const [formaPagamento, setFormaPagamento] = useState<string>(METODOS_PAGAMENTO[0])
   const [valorRecebido, setValorRecebido] = useState('')
   const [nomePagador, setNomePagador] = useState('')
@@ -140,23 +158,42 @@ export default function FecharContaMesaModal({
         ) : (
           <>
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {pedidos.map((pedido) => (
-                <div key={pedido.id} className={`rounded-xl border ${c.cardPedido} p-3`}>
-                  <div className="flex items-center justify-between">
-                    <p className={`text-sm font-medium ${c.nomeCliente}`}>{pedido.nome_cliente || 'Cliente'}</p>
-                    <span className={`text-xs ${c.statusPedido}`}>{ETIQUETA_STATUS[pedido.status]}</span>
+              {pedidos.map((pedido) => {
+                const expandido = pedidoExpandido === pedido.id
+                const quem = quemPediu(pedido, nomesFuncionarios)
+                return (
+                  <div key={pedido.id} className={`rounded-xl border ${c.cardPedido} p-3`}>
+                    <button
+                      onClick={() => setPedidoExpandido(expandido ? null : pedido.id)}
+                      className="flex w-full items-center justify-between gap-2 text-left"
+                    >
+                      <div className="min-w-0">
+                        <p className={`truncate text-sm font-medium ${c.nomeCliente}`}>
+                          {quem.emoji} {quem.label}
+                          <span className={`ml-1.5 font-normal ${c.statusPedido}`}>· {fmtHora(pedido.created_at)}</span>
+                        </p>
+                        {!expandido && <p className={`text-xs ${c.statusPedido}`}>{ETIQUETA_STATUS[pedido.status]}</p>}
+                      </div>
+                      <span className={`flex-shrink-0 text-sm font-semibold ${c.totalPedido}`}>R$ {formatarReais(pedido.total)}</span>
+                    </button>
+                    {expandido && (
+                      <div className="mt-2">
+                        <ul className={`space-y-0.5 text-xs ${c.itemTexto}`}>
+                          {pedido.items.map((item, i) => (
+                            <li key={i} className="flex items-center justify-between gap-3">
+                              <span>{item.quantidade}x {item.nome}</span>
+                              <span className="flex-shrink-0">R$ {formatarReais(item.preco * item.quantidade)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className={`mt-1.5 text-xs ${c.statusPedido}`}>
+                          {pedido.delivered_at ? `✅ Entregue às ${fmtHora(pedido.delivered_at)}` : `${ETIQUETA_STATUS[pedido.status]} — ainda não entregue`}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <ul className={`mt-1 space-y-0.5 text-xs ${c.itemTexto}`}>
-                    {pedido.items.map((item, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3">
-                        <span>{item.quantidade}x {item.nome}</span>
-                        <span className="flex-shrink-0">R$ {formatarReais(item.preco * item.quantidade)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className={`mt-1 text-right text-sm font-semibold ${c.totalPedido}`}>R$ {formatarReais(pedido.total)}</p>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className={`space-y-3 border-t ${c.borda} p-4`}>

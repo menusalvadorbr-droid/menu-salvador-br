@@ -10,11 +10,30 @@ import ConfirmarAcaoModal from '@/components/ConfirmarAcaoModal'
 export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: string }) {
   const { mesas, carregando, adicionar, mudarStatus, remover } = useMesas(estabelecimentoId)
   const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null)
+  const [mesaBloqueada, setMesaBloqueada] = useState<Mesa | null>(null)
   const [mesaFechandoConta, setMesaFechandoConta] = useState<Mesa | null>(null)
   const [confirmandoRemocao, setConfirmandoRemocao] = useState<Mesa | null>(null)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [numeroNovo, setNumeroNovo] = useState('')
   const [capacidadeNova, setCapacidadeNova] = useState('')
+
+  // Mesa reservada/fechada não aceita pedido direto — precisa de um passo
+  // consciente (ocupar) antes, pra não lançar pedido numa mesa que ainda
+  // não tem cliente sentado ou está fora de operação.
+  function handleAbrirMesa(mesa: Mesa) {
+    if (mesa.status === 'reservada' || mesa.status === 'fechada') {
+      setMesaBloqueada(mesa)
+    } else {
+      setMesaSelecionada(mesa)
+    }
+  }
+
+  function handleConfirmarOcupacao() {
+    if (!mesaBloqueada) return
+    mudarStatus(mesaBloqueada.id, 'ocupada')
+    setMesaSelecionada(mesaBloqueada)
+    setMesaBloqueada(null)
+  }
 
   async function handleAdicionar() {
     if (!numeroNovo.trim()) return
@@ -78,7 +97,7 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
               key={mesa.id}
               className={`rounded-xl border p-4 text-center transition ${etiqueta.cor}`}
             >
-              <button onClick={() => setMesaSelecionada(mesa)} className="w-full">
+              <button onClick={() => handleAbrirMesa(mesa)} className="w-full">
                 <div className="text-2xl font-bold">{mesa.numero}</div>
                 {mesa.capacidade && <div className="text-xs opacity-70">{mesa.capacidade} lugares</div>}
                 <div className="mt-1 text-xs font-medium">{etiqueta.label}</div>
@@ -136,6 +155,18 @@ export default function MapaMesas({ estabelecimentoId }: { estabelecimentoId: st
           mesa={mesaFechandoConta}
           onFechar={() => setMesaFechandoConta(null)}
           onContaFechada={() => setMesaFechandoConta(null)}
+        />
+      )}
+
+      {mesaBloqueada && (
+        <ConfirmarAcaoModal
+          tema="claro"
+          tom="atencao"
+          titulo={`Mesa ${mesaBloqueada.status === 'reservada' ? 'reservada' : 'fechada'}`}
+          descricao={`A mesa ${mesaBloqueada.numero} está marcada como ${ETIQUETA_STATUS_MESA[mesaBloqueada.status].label.toLowerCase()}. Ocupar e lançar pedido agora?`}
+          confirmarLabel="Ocupar e lançar pedido"
+          onCancelar={() => setMesaBloqueada(null)}
+          onConfirmar={handleConfirmarOcupacao}
         />
       )}
 
